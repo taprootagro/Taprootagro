@@ -287,6 +287,42 @@ export interface Translations {
     sheathBlight: string;
     brownPlanthopper: string;
   };
+
+  desktopIcon?: {
+    title: string;
+    description: string;
+    bgColor: string;
+    iconText: string;
+    textColor: string;
+    borderEnabled: string;
+    borderColor: string;
+    cornerRadius: string;
+    appNameLabel: string;
+    customIconUrl: string;
+    customIconUrlPlaceholder: string;
+    customIconUrlHint: string;
+    preview: string;
+    homeScreenPreview: string;
+    generate: string;
+    download: string;
+    downloadAll: string;
+    size192: string;
+    size512: string;
+    generateSuccess: string;
+    instructions: string;
+    instructionStep1: string;
+    instructionStep2: string;
+    instructionStep3: string;
+    useCustomImage: string;
+    useTextIcon: string;
+    tips: string;
+    tipApple: string;
+    tipAndroid: string;
+    tipSize: string;
+    resetDefaults: string;
+    tabLabel: string;
+    fontSizeLabel: string;
+  };
 }
 
 // 检测浏览器语言
@@ -573,6 +609,41 @@ const translationsData: Record<Language, Translations> = {
       sheathBlight: 'Sheath Blight',
       brownPlanthopper: 'Brown Planthopper',
     },
+    desktopIcon: {
+      title: 'Desktop Icon',
+      description: 'Customize the icon displayed when users add this app to their phone home screen',
+      bgColor: 'Background Color',
+      iconText: 'Icon Text',
+      textColor: 'Text Color',
+      borderEnabled: 'Show Border',
+      borderColor: 'Border Color',
+      cornerRadius: 'Corner Radius',
+      appNameLabel: 'App Name (below icon)',
+      customIconUrl: 'Custom Icon Image URL',
+      customIconUrlPlaceholder: 'https://example.com/icon.png',
+      customIconUrlHint: 'Use a square PNG image (recommended 512x512 or larger)',
+      preview: 'Preview',
+      homeScreenPreview: 'Home Screen Preview',
+      generate: 'Generate Icon',
+      download: 'Download',
+      downloadAll: 'Download All Sizes',
+      size192: '192x192 (required)',
+      size512: '512x512 (recommended)',
+      generateSuccess: 'Icons generated successfully! Download and place them in the /public/ folder.',
+      instructions: 'How to Apply',
+      instructionStep1: 'Click "Download All Sizes" to get icon-192.png and icon-512.png',
+      instructionStep2: 'Place both files in the /public/ directory of your project',
+      instructionStep3: 'Deploy the app — the new icon will appear when users add to home screen',
+      useCustomImage: 'Use Custom Image',
+      useTextIcon: 'Use Text Icon',
+      tips: 'Tips',
+      tipApple: 'iOS requires PNG format icons (SVG is not supported for home screen)',
+      tipAndroid: 'Android uses the manifest.json icons for the home screen shortcut',
+      tipSize: 'Provide both 192x192 and 512x512 sizes for best compatibility',
+      resetDefaults: 'Reset to Defaults',
+      tabLabel: 'Desktop Icon',
+      fontSizeLabel: 'Font Size',
+    },
   },
   
   zh: {
@@ -824,6 +895,41 @@ const translationsData: Record<Language, Translations> = {
       riceBlast: '稻瘟病',
       sheathBlight: '纹枯病',
       brownPlanthopper: '褐飞虱',
+    },
+    desktopIcon: {
+      title: '桌面图标',
+      description: '自定义用户将应用添加到手��桌面时显示的图标',
+      bgColor: '背景颜色',
+      iconText: '图标文字',
+      textColor: '文字颜色',
+      borderEnabled: '显示边框',
+      borderColor: '边框颜色',
+      cornerRadius: '圆角大小',
+      appNameLabel: '应用名称（图标下方）',
+      customIconUrl: '自定义图标图片链接',
+      customIconUrlPlaceholder: 'https://example.com/icon.png',
+      customIconUrlHint: '请使用正方形 PNG 图片（建议 512x512 或更大）',
+      preview: '预览',
+      homeScreenPreview: '桌面预览效果',
+      generate: '生成图标',
+      download: '下载',
+      downloadAll: '下载全部尺寸',
+      size192: '192x192（必需）',
+      size512: '512x512（推荐）',
+      generateSuccess: '图标生成成功！请下载后放入 /public/ 文件夹。',
+      instructions: '如何应用',
+      instructionStep1: '点击「下载全部尺寸」获取 icon-192.png 和 icon-512.png',
+      instructionStep2: '将两个文件放入项目的 /public/ 目录',
+      instructionStep3: '部署应用 — 用户添加到桌面时将显示新图标',
+      useCustomImage: '使用自定义图片',
+      useTextIcon: '使用文字图标',
+      tips: '提示',
+      tipApple: 'iOS 需要 PNG 格式图标（不支持 SVG 作为桌面图标）',
+      tipAndroid: 'Android 使用 manifest.json 中的图��作为桌面快捷方式',
+      tipSize: '同时提供 192x192 和 512x512 两种尺寸以获得最佳兼容性',
+      resetDefaults: '重置为默认',
+      tabLabel: '桌面图标',
+      fontSizeLabel: '字体大小',
     },
   },
   
@@ -2172,7 +2278,7 @@ const translationsData: Record<Language, Translations> = {
       startDetect: 'Начать Обнаружение',
       detected: 'Обнаружено',
       redetect: 'Перепроверить',
-      demoNote: 'Демо данные · Подключите реальную модель для фактических результатов',
+      demoNote: 'Де��о данные · Подключите реальную модель для фактических результатов',
       noTarget: 'Цели не обнаружены',
       tryClearer: 'Попробуйте сделать более чёткое фото крупным планом',
       retakePhoto: 'Переснять',
@@ -2227,7 +2333,7 @@ const translationsData: Record<Language, Translations> = {
       liveNavigation: 'রিভাজি নেভিগেশন',
       reference: 'সম্পর্ক',
       agriVideos: 'কৃষি ভিডিও',
-      filingNo: 'নিবন্ধন নম্বর',
+      filingNo: 'নিবন্ধন ন���্বর',
     },
     market: {
       title: 'কৃষি বাজার',
@@ -2284,7 +2390,7 @@ const translationsData: Record<Language, Translations> = {
       pendingReceipt: 'অপেক্ষায় রসিদ',
       pendingPayment: 'অপেক্ষায় পেমেন্ট',
       invoiceRecords: 'ইনভয়োイス রেকর্ডস',
-      abnormalFeedback: 'অসাধারণ প্রতিক্রিয়া',
+      abnormalFeedback: 'অসাধারণ প্রতিক্রিয��া',
       aboutUs: 'আমাদের সম্পর্কে',
       logout: 'লগআউট',
       loginPrompt: 'সমস্ত বৈশিষ্ট্য ব্যবহার করতে লগইন করুন',
@@ -2378,7 +2484,7 @@ const translationsData: Record<Language, Translations> = {
       simulatedResults: 'সিমুলেটেড ফলাফল',
       loadFailed: 'লোড ব্যর্থ',
       retry: 'পুনরায় চেষ্টা',
-      noModel: 'ক���ন মডেল পাওয়া যায়নি',
+      noModel: 'ক�����ন মডেল পাওয়া যায়নি',
       noModelDesc: 'ব্যবহারের জন্য প্রশিক্ষিত ONNX মডেল রাখুন',
       step1: 'ONNX মডেল রপ্তানি করুন',
       step2: 'মডেল ফাইল রাখুন',
@@ -3105,7 +3211,7 @@ const translationsData: Record<Language, Translations> = {
       success: '成功',
       close: '關閉',
       newVersionAvailable: '發現新版本',
-      tapToUpdate: '點擊更新獲取最新功能',
+      tapToUpdate: '點擊更新獲取最新���能',
       updating: '更新中...',
       update: '更新',
     },
@@ -3306,6 +3412,41 @@ const translationsData: Record<Language, Translations> = {
       riceBlast: '稻瘟病',
       sheathBlight: '紋枯病',
       brownPlanthopper: '褐飛蝨',
+    },
+    desktopIcon: {
+      title: '桌面圖示',
+      description: '自訂使用者將應用程式新增至手機桌面時顯示的圖示',
+      bgColor: '背景顏色',
+      iconText: '圖示文字',
+      textColor: '文字顏色',
+      borderEnabled: '顯示邊框',
+      borderColor: '邊框顏色',
+      cornerRadius: '圓角大小',
+      appNameLabel: '應用程式名稱（圖示下方）',
+      customIconUrl: '自訂圖示圖片連結',
+      customIconUrlPlaceholder: 'https://example.com/icon.png',
+      customIconUrlHint: '請使用正方形 PNG 圖片（建議 512x512 或更大）',
+      preview: '預覽',
+      homeScreenPreview: '桌面預覽效果',
+      generate: '產生圖示',
+      download: '下載',
+      downloadAll: '下載全部尺寸',
+      size192: '192x192（必要）',
+      size512: '512x512（建議）',
+      generateSuccess: '圖示產生成功！請下載後放入 /public/ 資料夾。',
+      instructions: '如何套用',
+      instructionStep1: '點擊「下載全部尺寸」取得 icon-192.png 和 icon-512.png',
+      instructionStep2: '將兩個檔案放入專案的 /public/ 目錄',
+      instructionStep3: '部署應用程式 — 使用者新增至桌面時將顯示新圖示',
+      useCustomImage: '使用自訂圖片',
+      useTextIcon: '使用文字圖示',
+      tips: '提示',
+      tipApple: 'iOS 需要 PNG 格式圖示（不支援 SVG 作為桌面圖示）',
+      tipAndroid: 'Android 使用 manifest.json 中的圖示作為桌面捷徑',
+      tipSize: '同時提供 192x192 和 512x512 兩種尺寸以獲得最佳相容性',
+      resetDefaults: '重設為預設',
+      tabLabel: '桌面圖示',
+      fontSizeLabel: '字體大小',
     },
   },
   
@@ -3809,7 +3950,7 @@ const translationsData: Record<Language, Translations> = {
       price: 'ราคา',
       addToCart: 'เพิ่มในตะกร้า',
       viewDetails: 'ดูรายละเอียด',
-      searchProducts: 'ค้นหาผลิตภัณฑ์',
+      searchProducts: 'ค้นหาผลิตภั���ฑ์',
       herbicide: 'ยาฆ่าวัชพืช',
       insecticide: 'ยาฆ่าแมลง',
       fungicide: 'ยาฆ่าเชื้อรา',
@@ -4026,7 +4167,7 @@ const translationsData: Record<Language, Translations> = {
       categories: 'အမျိုးအစားများ',
       seeds: 'မျိုးစေ့များ',
       fertilizer: 'ဓာတ်မြေသြဇာ',
-      tools: 'ကိရိယာများ',
+      tools: 'ကိရိယာမျာ��',
       pesticides: 'ပိုးသတ်ဆေးများ',
       featured: 'ထူးခြားသောထုတ်ကုန်များ',
       newArrival: 'ထုတ်ကုန်အသစ်များ',
@@ -4103,7 +4244,7 @@ const translationsData: Record<Language, Translations> = {
       termsOfServiceText: 'By using this application, you agree to these terms and conditions. You are responsible for maintaining account confidentiality. You agree to use the service for lawful purposes only. We reserve the right to modify these terms at any time.',
       version: 'ဗားရှင်း',
       configManager: 'အကြောင်းအရာစီမံခန့်ခွဲမှု',
-      configManagerDesc: 'ဘန်နာများ ဆောင်းပါးများ တိုက်ရိုက်ထုတ်လွှင့်မှုများကို စီမံပါ',
+      configManagerDesc: 'ဘန်နာများ ဆောင်းပါးများ တိုက��ရိုက်ထုတ်လွှင့်မှုများကို စီမံပါ',
     },
     login: {
       title: 'လော့ဂ်အင်ဝင်ရန်',
@@ -4190,7 +4331,7 @@ const translationsData: Record<Language, Translations> = {
       redetect: 'ပြန်ရှာ',
       demoNote: 'သရုပ်ပြဒေတာ · အမှန်တကယ်ရလဒ်များအတွက် တကယ့်မော်ဒယ်ချိတ်ဆက်ပါ',
       noTarget: 'ပစ်မှတ်မတွေ့ပါ',
-      tryClearer: 'ပိုရှင်းသော အနီးကပ်ဓာတ်ပုံရိုက်ကြည့်ပါ',
+      tryClearer: 'ပို���ှင်းသော အနီးကပ်ဓာတ်ပုံရိုက်ကြည့်ပါ',
       retakePhoto: 'ပြန်ရိုက်',
       tomatoLeaf: 'ခရမ်းချဉ်ရွက်',
       cornField: 'ပြောင်းခင်း',
@@ -4748,7 +4889,7 @@ const translationsData: Record<Language, Translations> = {
       pendingReceipt: 'در انتظار دریافت',
       pendingPayment: 'در انتظار پرداخت',
       invoiceRecords: 'سوابق فاکتور',
-      abnormalFeedback: 'بازخورد غیرعادی',
+      abnormalFeedback: 'بازخورد غیرعاد��',
       aboutUs: 'درباره ما',
       logout: 'خروج',
       loginPrompt: 'لطفاً برای استفاده از همه ویژگی‌ها وارد شوید',
@@ -4917,10 +5058,18 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     }
   }, [language]);
 
+  // Merge with English fallback for optional sections (e.g., desktopIcon)
+  const currentT = translationsData[language];
+  const fallbackT = translationsData['en'];
+  const mergedT: Translations = {
+    ...currentT,
+    desktopIcon: currentT.desktopIcon || fallbackT.desktopIcon,
+  };
+
   const value: LanguageContextType = {
     language,
     setLanguage,
-    t: translationsData[language],
+    t: mergedT,
     isRTL: languages[language].rtl || false,
     isChinese: language === 'zh' || language === 'zh-TW',
   };

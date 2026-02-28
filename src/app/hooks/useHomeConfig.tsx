@@ -114,6 +114,20 @@ export interface UserProfileConfig {
   avatar: string;         // 用户头像URL
 }
 
+// 桌面图标配置接口
+export interface DesktopIconConfig {
+  mode: 'text' | 'custom';      // 模式：文字生成 or 自定义图片
+  backgroundColor: string;       // 背景色
+  text: string;                  // 图标文字（如"农"）
+  textColor: string;             // 文字颜色
+  fontSize: number;              // 字体大小比例 (0.4-0.6)
+  borderEnabled: boolean;        // 是否显示边框
+  borderColor: string;           // 边框颜色
+  cornerRadius: number;          // 圆角比例 (0-50%)
+  appName: string;               // 图标下方显示的应用名称
+  customIconUrl: string;         // 自定义图标图片URL
+}
+
 export interface MarketPageConfig {
   categories: MarketCategoryConfig[];
   products: MarketProductConfig[];
@@ -134,6 +148,7 @@ export interface HomePageConfig {
   appBranding: AppBrandingConfig; // 应用品牌
   chatContact: ChatContactConfig; // 聊天联系人
   userProfile: UserProfileConfig; // 个人资料
+  desktopIcon: DesktopIconConfig; // 桌面图标配置
 }
 
 // 默认配置
@@ -567,6 +582,18 @@ const defaultConfig: HomePageConfig = {
   userProfile: {
     name: "Rick",
     avatar: "https://images.unsplash.com/photo-1642919854816-98575cbaefa8?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxzaW1wbGUlMjBsZWFmJTIwc2tldGNoJTIwbWluaW1hbCUyMGRyYXdpbmd8ZW58MXx8fHwxNzcwODU0NDU2fDA&ixlib=rb-4.1.0&q=80&w=1080"
+  },
+  desktopIcon: {
+    mode: 'text',
+    backgroundColor: '#10b981',
+    text: '农',
+    textColor: '#ffffff',
+    fontSize: 0.47,
+    borderEnabled: true,
+    borderColor: '#ffffff',
+    cornerRadius: 20,
+    appName: 'TaprootAgro',
+    customIconUrl: '',
   }
 };
 
@@ -604,7 +631,11 @@ export function useHomeConfig() {
             ...defaultConfig.chatContact,
             ...(parsedConfig.chatContact || {}),
           },
-          userProfile: parsedConfig.userProfile || defaultConfig.userProfile
+          userProfile: parsedConfig.userProfile || defaultConfig.userProfile,
+          desktopIcon: {
+            ...defaultConfig.desktopIcon,
+            ...(parsedConfig.desktopIcon || {}),
+          }
         };
       } catch (e) {
         console.error("Failed to parse config:", e);

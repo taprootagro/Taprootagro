@@ -1,14 +1,20 @@
 import { useNavigate } from "react-router";
-import React, { useState } from "react";
-import { useHomeConfig } from "../hooks/useHomeConfig";
-import { useLanguage } from "../hooks/useLanguage";
-import { ArrowLeft, Plus, Trash2, Save, Edit3 } from "lucide-react";
+import React, { useState, useRef, useCallback, useEffect } from "react";
+import { useHomeConfig, type DesktopIconConfig } from "../hooks/useHomeConfig";
+import { useLanguage, type Translations } from "../hooks/useLanguage";
+import { ArrowLeft, Plus, Trash2, Save, Edit3, Download, RotateCcw, Image, Type, Smartphone, Lock } from "lucide-react";
 
 export default function ConfigManagerPage() {
   const navigate = useNavigate();
   const { config, saveConfig } = useHomeConfig();
   const { t, isChinese } = useLanguage();
-  const [activeTab, setActiveTab] = useState<"banners" | "live" | "articles" | "marketCategories" | "marketProducts" | "marketAd" | "filing" | "aboutUs" | "privacy" | "terms" | "appBranding" | "chatContact" | "userProfile">("banners");
+
+  // 入口密码门禁状态（必须在所有 hooks 之前声明）
+  const [isUnlocked, setIsUnlocked] = useState(false);
+  const [gatePassword, setGatePassword] = useState("");
+  const [gateError, setGateError] = useState(false);
+
+  const [activeTab, setActiveTab] = useState<"banners" | "live" | "articles" | "marketCategories" | "marketProducts" | "marketAd" | "filing" | "aboutUs" | "privacy" | "terms" | "appBranding" | "chatContact" | "userProfile" | "desktopIcon">("banners");
   const [editingItem, setEditingItem] = useState<any>(null);
   const [hasChanges, setHasChanges] = useState(false);
   // 本地工作副本：所有编辑操作只修改此副本，不立即持久化
@@ -20,6 +26,66 @@ export default function ConfigManagerPage() {
 
   // 双语辅助：中文环境显示中文，其他语言显示英文
   const ct = (zh: string, en: string) => isChinese ? zh : en;
+
+  // 入口密码验证
+  const handleGateSubmit = () => {
+    if (gatePassword.toLowerCase() === "taprootagro") {
+      setIsUnlocked(true);
+      setGateError(false);
+    } else {
+      setGateError(true);
+    }
+  };
+
+  // 未解锁时显示密码输入页面
+  if (!isUnlocked) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        {/* 状态栏占位 — standalone 模式下用 safe-area-inset-top 撑开 */}
+        <div className="bg-emerald-600 safe-top flex-shrink-0" />
+        {/* 顶部导航栏 */}
+        <div className="bg-emerald-600 text-white px-4 py-3 flex items-center gap-3">
+          <button onClick={() => navigate("/home/profile")} className="p-1.5 hover:bg-emerald-700 rounded-lg transition-colors flex-shrink-0">
+            <ArrowLeft className="w-4 h-4" />
+          </button>
+          <h1 className="font-semibold text-base sm:text-lg truncate">{ct("内容配置管理", "Content Config Manager")}</h1>
+        </div>
+        {/* 密码输入 */}
+        <div className="flex items-center justify-center px-6" style={{ minHeight: 'calc(100vh - 100px)' }}>
+          <div className="w-full max-w-xs space-y-6 text-center">
+            <div className="w-16 h-16 bg-emerald-100 rounded-2xl flex items-center justify-center mx-auto">
+              <Lock className="w-8 h-8 text-emerald-600" />
+            </div>
+            <div>
+              <input
+                type="password"
+                value={gatePassword}
+                onChange={(e) => { setGatePassword(e.target.value); setGateError(false); }}
+                onKeyDown={(e) => e.key === "Enter" && handleGateSubmit()}
+                autoFocus
+                className={`w-full px-4 py-3 border-2 rounded-xl text-center tracking-widest focus:outline-none transition-colors ${
+                  gateError
+                    ? "border-red-400 bg-red-50 focus:border-red-500"
+                    : "border-gray-200 bg-white focus:border-emerald-500"
+                }`}
+              />
+              {gateError && (
+                <div className="mt-2 flex items-center justify-center">
+                  <span className="w-1.5 h-1.5 bg-red-400 rounded-full animate-pulse" />
+                </div>
+              )}
+            </div>
+            <button
+              onClick={handleGateSubmit}
+              className="w-full py-3 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors"
+            >
+              {ct("进入", "Enter")}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // 处理返回（不再自动保存）
   const handleGoBack = () => {
@@ -89,6 +155,8 @@ export default function ConfigManagerPage() {
         return { name: "", avatar: "", subtitle: "" };
       case "userProfile":
         return { name: "", avatar: "" };
+      case "desktopIcon":
+        return { name: "", iconUrl: "" };
       default:
         return {};
     }
@@ -115,6 +183,7 @@ export default function ConfigManagerPage() {
       case "appBranding": return wc.appBranding ? [wc.appBranding] : [];
       case "chatContact": return wc.chatContact ? [wc.chatContact] : [];
       case "userProfile": return wc.userProfile ? [wc.userProfile] : [];
+      case "desktopIcon": return wc.desktopIcon ? [wc.desktopIcon] : [];
       default: return [];
     }
   };
@@ -170,6 +239,9 @@ export default function ConfigManagerPage() {
         case "userProfile":
           newConfig.userProfile = editingItem;
           break;
+        case "desktopIcon":
+          newConfig.desktopIcon = editingItem;
+          break;
       }
     } else {
       // 添加新项
@@ -212,6 +284,9 @@ export default function ConfigManagerPage() {
           break;
         case "userProfile":
           newConfig.userProfile = editingItem;
+          break;
+        case "desktopIcon":
+          newConfig.desktopIcon = editingItem;
           break;
       }
     }
@@ -266,6 +341,9 @@ export default function ConfigManagerPage() {
         break;
       case "userProfile":
         newConfig.userProfile = { name: "", avatar: "" };
+        break;
+      case "desktopIcon":
+        newConfig.desktopIcon = { name: "", iconUrl: "" };
         break;
     }
 
@@ -357,6 +435,8 @@ export default function ConfigManagerPage() {
         return [ct("姓名", "Name"), ct("头像", "Avatar"), ct("副标题", "Subtitle")];
       case "userProfile":
         return [ct("姓名", "Name"), ct("头像", "Avatar")];
+      case "desktopIcon":
+        return [ct("名称", "Name"), ct("图标URL", "Icon URL")];
       default:
         return [];
     }
@@ -478,6 +558,13 @@ export default function ConfigManagerPage() {
           <>
             <td className="px-3 py-2 text-xs">{item.name}</td>
             <td className="px-3 py-2 text-xs max-w-xs truncate" title={item.avatar}>{item.avatar}</td>
+          </>
+        );
+      case "desktopIcon":
+        return (
+          <>
+            <td className="px-3 py-2 text-xs">{item.name}</td>
+            <td className="px-3 py-2 text-xs max-w-xs truncate" title={item.iconUrl}>{item.iconUrl}</td>
           </>
         );
       default:
@@ -769,6 +856,13 @@ export default function ConfigManagerPage() {
             <InputField label={ct("头像", "Avatar")} value={editingItem.avatar || ""} onChange={(v: string) => setEditingItem({ ...editingItem, avatar: v })} />
           </>
         );
+      case "desktopIcon":
+        return (
+          <>
+            <InputField label={ct("名称", "Name")} value={editingItem.name || ""} onChange={(v: string) => setEditingItem({ ...editingItem, name: v })} />
+            <InputField label={ct("图标URL", "Icon URL")} value={editingItem.iconUrl || ""} onChange={(v: string) => setEditingItem({ ...editingItem, iconUrl: v })} />
+          </>
+        );
       default:
         return null;
     }
@@ -789,16 +883,15 @@ export default function ConfigManagerPage() {
       case "appBranding": return ct("应用品牌", "App Branding");
       case "chatContact": return ct("聊天联系", "Chat Contact");
       case "userProfile": return ct("用户资料", "User Profile");
+      case "desktopIcon": return ct("桌面图标", "Desktop Icon");
       default: return "";
     }
   };
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* 状态栏占位 */}
-      <div className="bg-emerald-600 px-4 py-2 flex-shrink-0">
-        <span className="invisible">0:00</span>
-      </div>
+      {/* 状态栏占位 — standalone 模式下用 safe-area-inset-top 撑开 */}
+      <div className="bg-emerald-600 safe-top flex-shrink-0" />
 
       {/* 顶部导航栏 */}
       <div className="bg-emerald-600 text-white px-4 py-3 flex items-center justify-between sticky top-0 z-40 shadow-lg">
@@ -839,7 +932,8 @@ export default function ConfigManagerPage() {
             { key: "terms", label: ct("服务条款", "Terms") },
             { key: "appBranding", label: ct("应用品牌", "Branding") },
             { key: "chatContact", label: ct("聊天联系", "Chat") },
-            { key: "userProfile", label: ct("用户资料", "Profile") }
+            { key: "userProfile", label: ct("用户资料", "Profile") },
+            { key: "desktopIcon", label: ct("桌面图标", "Desktop Icon") }
           ].map((tab) => (
             <button
               key={tab.key}
@@ -858,32 +952,48 @@ export default function ConfigManagerPage() {
 
       {/* 主内容区 */}
       <div className="p-4 max-w-7xl mx-auto">
-        {/* 操作按钮 */}
-        <div className="mb-4 flex justify-between items-center">
-          <h2 className="text-xl font-semibold text-gray-800">{getTabName(activeTab)} {ct("管理", "Management")}</h2>
-          <button
-            onClick={() => handleAddItem(activeTab)}
-            className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors flex items-center gap-2"
-          >
-            <Plus className="w-4 h-4" />
-            {ct("添加", "Add")}
-          </button>
-        </div>
+        {activeTab === "desktopIcon" ? (
+          <DesktopIconEditor
+            config={workingConfig.desktopIcon}
+            onConfigChange={(newIconConfig) => {
+              const newConfig = JSON.parse(JSON.stringify(workingConfig));
+              newConfig.desktopIcon = newIconConfig;
+              setWorkingConfig(newConfig);
+              setHasChanges(true);
+            }}
+            t={t}
+            ct={ct}
+          />
+        ) : (
+          <>
+            {/* 操作按钮 */}
+            <div className="mb-4 flex justify-between items-center">
+              <h2 className="text-xl font-semibold text-gray-800">{getTabName(activeTab)} {ct("管理", "Management")}</h2>
+              <button
+                onClick={() => handleAddItem(activeTab)}
+                className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors flex items-center gap-2"
+              >
+                <Plus className="w-4 h-4" />
+                {ct("添加", "Add")}
+              </button>
+            </div>
 
-        {/* Excel样式表格 */}
-        {renderTable()}
+            {/* Excel样式表格 */}
+            {renderTable()}
 
-        {/* 提示信息 */}
-        <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <h3 className="font-semibold text-blue-900 mb-2">💡 {ct("使用提示", "Tips")}</h3>
-          <ul className="text-sm text-blue-800 space-y-1">
-            <li>• {ct('点击"编辑"按钮可以修改内容', 'Click the "Edit" button to modify content')}</li>
-            <li>• {ct('点击"添加"按钮可以新增项目', 'Click the "Add" button to create new items')}</li>
-            <li>• {ct('编辑完成后点击右上角"保存"按钮提交更改', 'Click the "Save" button in the top-right to submit changes')}</li>
-            <li>• {ct("保存时需要输入验证码确认，防止误操作", "A confirmation code is required when saving to prevent accidental changes")}</li>
-            <li>• {ct("未保存的更改在离开页面时会提示确认", "You will be prompted to confirm if leaving with unsaved changes")}</li>
-          </ul>
-        </div>
+            {/* 提示信息 */}
+            <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <h3 className="font-semibold text-blue-900 mb-2">💡 {ct("使用提示", "Tips")}</h3>
+              <ul className="text-sm text-blue-800 space-y-1">
+                <li>• {ct('点击"编辑"按钮可以修改内容', 'Click the "Edit" button to modify content')}</li>
+                <li>• {ct('点击"添加"按钮可以新增项目', 'Click the "Add" button to create new items')}</li>
+                <li>• {ct('编辑完成后点击右上角"保存"按钮提交更改', 'Click the "Save" button in the top-right to submit changes')}</li>
+                <li>• {ct("保存时需要输入验证码确认，防止误操作", "A confirmation code is required when saving to prevent accidental changes")}</li>
+                <li>• {ct("未保存的更改在离开页面时会提示确认", "You will be prompted to confirm if leaving with unsaved changes")}</li>
+              </ul>
+            </div>
+          </>
+        )}
       </div>
 
       {/* 编辑对话框 */}
@@ -924,6 +1034,513 @@ export default function ConfigManagerPage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ============================================================
+// Desktop Icon Editor Component
+// ============================================================
+function DesktopIconEditor({
+  config,
+  onConfigChange,
+  t,
+  ct,
+}: {
+  config: DesktopIconConfig;
+  onConfigChange: (c: DesktopIconConfig) => void;
+  t: Translations;
+  ct: (zh: string, en: string) => string;
+}) {
+  const dt = t.desktopIcon!;
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const canvas192Ref = useRef<HTMLCanvasElement>(null);
+  const canvas512Ref = useRef<HTMLCanvasElement>(null);
+  const [customImgLoaded, setCustomImgLoaded] = useState(false);
+  const [customImgError, setCustomImgError] = useState(false);
+
+  const update = (partial: Partial<DesktopIconConfig>) => {
+    onConfigChange({ ...config, ...partial });
+  };
+
+  // Draw the icon on a canvas
+  const drawIcon = useCallback((canvas: HTMLCanvasElement, size: number) => {
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    canvas.width = size;
+    canvas.height = size;
+    ctx.clearRect(0, 0, size, size);
+
+    const r = size * (config.cornerRadius / 100);
+
+    // Draw rounded rect background
+    const drawRoundedRect = (x: number, y: number, w: number, h: number, radius: number) => {
+      ctx.beginPath();
+      ctx.moveTo(x + radius, y);
+      ctx.lineTo(x + w - radius, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + radius);
+      ctx.lineTo(x + w, y + h - radius);
+      ctx.quadraticCurveTo(x + w, y + h, x + w - radius, y + h);
+      ctx.lineTo(x + radius, y + h);
+      ctx.quadraticCurveTo(x, y + h, x, y + h - radius);
+      ctx.lineTo(x, y + radius);
+      ctx.quadraticCurveTo(x, y, x + radius, y);
+      ctx.closePath();
+    };
+
+    // Background
+    drawRoundedRect(0, 0, size, size, r);
+    ctx.fillStyle = config.backgroundColor;
+    ctx.fill();
+
+    // Border
+    if (config.borderEnabled) {
+      const inset = size * 0.052;
+      const innerR = r * 0.85;
+      drawRoundedRect(inset, inset, size - inset * 2, size - inset * 2, innerR);
+      ctx.strokeStyle = config.borderColor;
+      ctx.lineWidth = size * 0.021;
+      ctx.stroke();
+    }
+
+    // Text
+    if (config.mode === 'text' && config.text) {
+      const fontSize = size * config.fontSize;
+      ctx.font = `bold ${fontSize}px "PingFang SC", "Microsoft YaHei", "Noto Sans SC", "Noto Sans", sans-serif`;
+      ctx.fillStyle = config.textColor;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      // Slight vertical offset for CJK characters
+      const yOffset = size * 0.52;
+      ctx.fillText(config.text, size / 2, yOffset);
+    }
+  }, [config]);
+
+  // Draw custom image onto canvas
+  const drawCustomIcon = useCallback((canvas: HTMLCanvasElement, size: number, img: HTMLImageElement) => {
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    canvas.width = size;
+    canvas.height = size;
+    ctx.clearRect(0, 0, size, size);
+
+    const r = size * (config.cornerRadius / 100);
+
+    // Clip to rounded rect
+    ctx.beginPath();
+    ctx.moveTo(r, 0);
+    ctx.lineTo(size - r, 0);
+    ctx.quadraticCurveTo(size, 0, size, r);
+    ctx.lineTo(size, size - r);
+    ctx.quadraticCurveTo(size, size, size - r, size);
+    ctx.lineTo(r, size);
+    ctx.quadraticCurveTo(0, size, 0, size - r);
+    ctx.lineTo(0, r);
+    ctx.quadraticCurveTo(0, 0, r, 0);
+    ctx.closePath();
+    ctx.clip();
+
+    // Draw image cover
+    const imgRatio = img.width / img.height;
+    let sx = 0, sy = 0, sw = img.width, sh = img.height;
+    if (imgRatio > 1) {
+      sw = img.height;
+      sx = (img.width - sw) / 2;
+    } else {
+      sh = img.width;
+      sy = (img.height - sh) / 2;
+    }
+    ctx.drawImage(img, sx, sy, sw, sh, 0, 0, size, size);
+  }, [config.cornerRadius]);
+
+  // Redraw preview
+  useEffect(() => {
+    if (config.mode === 'text') {
+      if (canvasRef.current) drawIcon(canvasRef.current, 192);
+      if (canvas192Ref.current) drawIcon(canvas192Ref.current, 192);
+      if (canvas512Ref.current) drawIcon(canvas512Ref.current, 512);
+    }
+  }, [config, drawIcon]);
+
+  // Load custom image
+  useEffect(() => {
+    if (config.mode === 'custom' && config.customIconUrl) {
+      setCustomImgLoaded(false);
+      setCustomImgError(false);
+      const img = new window.Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        setCustomImgLoaded(true);
+        setCustomImgError(false);
+        if (canvasRef.current) drawCustomIcon(canvasRef.current, 192, img);
+        if (canvas192Ref.current) drawCustomIcon(canvas192Ref.current, 192, img);
+        if (canvas512Ref.current) drawCustomIcon(canvas512Ref.current, 512, img);
+      };
+      img.onerror = () => {
+        setCustomImgError(true);
+        setCustomImgLoaded(false);
+      };
+      img.src = config.customIconUrl;
+    }
+  }, [config.mode, config.customIconUrl, config.cornerRadius, drawCustomIcon]);
+
+  const downloadIcon = (size: 192 | 512) => {
+    const ref = size === 192 ? canvas192Ref : canvas512Ref;
+    if (!ref.current) return;
+    const link = document.createElement('a');
+    link.download = `icon-${size}.png`;
+    link.href = ref.current.toDataURL('image/png');
+    link.click();
+  };
+
+  const downloadAll = () => {
+    downloadIcon(192);
+    setTimeout(() => downloadIcon(512), 300);
+  };
+
+  const resetDefaults = () => {
+    onConfigChange({
+      mode: 'text',
+      backgroundColor: '#10b981',
+      text: '农',
+      textColor: '#ffffff',
+      fontSize: 0.47,
+      borderEnabled: true,
+      borderColor: '#ffffff',
+      cornerRadius: 20,
+      appName: 'TaprootAgro',
+      customIconUrl: '',
+    });
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex justify-between items-start">
+        <div>
+          <h2 className="text-xl font-semibold text-gray-800">{dt.title}</h2>
+          <p className="text-sm text-gray-500 mt-1">{dt.description}</p>
+        </div>
+        <button
+          onClick={resetDefaults}
+          className="px-3 py-1.5 text-sm text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg flex items-center gap-1.5 transition-colors"
+        >
+          <RotateCcw className="w-3.5 h-3.5" />
+          {dt.resetDefaults}
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Left: Settings */}
+        <div className="space-y-4">
+          {/* Mode Toggle */}
+          <div className="bg-white rounded-xl border border-gray-200 p-4">
+            <div className="flex gap-2">
+              <button
+                onClick={() => update({ mode: 'text' })}
+                className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg transition-colors text-sm ${
+                  config.mode === 'text'
+                    ? 'bg-emerald-600 text-white'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                <Type className="w-4 h-4" />
+                {dt.useTextIcon}
+              </button>
+              <button
+                onClick={() => update({ mode: 'custom' })}
+                className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg transition-colors text-sm ${
+                  config.mode === 'custom'
+                    ? 'bg-emerald-600 text-white'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                <Image className="w-4 h-4" />
+                {dt.useCustomImage}
+              </button>
+            </div>
+          </div>
+
+          {/* Text Mode Settings */}
+          {config.mode === 'text' && (
+            <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-4">
+              {/* Icon Text */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{dt.iconText}</label>
+                <input
+                  type="text"
+                  value={config.text}
+                  onChange={(e) => update({ text: e.target.value })}
+                  maxLength={4}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                />
+              </div>
+
+              {/* Font Size */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  {dt.fontSizeLabel}: {Math.round(config.fontSize * 100)}%
+                </label>
+                <input
+                  type="range"
+                  min="0.25"
+                  max="0.65"
+                  step="0.01"
+                  value={config.fontSize}
+                  onChange={(e) => update({ fontSize: parseFloat(e.target.value) })}
+                  className="w-full accent-emerald-600"
+                />
+              </div>
+
+              {/* Colors Row */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{dt.bgColor}</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={config.backgroundColor}
+                      onChange={(e) => update({ backgroundColor: e.target.value })}
+                      className="w-10 h-10 rounded-lg border border-gray-300 cursor-pointer p-0.5"
+                    />
+                    <input
+                      type="text"
+                      value={config.backgroundColor}
+                      onChange={(e) => update({ backgroundColor: e.target.value })}
+                      className="flex-1 px-2 py-1.5 text-xs border border-gray-300 rounded-lg font-mono"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{dt.textColor}</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={config.textColor}
+                      onChange={(e) => update({ textColor: e.target.value })}
+                      className="w-10 h-10 rounded-lg border border-gray-300 cursor-pointer p-0.5"
+                    />
+                    <input
+                      type="text"
+                      value={config.textColor}
+                      onChange={(e) => update({ textColor: e.target.value })}
+                      className="flex-1 px-2 py-1.5 text-xs border border-gray-300 rounded-lg font-mono"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Border */}
+              <div className="space-y-3">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={config.borderEnabled}
+                    onChange={(e) => update({ borderEnabled: e.target.checked })}
+                    className="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-500"
+                  />
+                  <span className="text-sm font-medium text-gray-700">{dt.borderEnabled}</span>
+                </label>
+                {config.borderEnabled && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{dt.borderColor}</label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={config.borderColor}
+                        onChange={(e) => update({ borderColor: e.target.value })}
+                        className="w-10 h-10 rounded-lg border border-gray-300 cursor-pointer p-0.5"
+                      />
+                      <input
+                        type="text"
+                        value={config.borderColor}
+                        onChange={(e) => update({ borderColor: e.target.value })}
+                        className="flex-1 px-2 py-1.5 text-xs border border-gray-300 rounded-lg font-mono"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Corner Radius */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  {dt.cornerRadius}: {config.cornerRadius}%
+                </label>
+                <input
+                  type="range"
+                  min="0"
+                  max="50"
+                  step="1"
+                  value={config.cornerRadius}
+                  onChange={(e) => update({ cornerRadius: parseInt(e.target.value) })}
+                  className="w-full accent-emerald-600"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Custom Image Mode */}
+          {config.mode === 'custom' && (
+            <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{dt.customIconUrl}</label>
+                <input
+                  type="text"
+                  value={config.customIconUrl}
+                  onChange={(e) => update({ customIconUrl: e.target.value })}
+                  placeholder={dt.customIconUrlPlaceholder}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                />
+                <p className="mt-1 text-xs text-gray-500">{dt.customIconUrlHint}</p>
+                {customImgError && (
+                  <p className="mt-1 text-xs text-red-500">{t.common.error}</p>
+                )}
+              </div>
+
+              {/* Corner Radius (also available for custom) */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  {dt.cornerRadius}: {config.cornerRadius}%
+                </label>
+                <input
+                  type="range"
+                  min="0"
+                  max="50"
+                  step="1"
+                  value={config.cornerRadius}
+                  onChange={(e) => update({ cornerRadius: parseInt(e.target.value) })}
+                  className="w-full accent-emerald-600"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* App Name */}
+          <div className="bg-white rounded-xl border border-gray-200 p-4">
+            <label className="block text-sm font-medium text-gray-700 mb-1">{dt.appNameLabel}</label>
+            <input
+              type="text"
+              value={config.appName}
+              onChange={(e) => update({ appName: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+            />
+          </div>
+        </div>
+
+        {/* Right: Preview & Download */}
+        <div className="space-y-4">
+          {/* Home Screen Preview */}
+          <div className="bg-white rounded-xl border border-gray-200 p-4">
+            <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+              <Smartphone className="w-4 h-4" />
+              {dt.homeScreenPreview}
+            </h3>
+            <div className="flex justify-center">
+              <div 
+                className="rounded-3xl p-6 shadow-inner"
+                style={{ 
+                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  width: '240px',
+                }}
+              >
+                {/* Simulated home screen grid */}
+                <div className="grid grid-cols-4 gap-3">
+                  {/* Placeholder app icons */}
+                  {[...Array(7)].map((_, i) => (
+                    <div key={i} className="flex flex-col items-center gap-1">
+                      <div 
+                        className="w-12 h-12 rounded-xl"
+                        style={{ background: `hsl(${i * 50 + 200}, 40%, 65%)` }}
+                      />
+                      <span className="text-[8px] text-white/70 truncate w-12 text-center">App</span>
+                    </div>
+                  ))}
+                  {/* Our icon */}
+                  <div className="flex flex-col items-center gap-1">
+                    <canvas
+                      ref={canvasRef}
+                      className="w-12 h-12"
+                      style={{ borderRadius: `${config.cornerRadius * 0.12}px` }}
+                    />
+                    <span className="text-[8px] text-white truncate w-14 text-center font-medium">
+                      {config.appName || 'App'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Download Section */}
+          <div className="bg-white rounded-xl border border-gray-200 p-4">
+            <h3 className="text-sm font-semibold text-gray-700 mb-3">{dt.download}</h3>
+            
+            <div className="space-y-3">
+              {/* 192x192 */}
+              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <canvas ref={canvas192Ref} className="w-10 h-10 rounded-lg shadow-sm" />
+                  <span className="text-sm text-gray-700">{dt.size192}</span>
+                </div>
+                <button
+                  onClick={() => downloadIcon(192)}
+                  className="px-3 py-1.5 text-xs bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors flex items-center gap-1"
+                >
+                  <Download className="w-3 h-3" />
+                  PNG
+                </button>
+              </div>
+
+              {/* 512x512 */}
+              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <canvas ref={canvas512Ref} className="w-10 h-10 rounded-lg shadow-sm" />
+                  <span className="text-sm text-gray-700">{dt.size512}</span>
+                </div>
+                <button
+                  onClick={() => downloadIcon(512)}
+                  className="px-3 py-1.5 text-xs bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors flex items-center gap-1"
+                >
+                  <Download className="w-3 h-3" />
+                  PNG
+                </button>
+              </div>
+
+              {/* Download All */}
+              <button
+                onClick={downloadAll}
+                className="w-full py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2 text-sm"
+              >
+                <Download className="w-4 h-4" />
+                {dt.downloadAll}
+              </button>
+            </div>
+          </div>
+
+          {/* Instructions */}
+          <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
+            <h3 className="text-sm font-semibold text-emerald-900 mb-2">{dt.instructions}</h3>
+            <ol className="text-xs text-emerald-800 space-y-1.5 list-decimal list-inside">
+              <li>{dt.instructionStep1}</li>
+              <li>{dt.instructionStep2}</li>
+              <li>{dt.instructionStep3}</li>
+            </ol>
+          </div>
+
+          {/* Tips */}
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+            <h3 className="text-sm font-semibold text-blue-900 mb-2">{dt.tips}</h3>
+            <ul className="text-xs text-blue-800 space-y-1">
+              <li>• {dt.tipApple}</li>
+              <li>• {dt.tipAndroid}</li>
+              <li>• {dt.tipSize}</li>
+            </ul>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

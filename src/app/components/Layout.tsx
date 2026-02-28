@@ -41,20 +41,18 @@ export function Layout() {
   ];
 
   return (
-    <div className="h-full w-full flex flex-col" style={{ backgroundColor: 'var(--app-bg)' }}>
-      {/* 状态栏占位 */}
-      <div className="bg-emerald-600 px-4 py-2 flex-shrink-0">
-        <span className="invisible">0:00</span>
-      </div>
+    <div className="h-full w-full flex flex-col overflow-hidden" style={{ backgroundColor: 'var(--app-bg)' }}>
+      {/* 状态栏占位 — standalone 模式下用 safe-area-inset-top 撇开 */}
+      <div className="bg-emerald-600 safe-top flex-shrink-0" />
 
       {/* 主内容 */}
-      <main className="flex-1 overflow-y-auto overflow-x-hidden">
+      <main className="flex-1 overflow-y-auto overflow-x-hidden overscroll-none">
         <Outlet />
       </main>
 
       {/* 底部导航 */}
-      <nav className="flex-shrink-0 bg-white border-t border-gray-200 safe-area-inset-bottom shadow-lg">
-        <div className="flex justify-around items-center py-1.5 px-2">
+      <nav className="flex-shrink-0 bg-white border-t border-gray-200 shadow-lg safe-bottom">
+        <div className="flex justify-around items-center py-3 px-2">
           {navItems.map((item) => {
             const isActive = location.pathname === item.path;
             const Icon = item.icon;

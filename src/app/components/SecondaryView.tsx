@@ -28,17 +28,15 @@ export function SecondaryView({ children, onClose, title, showTitle = true }: Se
 
   return (
     <div 
-      className={`fixed inset-0 bg-white z-50 flex flex-col transition-opacity duration-75 ease-in ${
+      className={`fixed inset-0 bg-white z-50 flex flex-col transition-opacity duration-75 ease-in overflow-hidden ${
         isVisible ? 'opacity-100' : 'opacity-0'
       }`}
     >
-      {/* 状态栏占位 */}
-      <div className="bg-emerald-600 px-4 py-2 flex-shrink-0">
-        <span className="invisible">0:00</span>
-      </div>
+      {/* 状态栏占位 — standalone 模式下用 safe-area-inset-top 撇开 */}
+      <div className="bg-emerald-600 safe-top flex-shrink-0" />
 
       {/* 内容区域 */}
-      <div className="flex-1 overflow-y-auto bg-white">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden bg-white overscroll-none">
         {/* 可选标题栏 */}
         {showTitle && title && (
           <div 
@@ -64,7 +62,7 @@ export function SecondaryView({ children, onClose, title, showTitle = true }: Se
       </div>
 
       {/* Dock栏 - 只显示红色叉号 */}
-      <nav className="flex-shrink-0 bg-white border-t border-gray-200 safe-area-inset-bottom">
+      <nav className="flex-shrink-0 bg-white border-t border-gray-200 safe-bottom">
         <div className="flex justify-center items-center py-2">
           <button
             onClick={handleClose}

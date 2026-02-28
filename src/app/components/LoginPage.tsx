@@ -37,15 +37,13 @@ export function LoginPage() {
 
   return (
     <div className="min-h-full bg-white flex flex-col px-[5vw] py-[2vh] relative overflow-y-auto">
-      {/* 状态栏占位 */}
-      <div className="bg-white px-4 py-2 flex-shrink-0 -mx-[5vw] -mt-[2vh]">
-        <span className="invisible">0:00</span>
-      </div>
+      {/* 状态栏占位 — standalone 模式下用 safe-area-inset-top 撑开 */}
+      <div className="bg-emerald-600 safe-top flex-shrink-0 -mx-[5vw] -mt-[2vh]" />
 
       <button
         onClick={() => navigate("/home")}
-        className="absolute top-[calc(2vh+28px)] right-[3vw] text-gray-600 active:bg-gray-200 p-[1vw] rounded-full transition-colors touch-manipulation z-10"
-        style={{ width: 'clamp(20px, 7vw, 32px)', height: 'clamp(20px, 7vw, 32px)' }}
+        className="absolute right-[3vw] text-gray-600 active:bg-gray-200 p-[1vw] rounded-full transition-colors touch-manipulation z-10"
+        style={{ top: 'calc(env(safe-area-inset-top, 0px) + 2vh + 8px)', width: 'clamp(20px, 7vw, 32px)', height: 'clamp(20px, 7vw, 32px)' }}
       >
         <X style={{ width: '100%', height: '100%' }} />
       </button>

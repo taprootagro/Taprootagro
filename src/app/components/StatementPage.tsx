@@ -162,7 +162,7 @@ export function StatementPage({ onClose }: StatementPageProps) {
 
   return (
     <SecondaryView onClose={onClose} title={s.title} showTitle={false}>
-      <div className="flex flex-col h-full" style={{ backgroundColor: 'var(--app-bg)' }}>
+      <div className="flex flex-col h-full overflow-x-hidden" style={{ backgroundColor: 'var(--app-bg)' }}>
         {/* 统计卡片 */}
         <div className="bg-gradient-to-br from-emerald-500 to-emerald-600 px-4 py-2 shadow-lg">
           <div className="space-y-1.5">
@@ -204,7 +204,7 @@ export function StatementPage({ onClose }: StatementPageProps) {
         </div>
 
         {/* 记账列表 */}
-        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 pb-24">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-4 space-y-3 pb-24">
           {transactions.length === 0 ? (
             <div className="text-center py-16">
               <Wallet className="w-16 h-16 text-gray-300 mx-auto mb-4" />
@@ -314,7 +314,7 @@ export function StatementPage({ onClose }: StatementPageProps) {
         {/* 添加/编辑表单弹窗 */}
         {showAddForm && (
           <div className="fixed inset-0 bg-black/50 z-50 flex items-end">
-            <div className="bg-white w-full rounded-t-3xl max-h-[85vh] overflow-y-auto">
+            <div className="bg-white w-full rounded-t-3xl max-h-[85vh] overflow-y-auto overflow-x-hidden">
               {/* 表单头部 */}
               <div className="sticky top-0 bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
                 <h3 className="text-lg font-bold text-gray-800">
