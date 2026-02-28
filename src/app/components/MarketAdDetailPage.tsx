@@ -34,9 +34,7 @@ export function MarketAdDetailPage({ onClose, ad }: MarketAdDetailPageProps) {
         {/* 内容区 */}
         <div className="px-4 py-4">
           {latestAd.content ? (
-            <div className="text-gray-700 text-sm leading-relaxed whitespace-pre-wrap">
-              {latestAd.content}
-            </div>
+            <div className="text-gray-700 text-sm leading-relaxed rich-content" dangerouslySetInnerHTML={{ __html: latestAd.content }} />
           ) : (
             <div className="py-12 text-center">
               <Megaphone className="w-10 h-10 text-gray-300 mx-auto mb-3" />

@@ -53,9 +53,7 @@ export function BannerDetailPage({ onClose, bannerIndex, bannerData }: BannerDet
           {/* 详细内容 */}
           {latestBanner?.content && (
             <div className="bg-white rounded-2xl p-4 shadow">
-              <div className="text-gray-700 text-sm whitespace-pre-wrap">
-                {latestBanner.content}
-              </div>
+              <div className="text-gray-700 text-sm rich-content" dangerouslySetInnerHTML={{ __html: latestBanner.content }} />
             </div>
           )}
 

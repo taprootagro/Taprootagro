@@ -63,9 +63,7 @@ export function ProductDetailPage({ onClose, product }: ProductDetailPageProps) 
                 产品详情
               </h3>
               <div className="bg-gray-50 rounded-lg p-3">
-                <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
-                  {product.details}
-                </p>
+                <div className="text-sm text-gray-700 leading-relaxed rich-content" dangerouslySetInnerHTML={{ __html: product.details }} />
               </div>
             </div>
           )}
@@ -78,9 +76,7 @@ export function ProductDetailPage({ onClose, product }: ProductDetailPageProps) 
                 产品规格
               </h3>
               <div className="bg-gray-50 rounded-lg p-3">
-                <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
-                  {product.specifications}
-                </p>
+                <div className="text-sm text-gray-700 leading-relaxed rich-content" dangerouslySetInnerHTML={{ __html: product.specifications }} />
               </div>
             </div>
           )}

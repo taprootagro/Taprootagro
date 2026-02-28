@@ -116,16 +116,9 @@ export interface UserProfileConfig {
 
 // 桌面图标配置接口
 export interface DesktopIconConfig {
-  mode: 'text' | 'custom';      // 模式：文字生成 or 自定义图片
-  backgroundColor: string;       // 背景色
-  text: string;                  // 图标文字（如"农"）
-  textColor: string;             // 文字颜色
-  fontSize: number;              // 字体大小比例 (0.4-0.6)
-  borderEnabled: boolean;        // 是否显示边框
-  borderColor: string;           // 边框颜色
-  cornerRadius: number;          // 圆角比例 (0-50%)
-  appName: string;               // 图标下方显示的应用名称
-  customIconUrl: string;         // 自定义图标图片URL
+  appName: string;               // PWA应用名称
+  icon192Url: string;            // 192x192 图标URL
+  icon512Url: string;            // 512x512 图标URL
 }
 
 export interface MarketPageConfig {
@@ -252,7 +245,7 @@ const defaultConfig: HomePageConfig = {
     {
       id: 6,
       title: "蔬菜种植中的水肥一体化技术应用",
-      author: "灌溉专家",
+      author: "灌��专家",
       views: "789",
       category: "灌溉技术",
       date: "4天前",
@@ -584,16 +577,9 @@ const defaultConfig: HomePageConfig = {
     avatar: "https://images.unsplash.com/photo-1642919854816-98575cbaefa8?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxzaW1wbGUlMjBsZWFmJTIwc2tldGNoJTIwbWluaW1hbCUyMGRyYXdpbmd8ZW58MXx8fHwxNzcwODU0NDU2fDA&ixlib=rb-4.1.0&q=80&w=1080"
   },
   desktopIcon: {
-    mode: 'text',
-    backgroundColor: '#10b981',
-    text: '农',
-    textColor: '#ffffff',
-    fontSize: 0.47,
-    borderEnabled: true,
-    borderColor: '#ffffff',
-    cornerRadius: 20,
     appName: 'TaprootAgro',
-    customIconUrl: '',
+    icon192Url: 'https://images.unsplash.com/photo-1642919854816-98575cbaefa8?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxzaW1wbGUlMjBsZWFmJTIwc2tldGNoJTIwbWluaW1hbCUyMGRyYXdpbmd8ZW58MXx8fHwxNzcwODU0NDU2fDA&ixlib=rb-4.1.0&q=80&w=192',
+    icon512Url: 'https://images.unsplash.com/photo-1642919854816-98575cbaefa8?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxzaW1wbGUlMjBsZWFmJTIwc2tldGNoJTIwbWluaW1hbCUyMGRyYXdpbmd8ZW58MXx8fHwxNzcwODU0NDU2fDA&ixlib=rb-4.1.0&q=80&w=512',
   }
 };
 

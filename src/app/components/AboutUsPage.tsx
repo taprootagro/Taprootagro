@@ -18,9 +18,7 @@ export function AboutUsPage({ onClose }: AboutUsPageProps) {
     >
       <div className="p-4">
         <div className="bg-white rounded-2xl p-5 shadow-sm">
-          <div className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">
-            {config?.aboutUs?.content || "暂无内容"}
-          </div>
+          <div className="text-sm text-gray-700 leading-relaxed rich-content" dangerouslySetInnerHTML={{ __html: config?.aboutUs?.content || "暂无内容" }} />
         </div>
       </div>
     </SecondaryView>

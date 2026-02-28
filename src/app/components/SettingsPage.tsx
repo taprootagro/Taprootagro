@@ -211,9 +211,7 @@ export function SettingsPage() {
         >
           <div className="p-4 pb-8">
             <div className="bg-white rounded-2xl p-5 shadow-sm">
-              <div className="space-y-3 text-sm text-gray-700 leading-relaxed whitespace-pre-line max-h-[60vh] overflow-y-auto">
-                {config?.privacyPolicy?.content || t.settings.privacyPolicyText}
-              </div>
+              <div className="text-sm text-gray-700 leading-relaxed rich-content max-h-[60vh] overflow-y-auto" dangerouslySetInnerHTML={{ __html: config?.privacyPolicy?.content || t.settings.privacyPolicyText }} />
             </div>
           </div>
         </SecondaryView>
@@ -228,9 +226,7 @@ export function SettingsPage() {
         >
           <div className="p-4 pb-8">
             <div className="bg-white rounded-2xl p-5 shadow-sm">
-              <div className="space-y-3 text-sm text-gray-700 leading-relaxed whitespace-pre-line max-h-[60vh] overflow-y-auto">
-                {config?.termsOfService?.content || t.settings.termsOfServiceText}
-              </div>
+              <div className="text-sm text-gray-700 leading-relaxed rich-content max-h-[60vh] overflow-y-auto" dangerouslySetInnerHTML={{ __html: config?.termsOfService?.content || t.settings.termsOfServiceText }} />
             </div>
           </div>
         </SecondaryView>

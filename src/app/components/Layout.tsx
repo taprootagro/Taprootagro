@@ -52,7 +52,7 @@ export function Layout() {
 
       {/* 底部导航 */}
       <nav className="flex-shrink-0 bg-white border-t border-gray-200 shadow-lg safe-bottom">
-        <div className="flex justify-around items-center pt-1 pb-0.5 px-2">
+        <div className="flex justify-around items-center pt-1.5 pb-1 px-2">
           {navItems.map((item) => {
             const isActive = location.pathname === item.path;
             const Icon = item.icon;
@@ -60,7 +60,7 @@ export function Layout() {
               <Link
                 key={item.path}
                 to={item.path}
-                className={`flex flex-col items-center justify-center py-1 px-3 rounded-xl transition-colors duration-200 relative ${
+                className={`flex flex-col items-center justify-center py-1.5 px-3 rounded-xl transition-colors duration-200 relative ${
                   isActive ? "text-emerald-600" : "text-gray-500"
                 }`}
                 onTouchStart={() => handleTouchStart(item.path)}
@@ -70,11 +70,11 @@ export function Layout() {
                   <div className="absolute inset-0 bg-emerald-50 rounded-xl -z-10"></div>
                 )}
                 
-                {/* 图标 - 简化动画 */}
+                {/* 图标 */}
                 <div className={`${isActive ? 'scale-110' : ''} transition-transform duration-200`}>
-                  <Icon className="w-5 h-5" />
+                  <Icon className="w-6 h-6" />
                 </div>
-                
+
                 {/* 活动指示器 */}
                 {isActive && (
                   <div className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 w-6 h-0.5 bg-emerald-600 rounded-full"></div>
@@ -82,7 +82,7 @@ export function Layout() {
                 
                 {/* 未读消息红点 */}
                 {item.showBadge && (
-                  <div className="absolute top-0 right-2 w-2 h-2 bg-red-500 rounded-full"></div>
+                  <div className="absolute top-0.5 right-1.5 w-2 h-2 bg-red-500 rounded-full"></div>
                 )}
               </Link>
             );

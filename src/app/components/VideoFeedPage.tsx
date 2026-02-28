@@ -329,13 +329,13 @@ export function VideoFeedPage({ onClose }: VideoFeedPageProps) {
 
       {/* 底部Dock栏 */}
       <div className="flex-shrink-0 bg-black/80 backdrop-blur-sm border-t border-white/10 z-20 safe-bottom">
-        <div className="flex justify-center items-center pt-1 pb-0.5">
+        <div className="flex justify-center items-center pt-1.5 pb-1">
           <button
             onClick={onClose}
-            className="flex items-center justify-center p-1.5 active:scale-95 transition-transform"
+            className="flex items-center justify-center p-2 active:scale-95 transition-transform"
             aria-label="关闭"
           >
-            <X className="w-6 h-6 text-red-500" />
+            <X className="w-7 h-7 text-red-500" />
           </button>
         </div>
       </div>

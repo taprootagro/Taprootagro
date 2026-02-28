@@ -43,9 +43,10 @@ export function ArticleDetailPage({ onClose, article }: ArticleDetailPageProps) 
 
         {/* 文章正文内容 */}
         {latestArticle.content ? (
-          <div className="text-gray-800 text-sm leading-relaxed whitespace-pre-wrap">
-            {latestArticle.content}
-          </div>
+          <div
+            className="text-gray-800 text-sm leading-relaxed rich-content"
+            dangerouslySetInnerHTML={{ __html: latestArticle.content }}
+          />
         ) : (
           <div className="text-gray-400 text-sm text-center py-8">
             暂无文章内容
