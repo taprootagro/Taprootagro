@@ -9,22 +9,23 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "react": "18.3.1",
-    "react-dom": "18.3.1",
-    "react-router": "7.13.0",
     "lucide-react": "0.487.0",
     "motion": "^12.34.3",
     "onnxruntime-web": "^1.24.2",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "react-router": "7.13.0",
     "react-slick": "0.31.0",
-    "slick-carousel": "^1.8.1",
-    "terser": "^5.46.0"
+    "slick-carousel": "^1.8.1"
   },
   "devDependencies": {
     "@tailwindcss/vite": "4.1.12",
-    "@vitejs/plugin-react": "4.7.0",
     "@types/react": "^18.3.1",
     "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "4.7.0",
     "tailwindcss": "4.1.12",
+    "terser": "^5.46.0",
+    "typescript": "^5.9.3",
     "vite": "6.3.5"
   }
 }
