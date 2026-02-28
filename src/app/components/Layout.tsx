@@ -52,7 +52,7 @@ export function Layout() {
 
       {/* 底部导航 */}
       <nav className="flex-shrink-0 bg-white border-t border-gray-200 shadow-lg safe-bottom">
-        <div className="flex justify-around items-center pt-2 pb-1 px-2">
+        <div className="flex justify-around items-center pt-1 pb-0.5 px-2">
           {navItems.map((item) => {
             const isActive = location.pathname === item.path;
             const Icon = item.icon;

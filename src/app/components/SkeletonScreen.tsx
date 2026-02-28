@@ -14,12 +14,12 @@ export function SkeletonScreen() {
       </div>
       
       {/* 底部 Dock 栏 */}
-      <div className="border-t border-gray-200 h-16 flex-shrink-0 bg-white">
+      <div className="border-t border-gray-200 h-12 flex-shrink-0 bg-white safe-bottom">
         <div className="flex justify-around items-center h-full px-4">
-          <div className="w-12 h-12 bg-gray-200 rounded-full"></div>
-          <div className="w-12 h-12 bg-gray-200 rounded-full"></div>
-          <div className="w-12 h-12 bg-gray-200 rounded-full"></div>
-          <div className="w-12 h-12 bg-gray-200 rounded-full"></div>
+          <div className="w-8 h-8 bg-gray-200 rounded-full"></div>
+          <div className="w-8 h-8 bg-gray-200 rounded-full"></div>
+          <div className="w-8 h-8 bg-gray-200 rounded-full"></div>
+          <div className="w-8 h-8 bg-gray-200 rounded-full"></div>
         </div>
       </div>
     </div>

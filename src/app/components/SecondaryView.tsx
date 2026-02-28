@@ -63,7 +63,7 @@ export function SecondaryView({ children, onClose, title, showTitle = true }: Se
 
       {/* Dock栏 - 只显示红色叉号 */}
       <nav className="flex-shrink-0 bg-white border-t border-gray-200 safe-bottom">
-        <div className="flex justify-center items-center pt-1.5 pb-0.5">
+        <div className="flex justify-center items-center pt-1 pb-0.5">
           <button
             onClick={handleClose}
             className="flex items-center justify-center p-1 transition-colors active:scale-95 touch-manipulation"

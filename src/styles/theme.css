@@ -182,7 +182,14 @@
   }
 
   .safe-bottom {
-    padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding-bottom: 0px;
+  }
+
+  /* 仅 standalone PWA 模式才启用底部安全区 padding */
+  @media (display-mode: standalone) {
+    .safe-bottom {
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
   }
 
   /* 文字换行优化 */
