@@ -529,8 +529,8 @@ self.addEventListener('push', (event) => {
   let data = {
     title: 'TaprootAgro',
     body: 'You have a new notification',
-    icon: '/icon-192.png',
-    badge: '/icon-192.png',
+    icon: '/icons/icon-192.png',
+    badge: '/icons/icon-192.png',
     tag: 'default',
     data: {}
   };

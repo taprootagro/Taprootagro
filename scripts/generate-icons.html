@@ -1,128 +1,491 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Generate PNG Icons</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TaprootAgro - Icon Generator for PWABuilder</title>
   <style>
-    body { font-family: system-ui; max-width: 600px; margin: 40px auto; padding: 20px; background: #f9fafb; }
-    .card { background: white; border-radius: 12px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 16px; }
-    h1 { color: #10b981; margin-top: 0; }
-    .preview { display: flex; gap: 20px; align-items: end; margin: 20px 0; }
-    .preview canvas { border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
-    .preview .label { text-align: center; color: #6b7280; font-size: 13px; margin-top: 8px; }
-    button { background: #10b981; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-size: 16px; cursor: pointer; margin-right: 8px; }
-    button:hover { background: #059669; }
-    .instructions { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 16px; margin-top: 16px; }
-    .instructions code { background: #d1fae5; padding: 2px 6px; border-radius: 4px; font-size: 14px; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: #f0fdf4; color: #1a1a1a; padding: 2rem; }
+    h1 { color: #059669; margin-bottom: 0.5rem; }
+    .subtitle { color: #6b7280; margin-bottom: 2rem; }
+    .config-panel { background: white; border-radius: 12px; padding: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 2rem; }
+    .config-panel h2 { color: #374151; margin-bottom: 1rem; }
+    .field { margin-bottom: 1rem; }
+    .field label { display: block; font-size: 14px; color: #4b5563; margin-bottom: 4px; }
+    .field input[type="text"], .field input[type="number"] { width: 200px; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 8px; }
+    .field input[type="color"] { width: 50px; height: 36px; border: 1px solid #d1d5db; border-radius: 8px; cursor: pointer; }
+    .field-row { display: flex; gap: 1rem; flex-wrap: wrap; }
+    .preview-section { display: flex; gap: 2rem; flex-wrap: wrap; margin: 2rem 0; }
+    .preview-card { background: white; border-radius: 12px; padding: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); text-align: center; }
+    .preview-card canvas { border: 1px solid #e5e7eb; border-radius: 8px; }
+    .preview-card p { font-size: 12px; color: #6b7280; margin-top: 8px; }
+    .btn { padding: 12px 24px; border: none; border-radius: 10px; font-size: 16px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; transition: 0.2s; }
+    .btn-primary { background: #059669; color: white; }
+    .btn-primary:hover { background: #047857; }
+    .btn-secondary { background: #f3f4f6; color: #374151; }
+    .btn-secondary:hover { background: #e5e7eb; }
+    .btn-group { display: flex; gap: 1rem; flex-wrap: wrap; margin: 1.5rem 0; }
+    .sizes-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 1rem; margin: 1.5rem 0; }
+    .size-item { background: white; border-radius: 10px; padding: 1rem; text-align: center; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+    .size-item canvas { max-width: 100%; height: auto; }
+    .size-item .label { font-size: 12px; color: #6b7280; margin-top: 6px; }
+    .size-item .download-link { font-size: 12px; color: #059669; cursor: pointer; text-decoration: underline; margin-top: 4px; display: block; }
+    .status { padding: 12px 16px; border-radius: 8px; margin: 1rem 0; }
+    .status-info { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
+    .status-warn { background: #fffbeb; color: #92400e; border: 1px solid #fde68a; }
+    .checklist { background: white; border-radius: 12px; padding: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-top: 2rem; }
+    .checklist h2 { color: #374151; margin-bottom: 1rem; }
+    .checklist li { padding: 6px 0; list-style: none; font-size: 14px; }
+    .checklist li::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 10px; }
+    .checklist li.done::before { background: #10b981; }
+    .checklist li.todo::before { background: #f59e0b; }
+    .checklist li.critical::before { background: #ef4444; }
+    .checkbox-label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+    .checkbox-label input { width: 18px; height: 18px; accent-color: #059669; }
+    .note { font-size: 13px; color: #6b7280; margin-top: 1rem; line-height: 1.6; }
+    .screenshot-section { background: white; border-radius: 12px; padding: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-top: 2rem; }
   </style>
 </head>
 <body>
-  <div class="card">
-    <h1>TaprootAgro Icon Generator</h1>
-    <p style="color:#6b7280">Generates PNG icons from the SVG design for PWA compatibility (iOS requires PNG).</p>
 
-    <div class="preview" id="preview"></div>
+<h1>TaprootAgro Icon Generator</h1>
+<p class="subtitle">Generate all icon sizes required by PWABuilder / Google Play Store</p>
 
-    <button onclick="downloadAll()">Download All PNGs</button>
+<!-- Config Panel -->
+<div class="config-panel">
+  <h2>Icon Settings</h2>
+  <div class="field-row">
+    <div class="field">
+      <label>Icon Text</label>
+      <input type="text" id="iconText" value="农" maxlength="4">
+    </div>
+    <div class="field">
+      <label>Font Size Ratio</label>
+      <input type="number" id="fontSize" value="0.47" step="0.01" min="0.2" max="0.7" style="width:100px">
+    </div>
+    <div class="field">
+      <label>Corner Radius %</label>
+      <input type="number" id="cornerRadius" value="20" step="1" min="0" max="50" style="width:100px">
+    </div>
+  </div>
+  <div class="field-row">
+    <div class="field">
+      <label>Background Color</label>
+      <input type="color" id="bgColor" value="#10b981">
+    </div>
+    <div class="field">
+      <label>Text Color</label>
+      <input type="color" id="textColor" value="#ffffff">
+    </div>
+    <div class="field">
+      <label>Border Color</label>
+      <input type="color" id="borderColor" value="#ffffff">
+    </div>
+    <div class="field">
+      <label style="display:flex;align-items:center;gap:6px">
+        <input type="checkbox" id="borderEnabled" checked> Show Border
+      </label>
+    </div>
   </div>
 
-  <div class="instructions">
-    <strong>After downloading:</strong>
-    <ol>
-      <li>Place <code>icon-192.png</code> and <code>icon-512.png</code> in the <code>/public/</code> directory</li>
-      <li>The app will automatically use them for iOS home screen icons and push notifications</li>
-    </ol>
+  <button class="btn btn-secondary" onclick="loadFromLocalStorage()" style="margin-top:0.5rem">
+    Load from App Config (localStorage)
+  </button>
+</div>
+
+<!-- Preview -->
+<div class="preview-section">
+  <div class="preview-card">
+    <h3 style="margin-bottom:8px">Regular (any)</h3>
+    <canvas id="previewAny" width="192" height="192" style="width:96px;height:96px"></canvas>
+    <p>Transparent corners</p>
   </div>
+  <div class="preview-card">
+    <h3 style="margin-bottom:8px">Maskable (safe zone)</h3>
+    <canvas id="previewMaskable" width="192" height="192" style="width:96px;height:96px"></canvas>
+    <p>10% padding, full bleed bg</p>
+  </div>
+</div>
 
-  <script>
-    const SIZES = [192, 512];
-    const canvases = {};
+<div class="btn-group">
+  <button class="btn btn-primary" onclick="generateAndPreview()">Regenerate Preview</button>
+  <button class="btn btn-primary" onclick="downloadAll()">Download All PNGs (ZIP)</button>
+  <button class="btn btn-secondary" onclick="downloadIndividual()">Download Individually</button>
+</div>
 
-    function drawIcon(size) {
-      const canvas = document.createElement('canvas');
-      canvas.width = size;
-      canvas.height = size;
-      const ctx = canvas.getContext('2d');
+<div class="status status-info" id="statusMsg" style="display:none"></div>
 
-      const r = size * (38 / 192); // corner radius scaled
+<!-- All Sizes Grid -->
+<h2 style="margin-top:2rem;margin-bottom:0.5rem">All Generated Sizes</h2>
+<div class="sizes-grid" id="sizesGrid"></div>
 
-      // Background with rounded corners
+<!-- PWABuilder Checklist -->
+<div class="checklist">
+  <h2>PWABuilder APK Checklist</h2>
+  <ul>
+    <li class="done">manifest.json with id, name, short_name, description</li>
+    <li class="done">display: standalone</li>
+    <li class="done">theme_color & background_color</li>
+    <li class="done">start_url & scope</li>
+    <li class="done">orientation: portrait</li>
+    <li id="checkIcons" class="critical">PNG icons: 48, 72, 96, 128, 144, 152, 192, 256, 384, 512</li>
+    <li id="checkMaskable" class="critical">Maskable icons: 192, 512 (with safe zone padding)</li>
+    <li id="checkScreenshots" class="todo">Screenshots: at least 1 narrow (mobile) screenshot</li>
+    <li class="done">Service Worker with fetch handler</li>
+    <li class="done">HTTPS deployment</li>
+    <li class="done">prefer_related_applications: false</li>
+  </ul>
+
+  <div class="note">
+    <strong>After generating icons:</strong><br>
+    1. Put all downloaded PNGs into <code>/public/icons/</code> directory<br>
+    2. Take 2 mobile screenshots (1080x1920) of your app, save as <code>/public/screenshots/mobile-home.png</code> and <code>mobile-market.png</code><br>
+    3. Deploy to your hosting (ESA Pages / Vercel / Netlify)<br>
+    4. Go to <a href="https://www.pwabuilder.com" target="_blank">pwabuilder.com</a>, enter your URL<br>
+    5. Click "Package for stores" &rarr; Android &rarr; Download APK
+  </div>
+</div>
+
+<!-- Screenshot Guide -->
+<div class="screenshot-section">
+  <h2>Screenshot Guide</h2>
+  <p class="note" style="margin-top:0.5rem">
+    PWABuilder requires at least one screenshot for Google Play listing. Here's how to capture them:
+  </p>
+  <ol style="font-size:14px;color:#4b5563;margin-top:1rem;padding-left:1.5rem;line-height:2">
+    <li>Open your app on Chrome mobile (or DevTools mobile emulation at 1080x1920)</li>
+    <li>Navigate to the Home page &rarr; take a screenshot</li>
+    <li>Navigate to the Market page &rarr; take another screenshot</li>
+    <li>Save as <code>/public/screenshots/mobile-home.png</code> and <code>mobile-market.png</code></li>
+    <li>These are referenced in <code>manifest.json</code> &rarr; <code>screenshots</code> array</li>
+  </ol>
+</div>
+
+<script>
+  // Icon sizes required by PWABuilder / Android
+  const SIZES = [48, 72, 96, 128, 144, 152, 192, 256, 384, 512];
+  const MASKABLE_SIZES = [192, 512];
+
+  function getConfig() {
+    return {
+      text: document.getElementById('iconText').value || '农',
+      fontSize: parseFloat(document.getElementById('fontSize').value) || 0.47,
+      cornerRadius: parseInt(document.getElementById('cornerRadius').value) || 20,
+      bgColor: document.getElementById('bgColor').value || '#10b981',
+      textColor: document.getElementById('textColor').value || '#ffffff',
+      borderColor: document.getElementById('borderColor').value || '#ffffff',
+      borderEnabled: document.getElementById('borderEnabled').checked,
+    };
+  }
+
+  function loadFromLocalStorage() {
+    try {
+      const saved = localStorage.getItem('agri_home_config');
+      if (!saved) {
+        showStatus('No config found in localStorage. Using defaults.', 'warn');
+        return;
+      }
+      const parsed = JSON.parse(saved);
+      const di = parsed.desktopIcon;
+      if (!di) {
+        showStatus('Config found but no desktopIcon section. Using defaults.', 'warn');
+        return;
+      }
+      document.getElementById('iconText').value = di.text || '农';
+      document.getElementById('fontSize').value = di.fontSize || 0.47;
+      document.getElementById('cornerRadius').value = di.cornerRadius || 20;
+      document.getElementById('bgColor').value = di.backgroundColor || '#10b981';
+      document.getElementById('textColor').value = di.textColor || '#ffffff';
+      document.getElementById('borderColor').value = di.borderColor || '#ffffff';
+      document.getElementById('borderEnabled').checked = di.borderEnabled !== false;
+      showStatus('Loaded config from localStorage (desktopIcon section).', 'info');
+      generateAndPreview();
+    } catch (e) {
+      showStatus('Failed to load from localStorage: ' + e.message, 'warn');
+    }
+  }
+
+  function showStatus(msg, type) {
+    const el = document.getElementById('statusMsg');
+    el.textContent = msg;
+    el.className = 'status status-' + type;
+    el.style.display = 'block';
+    setTimeout(() => { el.style.display = 'none'; }, 5000);
+  }
+
+  // Draw a "regular" (any purpose) icon — transparent corners
+  function drawRegularIcon(canvas, size) {
+    const cfg = getConfig();
+    const ctx = canvas.getContext('2d');
+    canvas.width = size;
+    canvas.height = size;
+    ctx.clearRect(0, 0, size, size);
+
+    const r = size * (cfg.cornerRadius / 100);
+
+    // Rounded rect path
+    function roundedRect(x, y, w, h, radius) {
       ctx.beginPath();
-      ctx.moveTo(r, 0);
-      ctx.lineTo(size - r, 0);
-      ctx.quadraticCurveTo(size, 0, size, r);
-      ctx.lineTo(size, size - r);
-      ctx.quadraticCurveTo(size, size, size - r, size);
-      ctx.lineTo(r, size);
-      ctx.quadraticCurveTo(0, size, 0, size - r);
-      ctx.lineTo(0, r);
-      ctx.quadraticCurveTo(0, 0, r, 0);
+      ctx.moveTo(x + radius, y);
+      ctx.lineTo(x + w - radius, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + radius);
+      ctx.lineTo(x + w, y + h - radius);
+      ctx.quadraticCurveTo(x + w, y + h, x + w - radius, y + h);
+      ctx.lineTo(x + radius, y + h);
+      ctx.quadraticCurveTo(x, y + h, x, y + h - radius);
+      ctx.lineTo(x, y + radius);
+      ctx.quadraticCurveTo(x, y, x + radius, y);
       ctx.closePath();
-      ctx.fillStyle = '#10b981';
-      ctx.fill();
+    }
 
-      // White border
-      const inset = size * (10 / 192);
-      const innerR = size * (32 / 192);
-      const innerW = size - inset * 2;
-      ctx.beginPath();
-      ctx.moveTo(inset + innerR, inset);
-      ctx.lineTo(inset + innerW - innerR, inset);
-      ctx.quadraticCurveTo(inset + innerW, inset, inset + innerW, inset + innerR);
-      ctx.lineTo(inset + innerW, inset + innerW - innerR);
-      ctx.quadraticCurveTo(inset + innerW, inset + innerW, inset + innerW - innerR, inset + innerW);
-      ctx.lineTo(inset + innerR, inset + innerW);
-      ctx.quadraticCurveTo(inset, inset + innerW, inset, inset + innerW - innerR);
-      ctx.lineTo(inset, inset + innerR);
-      ctx.quadraticCurveTo(inset, inset, inset + innerR, inset);
-      ctx.closePath();
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = size * (4 / 192);
+    // Background
+    roundedRect(0, 0, size, size, r);
+    ctx.fillStyle = cfg.bgColor;
+    ctx.fill();
+
+    // Border
+    if (cfg.borderEnabled) {
+      const inset = size * 0.052;
+      const innerR = r * 0.85;
+      roundedRect(inset, inset, size - inset * 2, size - inset * 2, innerR);
+      ctx.strokeStyle = cfg.borderColor;
+      ctx.lineWidth = size * 0.021;
       ctx.stroke();
+    }
 
-      // Chinese character "农"
-      const fontSize = size * (90 / 192);
-      ctx.font = `bold ${fontSize}px "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif`;
-      ctx.fillStyle = '#ffffff';
+    // Text
+    if (cfg.text) {
+      const fs = size * cfg.fontSize;
+      ctx.font = `bold ${fs}px "PingFang SC", "Microsoft YaHei", "Noto Sans SC", "Noto Sans", sans-serif`;
+      ctx.fillStyle = cfg.textColor;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('农', size / 2, size * (125 / 192));
+      ctx.fillText(cfg.text, size / 2, size * 0.52);
+    }
+  }
 
-      return canvas;
+  // Draw a "maskable" icon — full bleed background, content in safe zone (80% center)
+  function drawMaskableIcon(canvas, size) {
+    const cfg = getConfig();
+    const ctx = canvas.getContext('2d');
+    canvas.width = size;
+    canvas.height = size;
+    ctx.clearRect(0, 0, size, size);
+
+    // Full bleed background (no rounded corners — system applies mask)
+    ctx.fillStyle = cfg.bgColor;
+    ctx.fillRect(0, 0, size, size);
+
+    // Safe zone: 80% center circle → content should fit in ~80% area
+    const padding = size * 0.1; // 10% on each side
+    const innerSize = size - padding * 2;
+    const innerR = innerSize * (cfg.cornerRadius / 100);
+
+    // Inner rounded rect (visual border inside safe zone)
+    function roundedRect(x, y, w, h, radius) {
+      ctx.beginPath();
+      ctx.moveTo(x + radius, y);
+      ctx.lineTo(x + w - radius, y);
+      ctx.quadraticCurveTo(x + w, y, x + w, y + radius);
+      ctx.lineTo(x + w, y + h - radius);
+      ctx.quadraticCurveTo(x + w, y + h, x + w - radius, y + h);
+      ctx.lineTo(x + radius, y + h);
+      ctx.quadraticCurveTo(x, y + h, x, y + h - radius);
+      ctx.lineTo(x, y + radius);
+      ctx.quadraticCurveTo(x, y, x + radius, y);
+      ctx.closePath();
     }
 
-    // Generate and preview
-    const previewEl = document.getElementById('preview');
+    // Border (inside safe zone)
+    if (cfg.borderEnabled) {
+      const inset = innerSize * 0.052;
+      const bR = innerR * 0.85;
+      roundedRect(padding + inset, padding + inset, innerSize - inset * 2, innerSize - inset * 2, bR);
+      ctx.strokeStyle = cfg.borderColor;
+      ctx.lineWidth = innerSize * 0.021;
+      ctx.stroke();
+    }
+
+    // Text (centered in safe zone)
+    if (cfg.text) {
+      const fs = innerSize * cfg.fontSize;
+      ctx.font = `bold ${fs}px "PingFang SC", "Microsoft YaHei", "Noto Sans SC", "Noto Sans", sans-serif`;
+      ctx.fillStyle = cfg.textColor;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(cfg.text, size / 2, size * 0.52);
+    }
+  }
+
+  function generateAndPreview() {
+    // Preview canvases
+    drawRegularIcon(document.getElementById('previewAny'), 192);
+    drawMaskableIcon(document.getElementById('previewMaskable'), 192);
+
+    // All sizes grid
+    const grid = document.getElementById('sizesGrid');
+    grid.innerHTML = '';
+
     SIZES.forEach(size => {
-      const canvas = drawIcon(size);
-      canvases[size] = canvas;
-
-      const wrap = document.createElement('div');
-      const displaySize = Math.min(size, 192);
-      const previewCanvas = document.createElement('canvas');
-      previewCanvas.width = displaySize;
-      previewCanvas.height = displaySize;
-      previewCanvas.getContext('2d').drawImage(canvas, 0, 0, displaySize, displaySize);
-      previewCanvas.style.width = displaySize + 'px';
-      previewCanvas.style.height = displaySize + 'px';
-
+      const item = document.createElement('div');
+      item.className = 'size-item';
+      const c = document.createElement('canvas');
+      c.style.width = Math.min(size, 128) + 'px';
+      c.style.height = Math.min(size, 128) + 'px';
+      drawRegularIcon(c, size);
+      item.appendChild(c);
       const label = document.createElement('div');
       label.className = 'label';
-      label.textContent = `${size}x${size}`;
-
-      wrap.appendChild(previewCanvas);
-      wrap.appendChild(label);
-      previewEl.appendChild(wrap);
+      label.textContent = `icon-${size}.png`;
+      item.appendChild(label);
+      const dl = document.createElement('a');
+      dl.className = 'download-link';
+      dl.textContent = 'Download';
+      dl.onclick = () => downloadCanvas(c, `icon-${size}.png`);
+      item.appendChild(dl);
+      grid.appendChild(item);
     });
 
-    function downloadAll() {
-      SIZES.forEach(size => {
-        const link = document.createElement('a');
-        link.download = `icon-${size}.png`;
-        link.href = canvases[size].toDataURL('image/png');
-        link.click();
-      });
+    MASKABLE_SIZES.forEach(size => {
+      const item = document.createElement('div');
+      item.className = 'size-item';
+      item.style.border = '2px dashed #a7f3d0';
+      const c = document.createElement('canvas');
+      c.style.width = Math.min(size, 128) + 'px';
+      c.style.height = Math.min(size, 128) + 'px';
+      drawMaskableIcon(c, size);
+      item.appendChild(c);
+      const label = document.createElement('div');
+      label.className = 'label';
+      label.textContent = `maskable-${size}.png (safe zone)`;
+      item.appendChild(label);
+      const dl = document.createElement('a');
+      dl.className = 'download-link';
+      dl.textContent = 'Download';
+      dl.onclick = () => downloadCanvas(c, `maskable-${size}.png`);
+      item.appendChild(dl);
+      grid.appendChild(item);
+    });
+
+    document.getElementById('checkIcons').className = 'done';
+    document.getElementById('checkMaskable').className = 'done';
+  }
+
+  function downloadCanvas(canvas, filename) {
+    const link = document.createElement('a');
+    link.download = filename;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  }
+
+  function downloadIndividual() {
+    const allCanvases = [];
+
+    SIZES.forEach(size => {
+      const c = document.createElement('canvas');
+      drawRegularIcon(c, size);
+      allCanvases.push({ canvas: c, name: `icon-${size}.png` });
+    });
+
+    MASKABLE_SIZES.forEach(size => {
+      const c = document.createElement('canvas');
+      drawMaskableIcon(c, size);
+      allCanvases.push({ canvas: c, name: `maskable-${size}.png` });
+    });
+
+    let delay = 0;
+    allCanvases.forEach(({ canvas, name }) => {
+      setTimeout(() => downloadCanvas(canvas, name), delay);
+      delay += 200;
+    });
+
+    showStatus(`Downloading ${allCanvases.length} files...`, 'info');
+  }
+
+  async function downloadAll() {
+    // Check if JSZip is available, if not load it
+    if (typeof JSZip === 'undefined') {
+      showStatus('Loading JSZip library...', 'info');
+      await loadScript('https://cdn.jsdelivr.net/npm/jszip@3/dist/jszip.min.js');
     }
-  </script>
+
+    const zip = new JSZip();
+    const iconsFolder = zip.folder('icons');
+
+    // Generate all regular icons
+    for (const size of SIZES) {
+      const c = document.createElement('canvas');
+      drawRegularIcon(c, size);
+      const blob = await canvasToBlob(c);
+      iconsFolder.file(`icon-${size}.png`, blob);
+    }
+
+    // Generate all maskable icons
+    for (const size of MASKABLE_SIZES) {
+      const c = document.createElement('canvas');
+      drawMaskableIcon(c, size);
+      const blob = await canvasToBlob(c);
+      iconsFolder.file(`maskable-${size}.png`, blob);
+    }
+
+    showStatus('Creating ZIP...', 'info');
+
+    const content = await zip.generateAsync({ type: 'blob' });
+    const link = document.createElement('a');
+    link.download = 'taprootagro-icons.zip';
+    link.href = URL.createObjectURL(content);
+    link.click();
+    URL.revokeObjectURL(link.href);
+
+    showStatus('ZIP downloaded! Extract the "icons" folder into /public/', 'info');
+  }
+
+  function canvasToBlob(canvas) {
+    return new Promise(resolve => {
+      canvas.toBlob(resolve, 'image/png');
+    });
+  }
+
+  function loadScript(src) {
+    return new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = src;
+      s.onload = resolve;
+      s.onerror = reject;
+      document.head.appendChild(s);
+    });
+  }
+
+  // Auto-generate on load
+  window.addEventListener('DOMContentLoaded', () => {
+    // Try to load config from localStorage first
+    try {
+      const saved = localStorage.getItem('agri_home_config');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        const di = parsed.desktopIcon;
+        if (di) {
+          document.getElementById('iconText').value = di.text || '农';
+          document.getElementById('fontSize').value = di.fontSize || 0.47;
+          document.getElementById('cornerRadius').value = di.cornerRadius || 20;
+          document.getElementById('bgColor').value = di.backgroundColor || '#10b981';
+          document.getElementById('textColor').value = di.textColor || '#ffffff';
+          document.getElementById('borderColor').value = di.borderColor || '#ffffff';
+          document.getElementById('borderEnabled').checked = di.borderEnabled !== false;
+        }
+      }
+    } catch (e) {}
+
+    generateAndPreview();
+
+    // Re-generate on any input change
+    document.querySelectorAll('.config-panel input').forEach(input => {
+      input.addEventListener('input', generateAndPreview);
+      input.addEventListener('change', generateAndPreview);
+    });
+  });
+</script>
+
 </body>
 </html>
