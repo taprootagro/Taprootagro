@@ -1,0 +1,10 @@
+<svg width="192" height="192" viewBox="0 0 192 192" xmlns="http://www.w3.org/2000/svg">
+  <!-- 背景 -->
+  <rect width="192" height="192" fill="#10b981" rx="38"/>
+  
+  <!-- 白色边框 -->
+  <rect x="10" y="10" width="172" height="172" fill="none" stroke="#ffffff" stroke-width="4" rx="32"/>
+  
+  <!-- 中文"农"字 - 使用阿里巴巴普惠体（中国大陆高速） -->
+  <text x="96" y="130" font-family="Alibaba PuHuiTi, PingFang SC, Microsoft YaHei, sans-serif" font-size="90" font-weight="bold" fill="#ffffff" text-anchor="middle">农</text>
+</svg>

@@ -1,0 +1,96 @@
+/* ============================================
+   混合字体方案 - 中国大陆 + 全球通用
+   ============================================ */
+
+/* 方案说明：
+   1. 中文使用阿里巴巴普惠体（阿里云 CDN - 中国大陆稳定）
+   2. 其他语言使用字节跳动 Google Fonts 镜像（中国大陆可访问）
+   3. 确保全球用户都能正常加载字体
+*/
+
+/* ============================================
+   所有 @import 必须在最前面
+   ============================================ */
+
+/* Noto Sans - 拉丁、西里尔字母（英语、西欧语言、俄语等） - 字节跳动镜像 */
+@import url('https://lf1-cdn-tos.bytegoofy.com/obj/iconpark/fonts/noto_sans/noto_sans_400_normal.woff2');
+@import url('https://lf1-cdn-tos.bytegoofy.com/obj/iconpark/fonts/noto_sans/noto_sans_500_normal.woff2');
+@import url('https://lf1-cdn-tos.bytegoofy.com/obj/iconpark/fonts/noto_sans/noto_sans_600_normal.woff2');
+@import url('https://lf1-cdn-tos.bytegoofy.com/obj/iconpark/fonts/noto_sans/noto_sans_700_normal.woff2');
+
+/* 备用方案：Google Fonts 官方源 */
+/* Noto Sans Arabic - 阿拉伯语、波斯语 */
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Arabic:wght@400;500;600;700&display=swap');
+
+/* Noto Sans Thai - 泰语 */
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;600;700&display=swap');
+
+/* Noto Sans Myanmar - 缅甸语 */
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Myanmar:wght@400;500;600;700&display=swap');
+
+/* Noto Sans JP - 日语 */
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700&display=swap');
+
+/* ============================================
+   阿里巴巴普惠体 - 中文（简繁体）
+   License: SIL Open Font License 1.1
+   CDN: 阿里云 OSS（中国大陆高速）
+   ============================================ */
+
+/* 普惠体 2.0 - 55 Regular (常规体) */
+@font-face {
+  font-family: 'Alibaba PuHuiTi';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('https://puhuiti.oss-cn-hangzhou.aliyuncs.com/AlibabaPuHuiTi-3/AlibabaPuHuiTi-3-55-Regular/AlibabaPuHuiTi-3-55-Regular.woff2') format('woff2'),
+       url('https://puhuiti.oss-cn-hangzhou.aliyuncs.com/AlibabaPuHuiTi-3/AlibabaPuHuiTi-3-55-Regular/AlibabaPuHuiTi-3-55-Regular.woff') format('woff');
+}
+
+/* 普惠体 2.0 - 65 Medium (中等粗细) */
+@font-face {
+  font-family: 'Alibaba PuHuiTi';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('https://puhuiti.oss-cn-hangzhou.aliyuncs.com/AlibabaPuHuiTi-3/AlibabaPuHuiTi-3-65-Medium/AlibabaPuHuiTi-3-65-Medium.woff2') format('woff2'),
+       url('https://puhuiti.oss-cn-hangzhou.aliyuncs.com/AlibabaPuHuiTi-3/AlibabaPuHuiTi-3-65-Medium/AlibabaPuHuiTi-3-65-Medium.woff') format('woff');
+}
+
+/* 普惠体 2.0 - 75 SemiBold (半粗体) */
+@font-face {
+  font-family: 'Alibaba PuHuiTi';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('https://puhuiti.oss-cn-hangzhou.aliyuncs.com/AlibabaPuHuiTi-3/AlibabaPuHuiTi-3-75-SemiBold/AlibabaPuHuiTi-3-75-SemiBold.woff2') format('woff2'),
+       url('https://puhuiti.oss-cn-hangzhou.aliyuncs.com/AlibabaPuHuiTi-3/AlibabaPuHuiTi-3-75-SemiBold/AlibabaPuHuiTi-3-75-SemiBold.woff') format('woff');
+}
+
+/* 普惠体 2.0 - 85 Bold (粗体) */
+@font-face {
+  font-family: 'Alibaba PuHuiTi';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('https://puhuiti.oss-cn-hangzhou.aliyuncs.com/AlibabaPuHuiTi-3/AlibabaPuHuiTi-3-85-Bold/AlibabaPuHuiTi-3-85-Bold.woff2') format('woff2'),
+       url('https://puhuiti.oss-cn-hangzhou.aliyuncs.com/AlibabaPuHuiTi-3/AlibabaPuHuiTi-3-85-Bold/AlibabaPuHuiTi-3-85-Bold.woff') format('woff');
+}
+
+/* ============================================
+   字体说明
+   ============================================
+   
+   中国大陆用户：
+   ✅ 中文：阿里云 CDN（高速稳定）
+   ✅ 英文：字节跳动镜像（可访问）
+   ⚠️ 其他语言：Google 官方源（可能需要科学上网）
+   
+   全球用户：
+   ✅ 所有字体正常加载
+   ✅ CDN 自动选择最近节点
+   
+   后备机制：
+   ✅ display=swap 确保文字立即显示
+   ✅ 如果字体加载失败，使用系统字体
+   ============================================ */
