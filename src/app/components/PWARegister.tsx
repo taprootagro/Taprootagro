@@ -5,32 +5,27 @@ import { useLanguage } from '../hooks/useLanguage';
 /**
  * PWA Registration & Update Manager
  * 
- * Update flow:
- * 1. Browser detects new service-worker.js (different CACHE_VERSION)
- * 2. New SW installs in background, enters "waiting" state
- * 3. This component shows an update banner at the bottom
- * 4. User taps "Update" → sends SKIP_WAITING to new SW
- * 5. New SW activates → controllerchange fires → page reloads
+ * Strategy: Cache-first + daily update check
  * 
- * Remote version check flow:
- * 1. On app load, check if 7 days have passed since last remote check
- * 2. If yes, fetch https://www.taprootagro.com/taprootagro/global
- * 3. Compare remote version with local CACHE_VERSION
- * 4. If different → trigger registration.update() to pull new SW
- * 5. If fetch fails (offline/timeout) → silently ignore, keep current
+ * Update flow:
+ * 1. Service Worker serves ALL resources from cache first (instant load)
+ * 2. Once per day (first open), SW background-checks server for updates
+ * 3. If new SW detected, it installs and enters "waiting" state
+ * 4. This component shows an update banner at the bottom
+ * 5. User taps "Update" → sends SKIP_WAITING to new SW
+ * 6. New SW activates → controllerchange fires → page reloads
  * 
  * To push an update:
- *   1. Update version in your remote config at /taprootagro/global
- *   2. Change CACHE_VERSION in /public/service-worker.js
- *   3. Deploy new files — all clients will discover the update within 7 days
+ *   1. Change CACHE_VERSION in /public/service-worker.js
+ *   2. Optionally update version in remote config at /taprootagro/global
+ *   3. Deploy — clients discover the update on next day's first open
  */
 
-// Update check interval: 5 minutes in production, 30 seconds in dev
-const UPDATE_CHECK_INTERVAL = process.env.NODE_ENV === 'production' ? 5 * 60 * 1000 : 30 * 1000;
+// No periodic polling — the SW handles daily checks itself
+// Client only needs to register SW and listen for waiting workers
 
 // Remote config
 const REMOTE_CONFIG_URL = 'https://www.taprootagro.com/taprootagro/global';
-const REMOTE_CHECK_INTERVAL = 7 * 24 * 60 * 60 * 1000; // 7 days
 const LS_KEY_LAST_REMOTE_CHECK = 'taproot_last_remote_check';
 const LS_KEY_REMOTE_CONFIG = 'taproot_remote_config';
 
@@ -75,21 +70,20 @@ export function PWARegister() {
     setTimeout(() => setDismissed(false), 10 * 60 * 1000);
   }, []);
 
-  // ---- Weekly remote config check ----
+  // ---- Daily remote config check (client-side, complements SW check) ----
   const checkRemoteConfig = useCallback(async (
     registration: ServiceWorkerRegistration | null
   ) => {
     try {
-      // Check if enough time has passed since last check
-      const lastCheck = parseInt(localStorage.getItem(LS_KEY_LAST_REMOTE_CHECK) || '0', 10);
-      const now = Date.now();
-      if (now - lastCheck < REMOTE_CHECK_INTERVAL) {
-        console.log('[PWA] Remote check skipped — last check was', 
-          Math.round((now - lastCheck) / (1000 * 60 * 60)), 'hours ago (interval: 7 days)');
+      // Use localStorage date string for daily gating (same logic as SW)
+      const today = new Date().toISOString().slice(0, 10);
+      const lastCheckDate = localStorage.getItem(LS_KEY_LAST_REMOTE_CHECK) || '';
+      if (lastCheckDate === today) {
+        console.log('[PWA] Daily remote check already done today, skipping');
         return;
       }
 
-      console.log('[PWA] Starting weekly remote config check...');
+      console.log('[PWA] First open today — running client-side remote config check...');
 
       // Fetch with timeout
       const controller = new AbortController();
@@ -110,8 +104,8 @@ export function PWARegister() {
       const config = await response.json();
       console.log('[PWA] Remote config received:', config);
 
-      // Persist remote config and update timestamp
-      localStorage.setItem(LS_KEY_LAST_REMOTE_CHECK, String(now));
+      // Mark today as checked & persist config
+      localStorage.setItem(LS_KEY_LAST_REMOTE_CHECK, today);
       localStorage.setItem(LS_KEY_REMOTE_CONFIG, JSON.stringify(config));
 
       // Extract version (supports multiple field names for flexibility)
@@ -164,7 +158,6 @@ export function PWARegister() {
     if (!canRegisterServiceWorker()) return;
 
     let registration: ServiceWorkerRegistration | null = null;
-    let updateInterval: ReturnType<typeof setInterval>;
 
     // Track new SW entering waiting state
     const trackWaitingWorker = (reg: ServiceWorkerRegistration) => {
@@ -196,21 +189,15 @@ export function PWARegister() {
     const registerSW = async () => {
       try {
         registration = await navigator.serviceWorker.register('/service-worker.js', {
-          // Check for updates on every navigation
+          // Let browser cache handle SW file; daily check is in the SW itself
           updateViaCache: 'none'
         });
         console.log('[PWA] Service Worker registered, scope:', registration.scope);
 
         trackWaitingWorker(registration);
 
-        // Periodic update checks (local SW file diff)
-        updateInterval = setInterval(() => {
-          registration?.update().catch((err) => {
-            console.warn('[PWA] Update check failed:', err);
-          });
-        }, UPDATE_CHECK_INTERVAL);
-
-        // Weekly remote config check — runs once on load, then weekly
+        // No periodic polling — SW handles daily update checks internally
+        // Only run client-side remote config check once on load
         checkRemoteConfig(registration);
 
       } catch (error) {
@@ -233,7 +220,6 @@ export function PWARegister() {
     }
 
     return () => {
-      clearInterval(updateInterval);
       navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange);
     };
   }, [checkRemoteConfig]);

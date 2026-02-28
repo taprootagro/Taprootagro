@@ -45,7 +45,6 @@ export function VideoFeedPage({ onClose }: VideoFeedPageProps) {
   const [touchEnd, setTouchEnd] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState(0);
-  const [showHint, setShowHint] = useState(true);
   const [showPlayIcon, setShowPlayIcon] = useState(false);
   const [loadingStates, setLoadingStates] = useState<Record<number, boolean>>({});
   const [errorStates, setErrorStates] = useState<Record<number, boolean>>({});
@@ -96,12 +95,6 @@ export function VideoFeedPage({ onClose }: VideoFeedPageProps) {
       }
     }
   }, [currentIndex, isPlaying]);
-
-  // 隐藏提示
-  useEffect(() => {
-    const timer = setTimeout(() => setShowHint(false), 4000);
-    return () => clearTimeout(timer);
-  }, []);
 
   // 处理触摸
   const handleTouchStart = (e: React.TouchEvent) => {
@@ -233,10 +226,7 @@ export function VideoFeedPage({ onClose }: VideoFeedPageProps) {
                   {/* 加载指示器 */}
                   {isLoading && isCurrent && !hasError && (
                     <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
-                      <div className="flex flex-col items-center gap-3">
-                        <Loader2 className="w-10 h-10 text-white animate-spin" />
-                        <span className="text-white/80 text-sm">视频加载中...</span>
-                      </div>
+                      <Loader2 className="w-10 h-10 text-white animate-spin" />
                     </div>
                   )}
 
@@ -316,16 +306,6 @@ export function VideoFeedPage({ onClose }: VideoFeedPageProps) {
                     </div>
                   </div>
 
-                  {/* 滑动提示 */}
-                  {currentIndex === 0 && showHint && (
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-20 transition-opacity duration-1000">
-                      <div className="bg-black/70 backdrop-blur-md px-6 py-3 rounded-full border border-white/20">
-                        <p className="text-white text-sm font-medium">
-                          上下滑动查看更多视频
-                        </p>
-                      </div>
-                    </div>
-                  )}
                 </div>
               )}
             </div>

@@ -20,14 +20,6 @@ export default defineConfig({
   // File types to support raw imports. Never add .css, .tsx, or .ts files to this.
   assetsInclude: ['**/*.svg', '**/*.csv'],
 
-  // ONNX Runtime Web 优化配置
-  optimizeDeps: {
-    exclude: ['onnxruntime-web'],
-    esbuildOptions: {
-      target: 'es2020',
-    },
-  },
-
   // 构建优化
   build: {
     rollupOptions: {
@@ -36,7 +28,6 @@ export default defineConfig({
           'react-vendor': ['react', 'react-dom', 'react-router'],
           'ui-vendor': ['lucide-react'],
           'slider-vendor': ['react-slick', 'slick-carousel'],
-          'onnx-vendor': ['onnxruntime-web'],
         },
       },
     },

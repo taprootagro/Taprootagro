@@ -1,25 +1,60 @@
 // ============================================================
-// TaprootAgro PWA Service Worker - Production Update System
+// TaprootAgro PWA Service Worker - Cache-First + Daily Update
 // ============================================================
-// Update Guide:
-//   1. Change CACHE_VERSION to trigger update on all clients
-//   2. Deploy new files to your hosting server
-//   3. Users will see an update banner and can update with one tap
+// Strategy:
+//   - ALL resources served from cache first (instant load)
+//   - Navigation always resolves to cached index.html (SPA)
+//   - Once per day (first open), background-check server for updates
+//   - If new SW detected, user sees update banner
 // ============================================================
 
-const CACHE_VERSION = 'v4';
+const CACHE_VERSION = 'v5';
 const CACHE_PREFIX = 'taproot-agro';
 const CACHE_NAME = `${CACHE_PREFIX}-${CACHE_VERSION}`;
 
-// Remote config endpoint - checked weekly by clients to discover new versions
+// Remote config endpoint
 const REMOTE_CONFIG_URL = 'https://www.taprootagro.com/taprootagro/global';
-const REMOTE_CHECK_INTERVAL = 7 * 24 * 60 * 60 * 1000; // 7 days in ms
+
+// Daily check key stored in cache
+const DAILY_CHECK_KEY = '__taproot_daily_check__';
 
 // App shell - critical resources to pre-cache on install
 const APP_SHELL = [
   '/',
-  '/index.html'
+  '/index.html',
+  '/manifest.json'
 ];
+
+// ============================================================
+// DAILY CHECK HELPER - Only hit the server once per day
+// ============================================================
+function getTodayDateString() {
+  return new Date().toISOString().slice(0, 10); // "2026-02-28"
+}
+
+async function hasCheckedToday() {
+  try {
+    const cache = await caches.open(CACHE_NAME);
+    const response = await cache.match(DAILY_CHECK_KEY);
+    if (!response) return false;
+    const data = await response.json();
+    return data.date === getTodayDateString();
+  } catch {
+    return false;
+  }
+}
+
+async function markCheckedToday() {
+  try {
+    const cache = await caches.open(CACHE_NAME);
+    const body = JSON.stringify({ date: getTodayDateString() });
+    await cache.put(DAILY_CHECK_KEY, new Response(body, {
+      headers: { 'Content-Type': 'application/json' }
+    }));
+  } catch {
+    // Silently fail
+  }
+}
 
 // ============================================================
 // INSTALL - Pre-cache app shell, do NOT auto skipWaiting
@@ -30,7 +65,6 @@ self.addEventListener('install', (event) => {
     caches.open(CACHE_NAME)
       .then((cache) => {
         console.log('[SW] Pre-caching app shell');
-        // Use individual cache.add to avoid failing all if one resource 404s
         return Promise.allSettled(
           APP_SHELL.map((url) => cache.add(url).catch((err) => {
             console.warn(`[SW] Failed to cache: ${url}`, err);
@@ -39,7 +73,6 @@ self.addEventListener('install', (event) => {
       })
   );
   // Do NOT call self.skipWaiting() here!
-  // Wait for the client to explicitly request activation via SKIP_WAITING message
 });
 
 // ============================================================
@@ -58,18 +91,19 @@ self.addEventListener('activate', (event) => {
           })
       );
     }).then(() => {
-      // Take control of all clients immediately after activation
       return self.clients.claim();
     })
   );
 });
 
 // ============================================================
-// FETCH - Smart caching strategy
-//   - Navigation requests: Network-first (always get latest HTML)
-//   - Static assets (JS/CSS/fonts/images): Cache-first with network fallback
-//   - API calls & external URLs: Network-only (never cache)
+// FETCH - Cache-First SPA Strategy
+//   - Navigation: ALWAYS serve /index.html (SPA single entry point)
+//   - Static assets: Cache-first with network fallback
+//   - API & cross-origin: Pass through
 // ============================================================
+let dailyCheckTriggered = false;
+
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
@@ -77,7 +111,7 @@ self.addEventListener('fetch', (event) => {
   // Skip non-GET requests
   if (request.method !== 'GET') return;
 
-  // Skip cross-origin requests (APIs, CDNs, analytics, etc.)
+  // Skip cross-origin requests
   if (url.origin !== self.location.origin) return;
 
   // Skip API endpoints
@@ -86,53 +120,58 @@ self.addEventListener('fetch', (event) => {
   // Skip the service worker file itself
   if (url.pathname === '/service-worker.js') return;
 
+  // Trigger daily update check (non-blocking, only once per day)
+  if (!dailyCheckTriggered) {
+    dailyCheckTriggered = true;
+    event.waitUntil(triggerDailyCheck());
+  }
+
   // ----- Navigation requests (HTML pages) -----
+  // SPA: ALL navigation resolves to /index.html, React Router handles the rest
   if (request.mode === 'navigate') {
-    event.respondWith(networkFirstStrategy(request));
+    event.respondWith(handleNavigation());
     return;
   }
 
-  // ----- Static assets (JS, CSS, images, fonts, models) -----
-  if (isStaticAsset(url.pathname)) {
-    event.respondWith(cacheFirstStrategy(request));
-    return;
-  }
-
-  // ----- Everything else: network with cache fallback -----
-  event.respondWith(networkFirstStrategy(request));
+  // ----- All other same-origin resources: Cache-first -----
+  event.respondWith(cacheFirstStrategy(request));
 });
 
-// Check if a path is a static asset (hashed filenames are safe to cache long-term)
-function isStaticAsset(pathname) {
-  return /\.(js|css|woff2?|ttf|eot|svg|png|jpe?g|gif|webp|ico|onnx|json)(\?.*)?$/.test(pathname)
-    || pathname.startsWith('/assets/')
-    || pathname.startsWith('/models/');
-}
+// SPA Navigation Handler: always return index.html
+// Priority: cached index.html → network index.html → offline fallback
+async function handleNavigation() {
+  // 1. Try to serve cached /index.html (instant, works offline)
+  const cachedIndex = await caches.match('/index.html');
+  if (cachedIndex) {
+    return cachedIndex;
+  }
 
-// Network-first: try network, fall back to cache, then offline fallback
-async function networkFirstStrategy(request) {
+  // 2. Also try cached "/" (may be the same response)
+  const cachedRoot = await caches.match('/');
+  if (cachedRoot) {
+    return cachedRoot;
+  }
+
+  // 3. Nothing cached — fetch from network
   try {
-    const networkResponse = await fetch(request);
-    // Cache successful responses for offline use
+    const networkResponse = await fetch('/index.html');
     if (networkResponse.ok) {
       const cache = await caches.open(CACHE_NAME);
-      cache.put(request, networkResponse.clone());
+      cache.put('/index.html', networkResponse.clone());
     }
     return networkResponse;
   } catch (error) {
-    const cachedResponse = await caches.match(request);
-    if (cachedResponse) {
-      return cachedResponse;
-    }
-    // For navigation, return cached index.html (SPA fallback)
-    if (request.mode === 'navigate') {
-      const fallback = await caches.match('/index.html');
-      if (fallback) return fallback;
-    }
-    return new Response('Offline - No cached version available', {
-      status: 503,
-      headers: { 'Content-Type': 'text/plain' }
-    });
+    return new Response(
+      '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>TaprootAgro</title></head>' +
+      '<body style="display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:system-ui;background:#f0fdf4;color:#065f46;text-align:center;padding:2rem">' +
+      '<div><h2 style="margin-bottom:1rem">Offline</h2><p>Please check your network connection and try again.</p>' +
+      '<button onclick="location.reload()" style="margin-top:1rem;padding:0.5rem 1.5rem;background:#10b981;color:white;border:none;border-radius:0.5rem;cursor:pointer">Retry</button></div>' +
+      '</body></html>',
+      {
+        status: 200,
+        headers: { 'Content-Type': 'text/html; charset=utf-8' }
+      }
+    );
   }
 }
 
@@ -158,14 +197,51 @@ async function cacheFirstStrategy(request) {
 }
 
 // ============================================================
-// MESSAGE HANDLER - Communication with the client
+// DAILY UPDATE CHECK - Background, non-blocking
+// ============================================================
+async function triggerDailyCheck() {
+  try {
+    const alreadyChecked = await hasCheckedToday();
+    if (alreadyChecked) {
+      console.log('[SW] Daily check already done, skipping');
+      return;
+    }
+
+    console.log('[SW] First open today — checking server for updates...');
+    await markCheckedToday();
+
+    // 1. Check registration for new service-worker.js
+    await self.registration.update();
+    console.log('[SW] SW update check complete');
+
+    // 2. Background refresh index.html so next launch has latest version
+    try {
+      const freshIndex = await fetch('/index.html', { cache: 'no-store' });
+      if (freshIndex.ok) {
+        const cache = await caches.open(CACHE_NAME);
+        await cache.put('/index.html', freshIndex.clone());
+        await cache.put('/', freshIndex.clone());
+        console.log('[SW] index.html refreshed in cache');
+      }
+    } catch {
+      console.warn('[SW] Failed to refresh index.html, will retry tomorrow');
+    }
+
+    // 3. Also check remote config
+    await checkRemoteConfig();
+  } catch (error) {
+    console.warn('[SW] Daily check failed (will retry tomorrow):', error.message || error);
+  }
+}
+
+// ============================================================
+// MESSAGE HANDLER
 // ============================================================
 self.addEventListener('message', (event) => {
   const { type } = event.data || {};
 
   switch (type) {
     case 'SKIP_WAITING':
-      // Client approved the update, activate new SW now
       console.log('[SW] Client approved update, calling skipWaiting()');
       self.skipWaiting();
       break;
@@ -174,8 +250,7 @@ self.addEventListener('message', (event) => {
       event.ports[0]?.postMessage({
         version: CACHE_VERSION,
         cacheName: CACHE_NAME,
-        remoteConfigUrl: REMOTE_CONFIG_URL,
-        remoteCheckInterval: REMOTE_CHECK_INTERVAL
+        remoteConfigUrl: REMOTE_CONFIG_URL
       });
       break;
 
@@ -186,7 +261,6 @@ self.addEventListener('message', (event) => {
       break;
 
     case 'CHECK_UPDATE':
-      // Force a registration update check
       self.registration.update().then(() => {
         event.ports[0]?.postMessage({ checked: true });
       }).catch((err) => {
@@ -195,7 +269,6 @@ self.addEventListener('message', (event) => {
       break;
 
     case 'CHECK_REMOTE_CONFIG':
-      // Fetch remote config and compare version
       checkRemoteConfig().then((result) => {
         event.ports[0]?.postMessage(result);
       }).catch((err) => {
@@ -206,12 +279,12 @@ self.addEventListener('message', (event) => {
 });
 
 // ============================================================
-// REMOTE CONFIG - Weekly version check from central server
+// REMOTE CONFIG
 // ============================================================
 async function checkRemoteConfig() {
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
 
     const response = await fetch(REMOTE_CONFIG_URL, {
       signal: controller.signal,
@@ -228,11 +301,9 @@ async function checkRemoteConfig() {
     const config = await response.json();
     console.log('[SW] Remote config received:', config);
 
-    // Compare remote version with current local version
     const remoteVersion = config.version || config.cacheVersion || config.appVersion;
     if (remoteVersion && remoteVersion !== CACHE_VERSION) {
       console.log(`[SW] Remote version ${remoteVersion} differs from local ${CACHE_VERSION}, update available`);
-      // Trigger SW update check - this will fetch a new service-worker.js if deployed
       self.registration.update().catch((err) => {
         console.warn('[SW] Auto update check failed:', err);
       });
@@ -242,8 +313,7 @@ async function checkRemoteConfig() {
     console.log(`[SW] Version up to date: ${CACHE_VERSION}`);
     return { hasUpdate: false, remoteVersion, localVersion: CACHE_VERSION, config };
   } catch (error) {
-    // Network error, offline, timeout - silently fail, keep current version
-    console.warn('[SW] Remote config check failed (will retry next cycle):', error.message || error);
+    console.warn('[SW] Remote config check failed:', error.message || error);
     return { hasUpdate: false, error: error.message || 'Network error' };
   }
 }
@@ -288,7 +358,6 @@ self.addEventListener('push', (event) => {
   );
 });
 
-// Notification click
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 

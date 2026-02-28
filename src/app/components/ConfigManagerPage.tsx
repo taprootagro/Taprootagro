@@ -2,71 +2,54 @@ import { useNavigate } from "react-router";
 import React, { useState } from "react";
 import { useHomeConfig } from "../hooks/useHomeConfig";
 import { useLanguage } from "../hooks/useLanguage";
-import { ArrowLeft, Download, Upload, RotateCcw, Plus, Trash2, Save, Edit3 } from "lucide-react";
-import type { 
-  BannerConfig, 
-  NavigationItem, 
-  LiveStreamConfig, 
-  ArticleConfig,
-  MarketCategoryConfig,
-  MarketProductConfig,
-  MarketAdvertisementConfig
-} from "../hooks/useHomeConfig";
+import { ArrowLeft, Plus, Trash2, Save, Edit3 } from "lucide-react";
 
 export default function ConfigManagerPage() {
   const navigate = useNavigate();
-  const { config, saveConfig, resetConfig, exportConfig, importConfig } = useHomeConfig();
+  const { config, saveConfig } = useHomeConfig();
   const { t, isChinese } = useLanguage();
   const [activeTab, setActiveTab] = useState<"banners" | "live" | "articles" | "marketCategories" | "marketProducts" | "marketAd" | "filing" | "aboutUs" | "privacy" | "terms" | "appBranding" | "chatContact" | "userProfile">("banners");
   const [editingItem, setEditingItem] = useState<any>(null);
   const [hasChanges, setHasChanges] = useState(false);
+  // 本地工作副本：所有编辑操作只修改此副本，不立即持久化
+  const [workingConfig, setWorkingConfig] = useState(() => JSON.parse(JSON.stringify(config)));
+  // Save 确认弹窗状态
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [savePassword, setSavePassword] = useState("");
+  const [saveError, setSaveError] = useState("");
 
   // 双语辅助：中文环境显示中文，其他语言显示英文
   const ct = (zh: string, en: string) => isChinese ? zh : en;
 
-  // 处理文件导入
-  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      importConfig(file)
-        .then(() => {
-          alert(ct("配置导入成功！", "Config imported successfully!"));
-          setHasChanges(false);
-        })
-        .catch((error) => {
-          alert(ct(`导入失败: ${error.message}`, `Import failed: ${error.message}`));
-        });
-    }
-  };
-
-  // 处理重置
-  const handleReset = () => {
-    if (confirm(ct("确定要重置为默认配置吗？这将清除所有自定义设置。", "Reset to default config? This will clear all custom settings."))) {
-      resetConfig();
-      setHasChanges(false);
-      alert(ct("已重置为默认配置", "Reset to default config"));
-    }
-  };
-
-  // 自动更新所有产品图片为TAPROOTAGRO品牌图片
-  const autoUpdateAllProductImages = () => {
-    const updatedConfig = {
-      ...config,
-      marketPage: {
-        ...config.marketPage,
-        products: config.marketPage.products.map(product => ({
-          ...product,
-          image: "https://placehold.co/400x400/10b981/ffffff?text=TAPROOTAGRO&font=raleway"
-        }))
-      }
-    };
-    saveConfig(updatedConfig);
-  };
-
-  // 处理返回并自动更新产品图片
+  // 处理返回（不再自动保存）
   const handleGoBack = () => {
-    autoUpdateAllProductImages();
+    if (hasChanges) {
+      if (!confirm(ct("有未保存的更改，确定要离开吗？", "You have unsaved changes. Are you sure you want to leave?"))) {
+        return;
+      }
+    }
     navigate("/home/profile");
+  };
+
+  // 显示保存确认弹窗
+  const handleShowSaveDialog = () => {
+    setSavePassword("");
+    setSaveError("");
+    setShowSaveDialog(true);
+  };
+
+  // 确认保存：需要输入 taprootagro
+  const handleConfirmSave = () => {
+    if (savePassword.toLowerCase() !== "taprootagro") {
+      setSaveError(ct("验证码错误，请输入 taprootagro", "Incorrect code. Please enter taprootagro"));
+      return;
+    }
+    saveConfig(workingConfig);
+    setHasChanges(false);
+    setShowSaveDialog(false);
+    setSavePassword("");
+    setSaveError("");
+    alert(ct("配置保存成功！", "Config saved successfully!"));
   };
 
   // 添加新项
@@ -113,24 +96,25 @@ export default function ConfigManagerPage() {
 
   // 获取当前标签的数据
   const getItemsByType = (type: string) => {
-    if (!config || !config.marketPage) {
+    const wc = workingConfig;
+    if (!wc || !wc.marketPage) {
       return [];
     }
     switch (type) {
-      case "banners": return config.banners || [];
-      case "live": return config.liveStreams || [];
-      case "articles": return config.articles || [];
-      case "marketCategories": return config.marketPage.categories || [];
-      case "marketProducts": return config.marketPage.products || [];
+      case "banners": return wc.banners || [];
+      case "live": return wc.liveStreams || [];
+      case "articles": return wc.articles || [];
+      case "marketCategories": return wc.marketPage.categories || [];
+      case "marketProducts": return wc.marketPage.products || [];
       case "marketAd":
-        return config.marketPage.advertisements || [];
-      case "filing": return config.filing ? [config.filing] : [];
-      case "aboutUs": return config.aboutUs ? [config.aboutUs] : [];
-      case "privacy": return config.privacyPolicy ? [config.privacyPolicy] : [];
-      case "terms": return config.termsOfService ? [config.termsOfService] : [];
-      case "appBranding": return config.appBranding ? [config.appBranding] : [];
-      case "chatContact": return config.chatContact ? [config.chatContact] : [];
-      case "userProfile": return config.userProfile ? [config.userProfile] : [];
+        return wc.marketPage.advertisements || [];
+      case "filing": return wc.filing ? [wc.filing] : [];
+      case "aboutUs": return wc.aboutUs ? [wc.aboutUs] : [];
+      case "privacy": return wc.privacyPolicy ? [wc.privacyPolicy] : [];
+      case "terms": return wc.termsOfService ? [wc.termsOfService] : [];
+      case "appBranding": return wc.appBranding ? [wc.appBranding] : [];
+      case "chatContact": return wc.chatContact ? [wc.chatContact] : [];
+      case "userProfile": return wc.userProfile ? [wc.userProfile] : [];
       default: return [];
     }
   };
@@ -140,7 +124,7 @@ export default function ConfigManagerPage() {
     if (!editingItem) return;
 
     // 深拷贝配置，避免直接修改原数组引用导致 React 检测不到变化
-    const newConfig = JSON.parse(JSON.stringify(config)) as typeof config;
+    const newConfig = JSON.parse(JSON.stringify(workingConfig)) as typeof config;
     const items = getItemsByType(activeTab);
     const existingIndex = items.findIndex((item: any) => item.id === editingItem.id);
 
@@ -232,34 +216,34 @@ export default function ConfigManagerPage() {
       }
     }
 
-    saveConfig(newConfig);
+    setWorkingConfig(newConfig);
     setEditingItem(null);
-    setHasChanges(false);
+    setHasChanges(true);
   };
 
   // 删除项
   const handleDeleteItem = (id: number | string) => {
     if (!confirm(ct("确定要删除这项吗？", "Are you sure you want to delete this item?"))) return;
 
-    const newConfig = JSON.parse(JSON.stringify(config)) as typeof config;
+    const newConfig = JSON.parse(JSON.stringify(workingConfig)) as typeof config;
     switch (activeTab) {
       case "banners":
-        newConfig.banners = config.banners.filter(item => item.id !== id);
+        newConfig.banners = workingConfig.banners.filter((item: any) => item.id !== id);
         break;
       case "live":
-        newConfig.liveStreams = config.liveStreams.filter(item => item.id !== id);
+        newConfig.liveStreams = workingConfig.liveStreams.filter((item: any) => item.id !== id);
         break;
       case "articles":
-        newConfig.articles = config.articles.filter(item => item.id !== id);
+        newConfig.articles = workingConfig.articles.filter((item: any) => item.id !== id);
         break;
       case "marketCategories":
-        newConfig.marketPage.categories = config.marketPage.categories.filter(item => item.id !== id);
+        newConfig.marketPage.categories = workingConfig.marketPage.categories.filter((item: any) => item.id !== id);
         break;
       case "marketProducts":
-        newConfig.marketPage.products = config.marketPage.products.filter(item => item.id !== id);
+        newConfig.marketPage.products = workingConfig.marketPage.products.filter((item: any) => item.id !== id);
         break;
       case "marketAd":
-        newConfig.marketPage.advertisements = (config.marketPage.advertisements || []).filter(item => item.id !== id);
+        newConfig.marketPage.advertisements = (workingConfig.marketPage.advertisements || []).filter((item: any) => item.id !== id);
         break;
       // 单体配置类型：重置为默认值而非null，防止崩溃
       case "filing":
@@ -285,8 +269,8 @@ export default function ConfigManagerPage() {
         break;
     }
 
-    saveConfig(newConfig);
-    setHasChanges(false);
+    setWorkingConfig(newConfig);
+    setHasChanges(true);
   };
 
   // 渲染表格
@@ -811,6 +795,11 @@ export default function ConfigManagerPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* 状态栏占位 */}
+      <div className="bg-emerald-600 px-4 py-2 flex-shrink-0">
+        <span className="invisible">0:00</span>
+      </div>
+
       {/* 顶部导航栏 */}
       <div className="bg-emerald-600 text-white px-4 py-3 flex items-center justify-between sticky top-0 z-40 shadow-lg">
         <div className="flex items-center gap-3 min-w-0">
@@ -820,31 +809,18 @@ export default function ConfigManagerPage() {
           <h1 className="font-semibold text-base sm:text-lg truncate">{ct("内容配置管理", "Content Config Manager")}</h1>
         </div>
 
-        <div className="flex gap-2">
-          <button
-            onClick={exportConfig}
-            className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 rounded-lg flex items-center gap-1.5 transition-colors text-sm"
-            title={ct("导出配置", "Export Config")}
-          >
-            <Download className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">{ct("导出", "Export")}</span>
-          </button>
-          
-          <label className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer text-sm">
-            <Upload className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">{ct("导入", "Import")}</span>
-            <input type="file" accept=".json" onChange={handleImport} className="hidden" />
-          </label>
-
-          <button
-            onClick={handleReset}
-            className="px-3 py-1.5 bg-red-600 hover:bg-red-700 rounded-lg flex items-center gap-1.5 transition-colors text-sm"
-            title={ct("重置为默认", "Reset to Default")}
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">{ct("重置", "Reset")}</span>
-          </button>
-        </div>
+        <button
+          onClick={handleShowSaveDialog}
+          disabled={!hasChanges}
+          className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors text-sm ${
+            hasChanges
+              ? "bg-white text-emerald-700 hover:bg-emerald-50 shadow-sm"
+              : "bg-emerald-700/50 text-emerald-200 cursor-not-allowed"
+          }`}
+        >
+          <Save className="w-3.5 h-3.5" />
+          <span>{ct("保存", "Save")}</span>
+        </button>
       </div>
 
       {/* 标签页 */}
@@ -903,15 +879,51 @@ export default function ConfigManagerPage() {
           <ul className="text-sm text-blue-800 space-y-1">
             <li>• {ct('点击"编辑"按钮可以修改内容', 'Click the "Edit" button to modify content')}</li>
             <li>• {ct('点击"添加"按钮可以新增项目', 'Click the "Add" button to create new items')}</li>
-            <li>• {ct('点击"导出"可以将配置保存为JSON文件', 'Click "Export" to save config as a JSON file')}</li>
-            <li>• {ct('点击"导入"可以从JSON文件恢复配置', 'Click "Import" to restore config from a JSON file')}</li>
-            <li>• {ct("所有修改会自动保存到浏览器本地存储", "All changes are auto-saved to browser local storage")}</li>
+            <li>• {ct('编辑完成后点击右上角"保存"按钮提交更改', 'Click the "Save" button in the top-right to submit changes')}</li>
+            <li>• {ct("保存时需要输入验证码确认，防止误操作", "A confirmation code is required when saving to prevent accidental changes")}</li>
+            <li>• {ct("未保存的更改在离开页面时会提示确认", "You will be prompted to confirm if leaving with unsaved changes")}</li>
           </ul>
         </div>
       </div>
 
       {/* 编辑对话框 */}
       {renderEditDialog()}
+
+      {/* 保存确认弹窗 */}
+      {showSaveDialog && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-emerald-600 text-white px-6 py-4 flex justify-between items-center">
+              <h3 className="text-lg font-semibold">{ct("保存配置", "Save Config")}</h3>
+              <button onClick={() => setShowSaveDialog(false)} className="text-white hover:bg-emerald-700 rounded-lg p-1">
+                ✕
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <p className="text-sm text-gray-500">{ct("请输入验证码以确认保存配置", "Enter the code to confirm saving the config")}</p>
+              <InputField label={ct("验证码", "Code")} value={savePassword} onChange={(v: string) => setSavePassword(v)} placeholder="taprootagro" />
+              {saveError && <p className="text-sm text-red-500">{saveError}</p>}
+            </div>
+
+            <div className="sticky bottom-0 bg-gray-50 px-6 py-4 flex gap-3 justify-end border-t">
+              <button
+                onClick={() => setShowSaveDialog(false)}
+                className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+              >
+                {ct("取消", "Cancel")}
+              </button>
+              <button
+                onClick={handleConfirmSave}
+                className="px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors flex items-center gap-2"
+              >
+                <Save className="w-4 h-4" />
+                {ct("保存", "Save")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

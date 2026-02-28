@@ -10,9 +10,61 @@
  * 支持两种 YOLO 输出格式：
  * - 检测模式：输出 [1, 4+nc, 8400]，自动做 NMS
  * - 分类模式：输出 [1, nc]，直接取 topK
+ *
+ * ONNX Runtime 从 CDN 按需加载，不打包进构建产物（~24MB WASM）
  */
 
-import * as ort from 'onnxruntime-web';
+// ===== CDN 动态加载 ONNX Runtime =====
+const ORT_CDN_VERSION = '1.21.0';
+const ORT_CDN_BASE = `https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORT_CDN_VERSION}/dist`;
+const ORT_CDN_JS = `${ORT_CDN_BASE}/ort.min.js`;
+
+// 全局类型声明
+declare global {
+  interface Window { ort?: any; }
+}
+
+type OrtModule = {
+  env: { wasm: { numThreads: number; wasmPaths: string } };
+  InferenceSession: {
+    create(path: string, opts: any): Promise<any>;
+  };
+  Tensor: new (type: string, data: Float32Array, dims: number[]) => any;
+};
+
+let ortLoadPromise: Promise<OrtModule> | null = null;
+
+/**
+ * 从 CDN 动态加载 onnxruntime-web，仅在首次调用时下载
+ * WASM 文件也从同一 CDN 路径自动加载
+ */
+async function loadOrt(): Promise<OrtModule> {
+  if (window.ort) return window.ort as OrtModule;
+
+  if (!ortLoadPromise) {
+    ortLoadPromise = new Promise<OrtModule>((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = ORT_CDN_JS;
+      script.async = true;
+      script.onload = () => {
+        if (window.ort) {
+          // 让 WASM 文件也从 CDN 加载，而不是从本站加载
+          window.ort.env.wasm.wasmPaths = `${ORT_CDN_BASE}/`;
+          resolve(window.ort as OrtModule);
+        } else {
+          reject(new Error('ONNX Runtime loaded but window.ort is undefined'));
+        }
+      };
+      script.onerror = () => {
+        ortLoadPromise = null;
+        reject(new Error('Failed to load ONNX Runtime from CDN'));
+      };
+      document.head.appendChild(script);
+    });
+  }
+
+  return ortLoadPromise;
+}
 
 // ===== 配置 =====
 const MODEL_PATH = '/models/yolo11n.onnx';
@@ -31,7 +83,8 @@ export interface Detection {
 
 // ===== 检测器 =====
 export class YOLODetector {
-  private session: ort.InferenceSession | null = null;
+  private session: any = null;
+  private ort: OrtModule | null = null;
   private labels: string[] = [];
   private _isLoaded = false;
   private _mode: 'detect' | 'classify' = 'detect';
@@ -64,12 +117,14 @@ export class YOLODetector {
       }
 
       // 2. 加载 ONNX 模型
-      this.onProgress?.(20, 'Loading model...');
+      this.onProgress?.(20, 'Loading ONNX Runtime from CDN...');
 
-      // 配置 ONNX Runtime
-      ort.env.wasm.numThreads = 1;
+      // 从 CDN 动态加载 ONNX Runtime（首次约下载 ~1.5MB JS + 按需 ~8MB WASM）
+      this.ort = await loadOrt();
+      this.ort.env.wasm.numThreads = 1;
 
-      this.session = await ort.InferenceSession.create(MODEL_PATH, {
+      this.onProgress?.(40, 'Loading model...');
+      this.session = await this.ort.InferenceSession.create(MODEL_PATH, {
         executionProviders: ['wasm'],
         graphOptimizationLevel: 'all',
       });
@@ -102,7 +157,7 @@ export class YOLODetector {
 
     // 推理
     const inputName = this.session.inputNames[0];
-    const tensor = new ort.Tensor('float32', input.data, [1, 3, INPUT_SIZE, INPUT_SIZE]);
+    const tensor = new this.ort!.Tensor('float32', input.data, [1, 3, INPUT_SIZE, INPUT_SIZE]);
     const results = await this.session.run({ [inputName]: tensor });
 
     // 后处理
