@@ -46,13 +46,13 @@ export function Layout() {
       <div className="bg-emerald-600 safe-top flex-shrink-0" />
 
       {/* 主内容 */}
-      <main className="flex-1 overflow-y-auto overflow-x-hidden overscroll-none">
+      <main className="flex-1 overflow-y-auto overflow-x-hidden">
         <Outlet />
       </main>
 
       {/* 底部导航 */}
       <nav className="flex-shrink-0 bg-white border-t border-gray-200 shadow-lg safe-bottom">
-        <div className="flex justify-around items-center py-3 px-2">
+        <div className="flex justify-around items-center pt-2 pb-1 px-2">
           {navItems.map((item) => {
             const isActive = location.pathname === item.path;
             const Icon = item.icon;

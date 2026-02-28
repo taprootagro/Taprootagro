@@ -134,12 +134,6 @@
     -moz-osx-font-smoothing: grayscale;
     /* 确保字体大小可以被动态调整 */
     font-size: var(--font-size);
-    /* 禁止溢出 — 防止 iOS 橡皮筋弹性拖拽（水平+垂直） */
-    overflow: hidden;
-    overscroll-behavior: none;
-    /* 固定视口，防止 iOS 整页弹跳 */
-    position: fixed;
-    inset: 0;
     /* 混合字体堆栈 - 中国大陆 + 全球通用 */
     font-family: 
       'Alibaba PuHuiTi',         /* 中文简繁体（阿里云 CDN - 中国大陆稳定） */
@@ -170,9 +164,6 @@
   #root {
     width: 100%;
     height: 100%;
-    overflow: hidden;
-    position: fixed;
-    inset: 0;
   }
 
   /* 隐藏滚动条但保持功能 */
