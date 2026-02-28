@@ -1,6 +1,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import { RefreshCw, X, Download } from 'lucide-react';
 import { useLanguage } from '../hooks/useLanguage';
+import { shouldShowUpdate, type RolloutConfig } from '../utils/rollout';
+import { errorMonitor } from '../utils/errorMonitor';
 
 /**
  * PWA Registration & Update Manager
@@ -59,8 +61,19 @@ export function PWARegister() {
   const handleUpdate = useCallback(() => {
     if (!waitingWorker) return;
     setIsUpdating(true);
+
+    // Set a flag so the controllerchange handler knows this is an intentional update
+    sessionStorage.setItem('taproot_sw_updating', '1');
+
     // Tell the waiting SW to skip waiting and become active
     waitingWorker.postMessage({ type: 'SKIP_WAITING' });
+
+    // Safety: if controllerchange doesn't fire within 3s, force reload
+    setTimeout(() => {
+      console.warn('[PWA] controllerchange did not fire in 3s, force reloading...');
+      sessionStorage.removeItem('taproot_sw_updating');
+      window.location.reload();
+    }, 3000);
   }, [waitingWorker]);
 
   // Dismiss the update banner (will show again on next check)
@@ -107,6 +120,12 @@ export function PWARegister() {
       // Mark today as checked & persist config
       localStorage.setItem(LS_KEY_LAST_REMOTE_CHECK, today);
       localStorage.setItem(LS_KEY_REMOTE_CONFIG, JSON.stringify(config));
+
+      // Configure error reporting endpoint from remote config
+      if (config.errorReportUrl) {
+        errorMonitor.setReportEndpoint(config.errorReportUrl);
+        console.log('[PWA] Error reporting endpoint configured:', config.errorReportUrl);
+      }
 
       // Extract version (supports multiple field names for flexibility)
       const remoteVersion = config.version || config.cacheVersion || config.appVersion;
@@ -168,9 +187,44 @@ export function PWARegister() {
         newWorker.addEventListener('statechange', () => {
           // New SW is installed and waiting to activate
           if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-            console.log('[PWA] New version available, waiting for user approval');
-            setWaitingWorker(newWorker);
-            setUpdateAvailable(true);
+            console.log('[PWA] New version installed, checking rollout eligibility...');
+
+            // Check rollout before showing update banner
+            const config = (() => {
+              try {
+                const raw = localStorage.getItem(LS_KEY_REMOTE_CONFIG);
+                return raw ? JSON.parse(raw) as RolloutConfig : null;
+              } catch { return null; }
+            })();
+
+            // Get current version from the existing (active) SW
+            const currentVersion = ''; // Will be checked against config
+            const { shouldUpdate, reason } = shouldShowUpdate(config, currentVersion);
+            console.log(`[PWA] Rollout decision: ${shouldUpdate ? 'SHOW' : 'HOLD'} — ${reason}`);
+
+            if (shouldUpdate) {
+              setWaitingWorker(newWorker);
+              setUpdateAvailable(true);
+            } else {
+              console.log('[PWA] Update available but device not in rollout group, holding back');
+              // Re-check rollout eligibility every 30 minutes
+              // (in case rolloutPercentage is increased server-side)
+              const recheckInterval = setInterval(() => {
+                try {
+                  const freshConfig = (() => {
+                    const raw = localStorage.getItem(LS_KEY_REMOTE_CONFIG);
+                    return raw ? JSON.parse(raw) as RolloutConfig : null;
+                  })();
+                  const { shouldUpdate: nowEligible } = shouldShowUpdate(freshConfig, currentVersion);
+                  if (nowEligible) {
+                    console.log('[PWA] Now eligible for rollout, showing update');
+                    setWaitingWorker(newWorker);
+                    setUpdateAvailable(true);
+                    clearInterval(recheckInterval);
+                  }
+                } catch { /* ignore */ }
+              }, 30 * 60 * 1000);
+            }
           }
         });
       };
@@ -180,6 +234,7 @@ export function PWARegister() {
       // Check if there's already a waiting worker (e.g., from a previous visit)
       if (reg.waiting && navigator.serviceWorker.controller) {
         console.log('[PWA] Found waiting worker from previous visit');
+        // For already-waiting workers, always show (they survived a page load)
         setWaitingWorker(reg.waiting);
         setUpdateAvailable(true);
       }
@@ -206,9 +261,17 @@ export function PWARegister() {
     };
 
     // Listen for controller change (new SW took over) → reload
+    let reloading = false;
     const onControllerChange = () => {
+      // Prevent infinite reload loop
+      if (reloading) return;
+      reloading = true;
       console.log('[PWA] Controller changed, reloading for new version...');
-      window.location.reload();
+      // Small delay to let new SW fully activate
+      setTimeout(() => {
+        sessionStorage.removeItem('taproot_sw_updating');
+        window.location.reload();
+      }, 300);
     };
     navigator.serviceWorker.addEventListener('controllerchange', onControllerChange);
 

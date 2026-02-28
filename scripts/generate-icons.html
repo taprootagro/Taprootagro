@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Generate PNG Icons</title>
+  <style>
+    body { font-family: system-ui; max-width: 600px; margin: 40px auto; padding: 20px; background: #f9fafb; }
+    .card { background: white; border-radius: 12px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 16px; }
+    h1 { color: #10b981; margin-top: 0; }
+    .preview { display: flex; gap: 20px; align-items: end; margin: 20px 0; }
+    .preview canvas { border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+    .preview .label { text-align: center; color: #6b7280; font-size: 13px; margin-top: 8px; }
+    button { background: #10b981; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-size: 16px; cursor: pointer; margin-right: 8px; }
+    button:hover { background: #059669; }
+    .instructions { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 16px; margin-top: 16px; }
+    .instructions code { background: #d1fae5; padding: 2px 6px; border-radius: 4px; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>TaprootAgro Icon Generator</h1>
+    <p style="color:#6b7280">Generates PNG icons from the SVG design for PWA compatibility (iOS requires PNG).</p>
+
+    <div class="preview" id="preview"></div>
+
+    <button onclick="downloadAll()">Download All PNGs</button>
+  </div>
+
+  <div class="instructions">
+    <strong>After downloading:</strong>
+    <ol>
+      <li>Place <code>icon-192.png</code> and <code>icon-512.png</code> in the <code>/public/</code> directory</li>
+      <li>The app will automatically use them for iOS home screen icons and push notifications</li>
+    </ol>
+  </div>
+
+  <script>
+    const SIZES = [192, 512];
+    const canvases = {};
+
+    function drawIcon(size) {
+      const canvas = document.createElement('canvas');
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+
+      const r = size * (38 / 192); // corner radius scaled
+
+      // Background with rounded corners
+      ctx.beginPath();
+      ctx.moveTo(r, 0);
+      ctx.lineTo(size - r, 0);
+      ctx.quadraticCurveTo(size, 0, size, r);
+      ctx.lineTo(size, size - r);
+      ctx.quadraticCurveTo(size, size, size - r, size);
+      ctx.lineTo(r, size);
+      ctx.quadraticCurveTo(0, size, 0, size - r);
+      ctx.lineTo(0, r);
+      ctx.quadraticCurveTo(0, 0, r, 0);
+      ctx.closePath();
+      ctx.fillStyle = '#10b981';
+      ctx.fill();
+
+      // White border
+      const inset = size * (10 / 192);
+      const innerR = size * (32 / 192);
+      const innerW = size - inset * 2;
+      ctx.beginPath();
+      ctx.moveTo(inset + innerR, inset);
+      ctx.lineTo(inset + innerW - innerR, inset);
+      ctx.quadraticCurveTo(inset + innerW, inset, inset + innerW, inset + innerR);
+      ctx.lineTo(inset + innerW, inset + innerW - innerR);
+      ctx.quadraticCurveTo(inset + innerW, inset + innerW, inset + innerW - innerR, inset + innerW);
+      ctx.lineTo(inset + innerR, inset + innerW);
+      ctx.quadraticCurveTo(inset, inset + innerW, inset, inset + innerW - innerR);
+      ctx.lineTo(inset, inset + innerR);
+      ctx.quadraticCurveTo(inset, inset, inset + innerR, inset);
+      ctx.closePath();
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = size * (4 / 192);
+      ctx.stroke();
+
+      // Chinese character "农"
+      const fontSize = size * (90 / 192);
+      ctx.font = `bold ${fontSize}px "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif`;
+      ctx.fillStyle = '#ffffff';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('农', size / 2, size * (125 / 192));
+
+      return canvas;
+    }
+
+    // Generate and preview
+    const previewEl = document.getElementById('preview');
+    SIZES.forEach(size => {
+      const canvas = drawIcon(size);
+      canvases[size] = canvas;
+
+      const wrap = document.createElement('div');
+      const displaySize = Math.min(size, 192);
+      const previewCanvas = document.createElement('canvas');
+      previewCanvas.width = displaySize;
+      previewCanvas.height = displaySize;
+      previewCanvas.getContext('2d').drawImage(canvas, 0, 0, displaySize, displaySize);
+      previewCanvas.style.width = displaySize + 'px';
+      previewCanvas.style.height = displaySize + 'px';
+
+      const label = document.createElement('div');
+      label.className = 'label';
+      label.textContent = `${size}x${size}`;
+
+      wrap.appendChild(previewCanvas);
+      wrap.appendChild(label);
+      previewEl.appendChild(wrap);
+    });
+
+    function downloadAll() {
+      SIZES.forEach(size => {
+        const link = document.createElement('a');
+        link.download = `icon-${size}.png`;
+        link.href = canvases[size].toDataURL('image/png');
+        link.click();
+      });
+    }
+  </script>
+</body>
+</html>

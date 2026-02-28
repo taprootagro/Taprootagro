@@ -25,7 +25,8 @@
 
   <!-- Icons -->
   <link rel="icon" type="image/svg+xml" href="/icon-192.svg" />
-  <link rel="apple-touch-icon" href="/icon-192.svg" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+  <link rel="apple-touch-icon" sizes="192x192" href="/icon-192.png" />
 
   <!-- PWA Manifest -->
   <link rel="manifest" href="/manifest.json" />
@@ -38,5 +39,79 @@
 <body>
   <div id="root"></div>
   <script type="module" src="/src/main.tsx"></script>
+
+  <!-- ============================================================
+    CRASH RECOVERY SCRIPT (inline, no external dependencies)
+    
+    This runs INSIDE index.html so it works even when:
+    - JS chunks fail to load (404, CDN down)
+    - React crashes on startup
+    - Service Worker serves corrupted cache
+    - App gets stuck in a crash-reload loop
+    
+    How it works:
+    1. Waits 10 seconds after page load
+    2. If #root is still empty (React never rendered), shows recovery UI
+    3. Detects crash loops: if crashed 3+ times in 60 seconds, auto-resets
+  ============================================================ -->
+  <script>
+    (function() {
+      var CRASH_KEY = '__taproot_crash_count__';
+      var CRASH_TS_KEY = '__taproot_crash_ts__';
+      var MAX_CRASHES = 3;
+      var CRASH_WINDOW = 60000; // 60 seconds
+
+      // Track crash count for loop detection
+      try {
+        var now = Date.now();
+        var lastTs = parseInt(sessionStorage.getItem(CRASH_TS_KEY) || '0', 10);
+        var count = parseInt(sessionStorage.getItem(CRASH_KEY) || '0', 10);
+        
+        // Reset counter if outside crash window
+        if (now - lastTs > CRASH_WINDOW) count = 0;
+        
+        count++;
+        sessionStorage.setItem(CRASH_KEY, String(count));
+        sessionStorage.setItem(CRASH_TS_KEY, String(now));
+
+        // Crash loop detected: auto-reset
+        if (count >= MAX_CRASHES) {
+          sessionStorage.removeItem(CRASH_KEY);
+          sessionStorage.removeItem(CRASH_TS_KEY);
+          window.location.href = '/sw-reset';
+          return;
+        }
+      } catch(e) { /* sessionStorage unavailable */ }
+
+      // Clear crash counter on successful load
+      window.addEventListener('load', function() {
+        setTimeout(function() {
+          var root = document.getElementById('root');
+          if (root && root.children.length > 0) {
+            // App rendered successfully — clear crash counter
+            try {
+              sessionStorage.removeItem(CRASH_KEY);
+              sessionStorage.removeItem(CRASH_TS_KEY);
+            } catch(e) {}
+            return;
+          }
+
+          // App failed to render after 10 seconds — show recovery UI
+          if (root) {
+            root.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:system-ui;background:#f0fdf4;color:#065f46;text-align:center;padding:2rem">'
+              + '<div>'
+              + '<div style="width:64px;height:64px;margin:0 auto 1.5rem;border-radius:50%;background:#dcfce7;display:flex;align-items:center;justify-content:center"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></div>'
+              + '<h2 style="margin:0 0 0.5rem">Failed to load</h2>'
+              + '<p style="color:#6b7280;margin:0 0 1.5rem;max-width:300px">The app could not start. This may be a temporary network issue.</p>'
+              + '<div style="display:flex;flex-direction:column;gap:0.5rem;align-items:center">'
+              + '<button onclick="location.reload()" style="padding:0.75rem 2rem;background:#10b981;color:white;border:none;border-radius:0.75rem;font-size:1rem;cursor:pointer;width:200px">Retry</button>'
+              + '<button onclick="location.href=\'/sw-reset\'" style="padding:0.75rem 2rem;background:white;color:#065f46;border:1px solid #d1d5db;border-radius:0.75rem;font-size:1rem;cursor:pointer;width:200px">Reset App</button>'
+              + '</div>'
+              + '</div></div>';
+          }
+        }, 10000);
+      });
+    })();
+  </script>
 </body>
 </html>
