@@ -69,7 +69,7 @@ export function MarketPage() {
   }, [products, selectedCategory, currentSubCategories]);
 
   return (
-    <div className="pb-20 h-screen flex flex-col overflow-hidden">
+    <div className="h-full flex flex-col overflow-hidden">
       {/* 二级界面路由 */}
       {currentView.type === "ad" && (
         <MarketAdDetailPage onClose={() => setCurrentView({ type: "market" })} ad={currentView.data} />
@@ -183,7 +183,7 @@ export function MarketPage() {
               )}
 
               {/* 按二级类别分组显示产品 */}
-              <div className="pb-24">
+              <div className="pb-4">
                 {currentSubCategories.length === 0 ? (
                   <div className="text-center py-12 text-gray-500">
                     <p className="text-sm">该类别暂无产品</p>

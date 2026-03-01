@@ -1,5 +1,5 @@
 import { Search, ScanLine, Bot, Calculator } from "lucide-react";
-import Slider from "react-slick";
+import { BannerCarousel } from "./BannerCarousel";
 import { usePerformanceMonitor } from "../hooks/usePerformanceMonitor";
 import { useLanguage } from "../hooks/useLanguage";
 import { useState, useEffect } from "react";
@@ -33,7 +33,7 @@ export function HomePage() {
     | { type: "aiAssistant" }
     | { type: "statement" }
     | { type: "live" }
-    | { type: "videoFeed" }
+    | { type: "videoFeed"; startIndex?: number }
     | { type: "article"; data: any }
   >({ type: "home" });
 
@@ -46,18 +46,15 @@ export function HomePage() {
     dots: true,
     infinite: true,
     speed: 800,
-    slidesToShow: 1,
-    slidesToScroll: 1,
     autoplay: true,
     autoplaySpeed: 5000,
     fade: true,
-    cssEase: 'ease-in-out',
-    arrows: false,
     pauseOnHover: true,
   };
 
   // 预加载图片
   useEffect(() => {
+    if (bannerImages.length === 0) return;
     const imagePromises = bannerImages.map((image) => {
       return new Promise((resolve) => {
         const img = new Image();
@@ -70,7 +67,7 @@ export function HomePage() {
     Promise.all(imagePromises).then(() => {
       setImagesLoaded(true);
     });
-  }, []);
+  }, [bannerImages]);
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: 'var(--app-bg)' }}>
@@ -91,11 +88,14 @@ export function HomePage() {
       {currentView.type === "live" && (
         <LiveDetailPage 
           onClose={() => setCurrentView({ type: "home" })}
-          onOpenVideoFeed={() => setCurrentView({ type: "videoFeed" })}
+          onOpenVideoFeed={(startIndex) => setCurrentView({ type: "videoFeed", startIndex })}
         />
       )}
       {currentView.type === "videoFeed" && (
-        <VideoFeedPage onClose={() => setCurrentView({ type: "home" })} />
+        <VideoFeedPage 
+          onClose={() => setCurrentView({ type: "home" })}
+          startIndex={currentView.startIndex}
+        />
       )}
       {currentView.type === "article" && (
         <ArticleDetailPage
@@ -141,9 +141,9 @@ export function HomePage() {
           <div className="px-3 space-y-3 max-w-screen-xl mx-auto pb-32">
             {/* 轮播图 */}
             <div 
-              className="mt-3 rounded-2xl overflow-hidden banner-slider active:scale-95 transition-transform cursor-pointer aspect-[2/1] shadow-lg"
+              className="mt-3 rounded-2xl overflow-hidden bg-gray-100 relative active:scale-95 transition-transform cursor-pointer aspect-[2/1] shadow-lg"
             >
-              <Slider {...sliderSettings}>
+              <BannerCarousel {...sliderSettings}>
                 {bannerImages.map((image, index) => (
                   <div 
                     key={image.id} 
@@ -159,7 +159,7 @@ export function HomePage() {
                     />
                   </div>
                 ))}
-              </Slider>
+              </BannerCarousel>
             </div>
 
             {/* AI助手和对账单 */}
@@ -267,149 +267,6 @@ export function HomePage() {
         </>
       )}
 
-      {/* Slick Carousel 样式 */}
-      <style>{`
-        /* Slick Slider 基础样式 */
-        .banner-slider {
-          background: #f3f4f6;
-          position: relative;
-        }
-        .banner-slider .slick-slider {
-          position: relative;
-          display: block;
-          box-sizing: border-box;
-          user-select: none;
-          touch-action: pan-y;
-          height: 100%;
-        }
-        .banner-slider .slick-list {
-          position: relative;
-          display: block;
-          overflow: hidden;
-          margin: 0;
-          padding: 0;
-          height: 100%;
-          background: #f3f4f6;
-        }
-        .banner-slider .slick-list:focus {
-          outline: none;
-        }
-        .banner-slider .slick-list.dragging {
-          cursor: pointer;
-        }
-        .banner-slider .slick-slider .slick-track,
-        .banner-slider .slick-slider .slick-list {
-          transform: translate3d(0, 0, 0);
-        }
-        .banner-slider .slick-track {
-          position: relative;
-          top: 0;
-          left: 0;
-          display: block;
-          margin-left: auto;
-          margin-right: auto;
-          height: 100%;
-        }
-        .banner-slider .slick-track:before,
-        .banner-slider .slick-track:after {
-          display: table;
-          content: '';
-        }
-        .banner-slider .slick-track:after {
-          clear: both;
-        }
-        .banner-slider .slick-loading .slick-track {
-          visibility: hidden;
-        }
-        .banner-slider .slick-slide {
-          display: none;
-          float: left;
-          height: 100%;
-          min-height: 1px;
-        }
-        .banner-slider .slick-slide > div {
-          height: 100%;
-        }
-        .banner-slider .slider-item {
-          height: 100%;
-          display: block !important;
-        }
-        .banner-slider .slick-slide img {
-          display: block;
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
-        }
-        .banner-slider .slick-slide.slick-loading img {
-          display: none;
-        }
-        .banner-slider .slick-slide.dragging img {
-          pointer-events: none;
-        }
-        .banner-slider .slick-initialized .slick-slide {
-          display: block;
-        }
-        .banner-slider .slick-loading .slick-slide {
-          visibility: hidden;
-        }
-        .banner-slider .slick-vertical .slick-slide {
-          display: block;
-          height: auto;
-          border: none;
-        }
-        
-        /* Dots 指示点样式 */
-        .banner-slider .slick-dots {
-          position: absolute;
-          bottom: 10px;
-          display: block;
-          width: 100%;
-          padding: 0;
-          margin: 0;
-          list-style: none;
-          text-align: center;
-          z-index: 10;
-        }
-        .banner-slider .slick-dots li {
-          position: relative;
-          display: inline-block;
-          width: 20px;
-          height: 20px;
-          margin: 0 3px;
-          padding: 0;
-          cursor: pointer;
-        }
-        .banner-slider .slick-dots li button {
-          font-size: 0;
-          line-height: 0;
-          display: block;
-          width: 20px;
-          height: 20px;
-          padding: 5px;
-          cursor: pointer;
-          color: transparent;
-          border: 0;
-          outline: none;
-          background: transparent;
-        }
-        .banner-slider .slick-dots li button:before {
-          font-size: 8px;
-          line-height: 20px;
-          position: absolute;
-          top: 0;
-          left: 0;
-          width: 20px;
-          height: 20px;
-          content: '•';
-          text-align: center;
-          color: white;
-          opacity: 0.5;
-        }
-        .banner-slider .slick-dots li.slick-active button:before {
-          opacity: 1;
-          color: white;
-        }
-      `}</style>
     </div>
   );
 }

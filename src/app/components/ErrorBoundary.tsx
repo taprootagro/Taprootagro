@@ -73,7 +73,7 @@ export class ErrorBoundary extends Component<Props, State> {
             alignItems: 'center',
             justifyContent: 'center',
             minHeight: '100vh',
-            fontFamily: "'Noto Sans', system-ui, sans-serif",
+            fontFamily: "system-ui, -apple-system, sans-serif",
             background: '#f0fdf4',
             color: '#065f46',
             textAlign: 'center',

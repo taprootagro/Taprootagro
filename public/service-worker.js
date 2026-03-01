@@ -1,16 +1,20 @@
 // ============================================================
-// TaprootAgro PWA Service Worker - Cache-First + Daily Update
+// TaprootAgro PWA Service Worker - Cache-First + Offline-Ready
 // ============================================================
 // Strategy:
-//   - ALL resources served from cache first (instant load)
-//   - Navigation always resolves to cached index.html (SPA)
+//   - Same-origin: Cache-first for instant load
+//   - Cross-origin images: Cache-first with network fallback
+//   - Cross-origin CDN (jsDelivr etc): Cache-first for ONNX Runtime
+//   - Navigation: Always resolves to cached index.html (SPA)
 //   - Once per day (first open), background-check server for updates
-//   - If new SW detected, user sees update banner
+//   - Offline: Serve everything from cache, placeholder for uncached images
 // ============================================================
 
-const CACHE_VERSION = 'v6';
+const CACHE_VERSION = 'v7';
 const CACHE_PREFIX = 'taproot-agro';
 const CACHE_NAME = `${CACHE_PREFIX}-${CACHE_VERSION}`;
+const IMG_CACHE_NAME = `${CACHE_PREFIX}-images-${CACHE_VERSION}`;
+const CDN_CACHE_NAME = `${CACHE_PREFIX}-cdn-${CACHE_VERSION}`;
 
 // Remote config endpoint
 const REMOTE_CONFIG_URL = 'https://www.taprootagro.com/taprootagro/global';
@@ -26,32 +30,40 @@ const APP_SHELL = [
 ];
 
 // Resources that should NEVER be intercepted by the SW
-// These are self-rescue pages that must always hit the network
 const SW_BYPASS_PATHS = [
   '/service-worker.js',
   '/clear-cache.html',
   '/sw-reset',
 ];
 
-// Maximum number of entries per cache (prevents unbounded growth)
-const MAX_CACHE_ENTRIES = 150;
+// Maximum entries per cache
+const MAX_CACHE_ENTRIES = 200;
+const MAX_IMG_CACHE_ENTRIES = 300;
+const MAX_CDN_CACHE_ENTRIES = 50;
+
+// Cross-origin domains allowed to be cached
+const CACHEABLE_IMAGE_HOSTS = [
+  'images.unsplash.com',
+  'placehold.co',
+  'plus.unsplash.com',
+];
+
+const CACHEABLE_CDN_HOSTS = [
+  'cdn.jsdelivr.net',       // ONNX Runtime WASM
+  'unpkg.com',
+  'cdnjs.cloudflare.com',
+];
 
 // ============================================================
 // EMERGENCY RECOVERY
-// Set to true when deploying a fix for a broken SW in production.
-// This forces the new SW to immediately take over from the broken one.
-// IMPORTANT: Set back to false in the next deploy after users recover.
 // ============================================================
 const EMERGENCY_SKIP_WAITING = false;
 
 // ============================================================
 // HELPER - Strip redirect flag from responses
-// Safari/WebKit rejects redirected responses served by SW for navigations
-// See: https://bugs.webkit.org/show_bug.cgi?id=172867
 // ============================================================
 function stripRedirect(response) {
   if (!response || !response.redirected) return response;
-  // Clone the response body into a fresh Response without the redirected flag
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,
@@ -59,7 +71,6 @@ function stripRedirect(response) {
   });
 }
 
-// Safe version of cache.add() that strips redirect flags
 async function safeCacheAdd(cache, url) {
   try {
     const response = await fetch(url);
@@ -72,10 +83,10 @@ async function safeCacheAdd(cache, url) {
 }
 
 // ============================================================
-// DAILY CHECK HELPER - Only hit the server once per day
+// DAILY CHECK HELPER
 // ============================================================
 function getTodayDateString() {
-  return new Date().toISOString().slice(0, 10); // "2026-02-28"
+  return new Date().toISOString().slice(0, 10);
 }
 
 async function hasCheckedToday() {
@@ -97,13 +108,38 @@ async function markCheckedToday() {
     await cache.put(DAILY_CHECK_KEY, new Response(body, {
       headers: { 'Content-Type': 'application/json' }
     }));
-  } catch {
-    // Silently fail
-  }
+  } catch { /* Silently fail */ }
 }
 
 // ============================================================
-// INSTALL - Pre-cache app shell, do NOT auto skipWaiting
+// 1x1 transparent PNG placeholder for offline uncached images
+// ============================================================
+const OFFLINE_IMAGE_PLACEHOLDER = 'data:image/svg+xml,' + encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300">' +
+  '<rect fill="#f0fdf4" width="400" height="300"/>' +
+  '<text x="200" y="140" text-anchor="middle" fill="#059669" font-family="system-ui" font-size="16">Offline</text>' +
+  '<text x="200" y="165" text-anchor="middle" fill="#6b7280" font-family="system-ui" font-size="12">Image not cached</text>' +
+  '</svg>'
+);
+
+function createOfflineImageResponse() {
+  // Return a minimal SVG placeholder
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300">' +
+    '<rect fill="#f0fdf4" width="400" height="300"/>' +
+    '<path d="M185 130 l15-20 l15 20 l-7 0 l0 15 l-16 0 l0-15z" fill="#d1d5db"/>' +
+    '<text x="200" y="170" text-anchor="middle" fill="#9ca3af" font-family="system-ui" font-size="11">offline</text>' +
+    '</svg>';
+  return new Response(svg, {
+    status: 200,
+    headers: {
+      'Content-Type': 'image/svg+xml',
+      'Cache-Control': 'no-store'
+    }
+  });
+}
+
+// ============================================================
+// INSTALL
 // ============================================================
 self.addEventListener('install', (event) => {
   console.log(`[SW] Installing ${CACHE_VERSION}...`);
@@ -116,7 +152,6 @@ self.addEventListener('install', (event) => {
         );
       })
   );
-  // Emergency: force skip waiting to recover from broken SW
   if (EMERGENCY_SKIP_WAITING) {
     console.warn('[SW] EMERGENCY_SKIP_WAITING enabled, forcing skipWaiting()');
     self.skipWaiting();
@@ -124,18 +159,16 @@ self.addEventListener('install', (event) => {
 });
 
 // ============================================================
-// ACTIVATE - Clean up old caches, claim clients
+// ACTIVATE - Clean up old caches
 // ============================================================
 self.addEventListener('activate', (event) => {
   console.log(`[SW] Activating ${CACHE_VERSION}...`);
   event.waitUntil(
     (async () => {
-      // 1. First claim clients so the new SW controls the page immediately
       await self.clients.claim();
       console.log('[SW] Claimed clients');
 
-      // 2. Pre-fetch and cache critical resources before deleting old caches
-      // This ensures JS/CSS from the new build are cached before old cache is gone
+      // Pre-fetch fresh index.html
       try {
         const cache = await caches.open(CACHE_NAME);
         const indexResponse = await fetch('/index.html', { cache: 'no-store' });
@@ -149,11 +182,14 @@ self.addEventListener('activate', (event) => {
         console.warn('[SW] Failed to pre-cache index.html during activation:', err);
       }
 
-      // 3. Now safely delete old caches
+      // Delete old caches (all prefixed caches from previous versions)
       const cacheNames = await caches.keys();
       await Promise.all(
         cacheNames
-          .filter((name) => name.startsWith(CACHE_PREFIX) && name !== CACHE_NAME)
+          .filter((name) => name.startsWith(CACHE_PREFIX) && 
+            name !== CACHE_NAME && 
+            name !== IMG_CACHE_NAME && 
+            name !== CDN_CACHE_NAME)
           .map((name) => {
             console.log(`[SW] Deleting old cache: ${name}`);
             return caches.delete(name);
@@ -165,10 +201,7 @@ self.addEventListener('activate', (event) => {
 });
 
 // ============================================================
-// FETCH - Cache-First SPA Strategy
-//   - Navigation: ALWAYS serve /index.html (SPA single entry point)
-//   - Static assets: Cache-first with network fallback
-//   - API & cross-origin: Pass through
+// FETCH - Multi-strategy routing
 // ============================================================
 let dailyCheckTriggered = false;
 
@@ -179,19 +212,14 @@ self.addEventListener('fetch', (event) => {
   // Skip non-GET requests
   if (request.method !== 'GET') return;
 
-  // Skip cross-origin requests
-  if (url.origin !== self.location.origin) return;
+  // Skip API endpoints (same-origin)
+  if (url.origin === self.location.origin && url.pathname.startsWith('/api/')) return;
 
-  // Skip API endpoints
-  if (url.pathname.startsWith('/api/')) return;
-
-  // ---- Bypass paths: self-rescue pages that must always hit the network ----
-  if (SW_BYPASS_PATHS.includes(url.pathname)) {
-    // /sw-reset is special: handled inline by the SW itself
+  // ---- Bypass paths ----
+  if (url.origin === self.location.origin && SW_BYPASS_PATHS.includes(url.pathname)) {
     if (url.pathname === '/sw-reset') {
       event.respondWith(handleSwReset());
     }
-    // Everything else (service-worker.js, clear-cache.html) falls through to network
     return;
   }
 
@@ -201,35 +229,60 @@ self.addEventListener('fetch', (event) => {
     event.waitUntil(triggerDailyCheck());
   }
 
-  // ----- Navigation requests (HTML pages) -----
-  if (request.mode === 'navigate') {
-    event.respondWith(safeRespond(() => handleNavigation(), request));
+  // ----- Same-origin requests -----
+  if (url.origin === self.location.origin) {
+    if (request.mode === 'navigate') {
+      event.respondWith(safeRespond(() => handleNavigation(), request));
+      return;
+    }
+    event.respondWith(safeRespond(() => cacheFirstStrategy(request, CACHE_NAME, MAX_CACHE_ENTRIES), request));
     return;
   }
 
-  // ----- All other same-origin resources: Cache-first -----
-  event.respondWith(safeRespond(() => cacheFirstStrategy(request), request));
+  // ----- Cross-origin: Cacheable CDN (ONNX Runtime WASM, JS libraries) -----
+  if (CACHEABLE_CDN_HOSTS.some(h => url.hostname === h || url.hostname.endsWith('.' + h))) {
+    event.respondWith(safeRespond(() => cacheFirstStrategy(request, CDN_CACHE_NAME, MAX_CDN_CACHE_ENTRIES), request));
+    return;
+  }
+
+  // ----- Cross-origin: Cacheable images -----
+  if (CACHEABLE_IMAGE_HOSTS.some(h => url.hostname === h || url.hostname.endsWith('.' + h))) {
+    event.respondWith(safeRespond(() => cacheFirstImageStrategy(request), request));
+    return;
+  }
+
+  // ----- All other cross-origin: pass through (don't intercept) -----
 });
 
 // ============================================================
 // SAFE RESPOND WRAPPER
-// Catches ANY error in the response handler and falls back to
-// network fetch. This prevents "SW returned no response" crashes.
 // ============================================================
 async function safeRespond(handler, originalRequest) {
   try {
     const response = await handler();
-    // Validate the response is usable
     if (response && response.status !== undefined) {
       return response;
     }
     throw new Error('Invalid response from handler');
   } catch (error) {
     console.error('[SW] Response handler failed, falling through to network:', error);
-    // Last resort: let the browser fetch directly
     try {
       return await fetch(originalRequest);
     } catch {
+      // Check if this is an image request
+      const url = new URL(originalRequest.url);
+      if (isImageRequest(originalRequest, url)) {
+        return createOfflineImageResponse();
+      }
+      
+      // If requesting a JS module (like main.tsx) and we are offline/failed
+      if (url.pathname.endsWith('.tsx') || url.pathname.endsWith('.ts') || url.pathname.endsWith('.js')) {
+         return new Response('console.error("Resource load failed: ' + url.pathname + '");', {
+           status: 503,
+           headers: { 'Content-Type': 'application/javascript' }
+         });
+      }
+
       return new Response(
         '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>' +
         '<body style="display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:system-ui;background:#f0fdf4;color:#065f46;text-align:center;padding:2rem">' +
@@ -244,10 +297,17 @@ async function safeRespond(handler, originalRequest) {
 }
 
 // ============================================================
+// Helper: detect image requests
+// ============================================================
+function isImageRequest(request, url) {
+  const accept = request.headers.get('accept') || '';
+  if (accept.includes('image/')) return true;
+  const ext = url.pathname.split('.').pop()?.toLowerCase();
+  return ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'ico', 'avif'].includes(ext || '');
+}
+
+// ============================================================
 // EMERGENCY RESET - /sw-reset endpoint
-// Unregisters the SW, clears all caches, and reloads.
-// This is the last resort when SW is completely broken.
-// Usage: Tell users to visit https://yourdomain.com/sw-reset
 // ============================================================
 async function handleSwReset() {
   const html = `<!DOCTYPE html>
@@ -263,16 +323,15 @@ async function handleSwReset() {
 (async function(){
   const status = document.getElementById('status');
   try {
-    // 1. Unregister all service workers
     const registrations = await navigator.serviceWorker.getRegistrations();
     await Promise.all(registrations.map(r => r.unregister()));
-    // 2. Clear all caches
     const keys = await caches.keys();
     await Promise.all(keys.map(k => caches.delete(k)));
-    // 3. Show success
-    status.innerHTML = '<div style="font-size:48px;margin-bottom:1rem">✅</div>'
+    // Also clear IndexedDB model cache
+    try { indexedDB.deleteDatabase('taproot-yolo-cache'); } catch(e) {}
+    status.innerHTML = '<div style="font-size:48px;margin-bottom:1rem">���</div>'
       + '<h2 style="margin-bottom:0.5rem">Reset Complete</h2>'
-      + '<p style="margin-bottom:1rem;color:#6b7280">Service Worker unregistered and caches cleared.</p>'
+      + '<p style="margin-bottom:1rem;color:#6b7280">Service Worker unregistered and all caches cleared.</p>'
       + '<button onclick="location.href=\\'/\\'" style="padding:0.75rem 2rem;background:#10b981;color:white;border:none;border-radius:0.75rem;font-size:1rem;cursor:pointer">Open App</button>';
   } catch(e) {
     status.innerHTML = '<div style="font-size:48px;margin-bottom:1rem">❌</div>'
@@ -283,29 +342,28 @@ async function handleSwReset() {
 })();
 </script></body></html>`;
 
-  // IMPORTANT: Return this directly, bypassing cache
   return new Response(html, {
     status: 200,
     headers: { 'Content-Type': 'text/html; charset=utf-8' }
   });
 }
 
-// SPA Navigation Handler: always return index.html
-// Priority: cached index.html → network index.html → offline fallback
+// ============================================================
+// SPA Navigation Handler
+// ============================================================
 async function handleNavigation() {
-  // 1. Try to serve cached /index.html (instant, works offline)
+  // 1. Try cached /index.html
   const cachedIndex = await caches.match('/index.html');
   if (cachedIndex) {
     return stripRedirect(cachedIndex);
   }
 
-  // 2. Also try cached "/" (may be the same response)
   const cachedRoot = await caches.match('/');
   if (cachedRoot) {
     return stripRedirect(cachedRoot);
   }
 
-  // 3. Nothing cached — fetch from network
+  // 2. Fetch from network
   try {
     const networkResponse = await fetch('/index.html');
     if (networkResponse.ok) {
@@ -317,11 +375,20 @@ async function handleNavigation() {
     return networkResponse;
   } catch (error) {
     return new Response(
-      '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>TaprootAgro</title></head>' +
-      '<body style="display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:system-ui;background:#f0fdf4;color:#065f46;text-align:center;padding:2rem">' +
-      '<div><h2 style="margin-bottom:1rem">Offline</h2><p>Please check your network connection and try again.</p>' +
-      '<button onclick="location.reload()" style="margin-top:1rem;padding:0.5rem 1.5rem;background:#10b981;color:white;border:none;border-radius:0.5rem;cursor:pointer">Retry</button></div>' +
-      '</body></html>',
+      '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
+      '<title>TaprootAgro - Offline</title>' +
+      '<style>*{margin:0;padding:0;box-sizing:border-box}body{display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:system-ui,-apple-system,sans-serif;background:#f0fdf4;color:#065f46;text-align:center;padding:2rem}' +
+      '.card{background:white;border-radius:1rem;padding:2rem;box-shadow:0 4px 20px rgba(0,0,0,0.08);max-width:320px;width:100%}' +
+      '.icon{width:64px;height:64px;background:#d1fae5;border-radius:1rem;display:flex;align-items:center;justify-content:center;margin:0 auto 1rem}' +
+      'h2{margin-bottom:0.5rem;color:#065f46}p{color:#6b7280;margin-bottom:1rem;font-size:0.875rem}' +
+      'button{padding:0.75rem 1.5rem;background:#10b981;color:white;border:none;border-radius:0.75rem;cursor:pointer;font-size:0.875rem;width:100%}' +
+      'button:active{background:#059669}</style></head>' +
+      '<body><div class="card">' +
+      '<div class="icon"><svg width="32" height="32" fill="none" stroke="#059669" stroke-width="2" viewBox="0 0 24 24"><path d="M1 1l22 22M16.72 11.06A10.94 10.94 0 0 1 19 12.55M5 12.55a10.94 10.94 0 0 1 5.17-2.39M10.71 5.05A16 16 0 0 1 22.56 9M1.42 9a15.91 15.91 0 0 1 4.7-2.88M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/></svg></div>' +
+      '<h2>No Network</h2>' +
+      '<p>Please check your connection. The app will work once you reconnect.</p>' +
+      '<button onclick="location.reload()">Retry</button>' +
+      '</div></body></html>',
       {
         status: 200,
         headers: { 'Content-Type': 'text/html; charset=utf-8' }
@@ -330,31 +397,40 @@ async function handleNavigation() {
   }
 }
 
-// Cache-first: use cache if available, otherwise fetch and cache
-async function cacheFirstStrategy(request) {
+// ============================================================
+// Cache-first: same-origin assets & CDN resources
+// ============================================================
+async function cacheFirstStrategy(request, cacheName, maxEntries) {
+  // 1. Check cache
   const cachedResponse = await caches.match(request);
   if (cachedResponse) {
-    // Validate cached response is not corrupted
     if (isValidCachedResponse(cachedResponse)) {
       return stripRedirect(cachedResponse);
     }
-    // Corrupted cache entry — evict it and fall through to network
+    // Corrupted → evict
     console.warn('[SW] Corrupted cache entry evicted:', request.url);
-    const cache = await caches.open(CACHE_NAME);
+    const cache = await caches.open(cacheName);
     cache.delete(request);
   }
+
+  // 2. Fetch from network
   try {
     const networkResponse = await fetch(request);
     if (networkResponse.ok) {
       const clean = stripRedirect(networkResponse);
-      const cache = await caches.open(CACHE_NAME);
+      const cache = await caches.open(cacheName);
       cache.put(request, clean.clone());
-      // Non-blocking: trim cache if too large
-      trimCache(CACHE_NAME, MAX_CACHE_ENTRIES);
+      trimCache(cacheName, maxEntries);
       return clean;
     }
     return networkResponse;
   } catch (error) {
+    if (request.url.endsWith('.js') || request.url.endsWith('.tsx') || request.url.endsWith('.ts')) {
+      return new Response('console.error("Offline - Resource not cached: ' + request.url + '");', {
+        status: 503,
+        headers: { 'Content-Type': 'application/javascript' }
+      });
+    }
     return new Response('Offline - Resource not cached', {
       status: 503,
       headers: { 'Content-Type': 'text/plain' }
@@ -363,32 +439,61 @@ async function cacheFirstStrategy(request) {
 }
 
 // ============================================================
+// Cache-first for cross-origin images
+// With offline SVG placeholder fallback
+// ============================================================
+async function cacheFirstImageStrategy(request) {
+  // 1. Check image cache
+  const cachedResponse = await caches.match(request);
+  if (cachedResponse) {
+    if (isValidCachedResponse(cachedResponse)) {
+      return cachedResponse;
+    }
+    const cache = await caches.open(IMG_CACHE_NAME);
+    cache.delete(request);
+  }
+
+  // 2. Try network
+  try {
+    const networkResponse = await fetch(request);
+    if (networkResponse.ok) {
+      // Cache the cross-origin image (opaque is fine for display)
+      const cache = await caches.open(IMG_CACHE_NAME);
+      cache.put(request, networkResponse.clone());
+      trimCache(IMG_CACHE_NAME, MAX_IMG_CACHE_ENTRIES);
+      return networkResponse;
+    }
+    return networkResponse;
+  } catch (error) {
+    // Offline, no cache → return placeholder
+    return createOfflineImageResponse();
+  }
+}
+
+// ============================================================
 // CACHE VALIDATION
-// Detect corrupted or empty cached responses before serving
 // ============================================================
 function isValidCachedResponse(response) {
-  // Must have a valid HTTP status
-  if (!response || response.status === 0) return false;
-  // Check Content-Length if available (0-byte responses are corrupted)
+  if (!response || response.status === 0) {
+    // status 0 = opaque response from cross-origin, which is valid for images
+    return response && response.type === 'opaque' ? true : false;
+  }
   const contentLength = response.headers.get('content-length');
   if (contentLength !== null && parseInt(contentLength, 10) === 0) return false;
-  // Response type 'error' is never valid
   if (response.type === 'error') return false;
   return true;
 }
 
 // ============================================================
 // CACHE SIZE LIMITING
-// Prevents unbounded cache growth from old versioned assets
 // ============================================================
 async function trimCache(cacheName, maxEntries) {
   try {
     const cache = await caches.open(cacheName);
     const keys = await cache.keys();
     if (keys.length <= maxEntries) return;
-    // Delete oldest entries (first in = oldest) until under limit
     const toDelete = keys.length - maxEntries;
-    console.log(`[SW] Trimming cache: removing ${toDelete} oldest entries`);
+    console.log(`[SW] Trimming ${cacheName}: removing ${toDelete} oldest entries`);
     for (let i = 0; i < toDelete; i++) {
       await cache.delete(keys[i]);
     }
@@ -415,7 +520,7 @@ async function triggerDailyCheck() {
     await self.registration.update();
     console.log('[SW] SW update check complete');
 
-    // 2. Background refresh index.html so next launch has latest version
+    // 2. Background refresh index.html
     try {
       const freshIndex = await fetch('/index.html', { cache: 'no-store' });
       if (freshIndex.ok) {
@@ -429,7 +534,7 @@ async function triggerDailyCheck() {
       console.warn('[SW] Failed to refresh index.html, will retry tomorrow');
     }
 
-    // 3. Also check remote config
+    // 3. Check remote config
     await checkRemoteConfig();
   } catch (error) {
     console.warn('[SW] Daily check failed (will retry tomorrow):', error.message || error);
@@ -457,7 +562,11 @@ self.addEventListener('message', (event) => {
       break;
 
     case 'CLEAR_CACHE':
-      caches.delete(CACHE_NAME).then(() => {
+      Promise.all([
+        caches.delete(CACHE_NAME),
+        caches.delete(IMG_CACHE_NAME),
+        caches.delete(CDN_CACHE_NAME)
+      ]).then(() => {
         event.ports[0]?.postMessage({ success: true });
       });
       break;

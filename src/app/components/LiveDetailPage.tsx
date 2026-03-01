@@ -1,14 +1,17 @@
 import { SecondaryView } from "./SecondaryView";
-import { Play, Users, Clock, Video } from "lucide-react";
+import { Play, Users, Video } from "lucide-react";
 import { useHomeConfig } from "../hooks/useHomeConfig";
+import { useLanguage } from "../hooks/useLanguage";
 
 interface LiveDetailPageProps {
   onClose: () => void;
-  onOpenVideoFeed?: () => void;
+  onOpenVideoFeed?: (startIndex?: number) => void;
 }
 
 export function LiveDetailPage({ onClose, onOpenVideoFeed }: LiveDetailPageProps) {
   const { config } = useHomeConfig();
+  const { t } = useLanguage();
+  const v = t.video;
   const liveStreams = config.liveStreams || [];
 
   // 第一个直播作为"当前直播"，其余作为"往期回放"
@@ -18,13 +21,13 @@ export function LiveDetailPage({ onClose, onOpenVideoFeed }: LiveDetailPageProps
   return (
     <SecondaryView 
       onClose={onClose} 
-      title="直播与视频"
+      title={v?.liveAndVideo || '直播与视频'}
       showTitle={true}
     >
       <div className="p-4 space-y-4">
         {/* 视频播放入口 - 类似抖音的短视频 */}
         <div 
-          onClick={onOpenVideoFeed}
+          onClick={() => onOpenVideoFeed?.(0)}
           className="bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-2xl p-6 text-white cursor-pointer active:scale-95 transition-transform shadow-lg"
         >
           <div className="flex items-center gap-4">
@@ -32,7 +35,7 @@ export function LiveDetailPage({ onClose, onOpenVideoFeed }: LiveDetailPageProps
               <Video className="w-8 h-8" />
             </div>
             <div className="flex-1">
-              <h3 className="text-lg font-semibold mb-1">农技短视频</h3>
+              <h3 className="text-lg font-semibold mb-1">{v?.agriShortVideo || '农技短视频'}</h3>
             </div>
             <Play className="w-6 h-6" fill="white" />
           </div>
@@ -40,7 +43,10 @@ export function LiveDetailPage({ onClose, onOpenVideoFeed }: LiveDetailPageProps
 
         {/* 当前直播 */}
         {currentLive && (
-          <div className="bg-white rounded-2xl overflow-hidden shadow-lg border border-gray-100">
+          <div 
+            onClick={() => onOpenVideoFeed?.(0)}
+            className="bg-white rounded-2xl overflow-hidden shadow-lg border border-gray-100 cursor-pointer active:scale-[0.98] transition-transform"
+          >
             <div className="relative aspect-video">
               {currentLive.thumbnail ? (
                 <img 
@@ -55,7 +61,7 @@ export function LiveDetailPage({ onClose, onOpenVideoFeed }: LiveDetailPageProps
               )}
               <div className="absolute top-3 left-3 bg-red-500 text-white px-3 py-1.5 rounded-full text-xs flex items-center gap-1.5">
                 <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
-                直播中
+                {v?.liveNow || '直播中'}
               </div>
               <div className="absolute top-3 right-3 bg-black/50 backdrop-blur-sm text-white px-3 py-1.5 rounded-full text-xs flex items-center gap-1.5">
                 <Users className="w-3 h-3" />
@@ -67,7 +73,7 @@ export function LiveDetailPage({ onClose, onOpenVideoFeed }: LiveDetailPageProps
               <div className="flex items-center gap-4 text-sm text-gray-600">
                 <div className="flex items-center gap-1">
                   <Users className="w-4 h-4" />
-                  <span>{currentLive.viewers}人观看</span>
+                  <span>{(v?.viewersWatching || '{count}人观看').replace('{count}', currentLive.viewers)}</span>
                 </div>
               </div>
             </div>
@@ -77,12 +83,13 @@ export function LiveDetailPage({ onClose, onOpenVideoFeed }: LiveDetailPageProps
         {/* 往期回放 */}
         {pastVideos.length > 0 && (
           <div className="space-y-3">
-            <h3 className="text-gray-800 font-semibold text-sm">往期回放</h3>
+            <h3 className="text-gray-800 font-semibold text-sm">{v?.pastReplays || '往期回放'}</h3>
             
-            {pastVideos.map((video) => (
+            {pastVideos.map((video, idx) => (
               <div 
                 key={video.id}
-                className="bg-white rounded-xl overflow-hidden shadow border border-gray-100 active:bg-gray-50 transition-colors"
+                onClick={() => onOpenVideoFeed?.(idx + 1)}
+                className="bg-white rounded-xl overflow-hidden shadow border border-gray-100 active:bg-gray-50 transition-colors cursor-pointer"
               >
                 <div className="flex gap-3 p-3">
                   <div className="relative w-32 h-20 flex-shrink-0 rounded-lg overflow-hidden bg-gray-100">
@@ -108,7 +115,7 @@ export function LiveDetailPage({ onClose, onOpenVideoFeed }: LiveDetailPageProps
                       {video.title}
                     </h4>
                     <div className="flex items-center gap-3 text-xs text-gray-500">
-                      <span>{video.viewers} 观看</span>
+                      <span>{(v?.views || '{count} 观看').replace('{count}', video.viewers)}</span>
                     </div>
                   </div>
                 </div>
@@ -121,8 +128,8 @@ export function LiveDetailPage({ onClose, onOpenVideoFeed }: LiveDetailPageProps
         {liveStreams.length === 0 && (
           <div className="text-center py-12 text-gray-400">
             <Video className="w-12 h-12 mx-auto mb-3 opacity-50" />
-            <p className="text-sm">暂无直播内容</p>
-            <p className="text-xs mt-1">请在内容管理中添加直播数据</p>
+            <p className="text-sm">{v?.noLiveContent || '暂无直播内容'}</p>
+            <p className="text-xs mt-1">{v?.addLiveDataHint || '请在内容管理中添加直播数据'}</p>
           </div>
         )}
       </div>

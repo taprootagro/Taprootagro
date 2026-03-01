@@ -1,14 +1,17 @@
-import { useState, useEffect } from "react";
-import { Bell, BellOff, Check, X } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { Bell, BellOff, Check, X, AlertTriangle } from "lucide-react";
+import { useLanguage } from "../hooks/useLanguage";
+import { useHomeConfig } from "../hooks/useHomeConfig";
 
 /**
- * 推送通知管理组件
+ * Push Notifications Component
  * 
- * 功能：
- * 1. 请求推送权限
- * 2. 订阅推送服务
- * 3. 显示通知状态
- * 4. 取消订阅
+ * Features:
+ * 1. Request push permission
+ * 2. Subscribe to push service (using VAPID key from config)
+ * 3. Show notification status
+ * 4. Unsubscribe
+ * 5. Graceful degradation when backend is not configured
  */
 
 interface PushNotificationsProps {
@@ -16,22 +19,38 @@ interface PushNotificationsProps {
 }
 
 export function PushNotifications({ onSubscriptionChange }: PushNotificationsProps) {
+  const { t } = useLanguage();
+  const { config } = useHomeConfig();
   const [permission, setPermission] = useState<NotificationPermission>("default");
   const [subscription, setSubscription] = useState<PushSubscription | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>("");
   const [isSupported, setIsSupported] = useState(true);
+  const [backendAvailable, setBackendAvailable] = useState<boolean | null>(null);
 
-  // 检查浏览器支持
+  const pushT = t.pushNotifications;
+  const pushConfig = config.pushConfig;
+
+  // Check if backend is configured (not placeholder values)
+  const isBackendConfigured = useCallback(() => {
+    return (
+      pushConfig.vapidPublicKey !== "YOUR_VAPID_PUBLIC_KEY" &&
+      pushConfig.vapidPublicKey.length > 20 &&
+      pushConfig.pushApiBase !== "https://api.example.com" &&
+      pushConfig.pushApiBase.length > 0
+    );
+  }, [pushConfig.vapidPublicKey, pushConfig.pushApiBase]);
+
+  // Check browser support
   useEffect(() => {
     const checkSupport = () => {
-      const supported = 
+      const supported =
         "Notification" in window &&
         "serviceWorker" in navigator &&
         "PushManager" in window;
-      
+
       setIsSupported(supported);
-      
+
       if (supported) {
         setPermission(Notification.permission);
         checkExistingSubscription();
@@ -41,22 +60,22 @@ export function PushNotifications({ onSubscriptionChange }: PushNotificationsPro
     checkSupport();
   }, []);
 
-  // 检查现有订阅
+  // Check existing subscription
   const checkExistingSubscription = async () => {
     try {
       const registration = await navigator.serviceWorker.ready;
       const existingSubscription = await registration.pushManager.getSubscription();
-      
+
       if (existingSubscription) {
         setSubscription(existingSubscription);
         onSubscriptionChange?.(existingSubscription);
       }
     } catch (err) {
-      console.error("检查订阅失败:", err);
+      console.error("[Push] Failed to check subscription:", err);
     }
   };
 
-  // 请求推送权限
+  // Request push permission
   const requestPermission = async () => {
     setLoading(true);
     setError("");
@@ -66,32 +85,33 @@ export function PushNotifications({ onSubscriptionChange }: PushNotificationsPro
       setPermission(result);
 
       if (result === "granted") {
-        await subscribeToPush();
+        if (isBackendConfigured()) {
+          await subscribeToPush();
+        } else {
+          // No backend configured - save permission state, show info
+          setBackendAvailable(false);
+        }
       } else if (result === "denied") {
-        setError("推送权限被拒绝，请在浏览器设置中允许通知");
+        setError(pushT.permissionDenied);
       }
     } catch (err) {
-      console.error("请求权限失败:", err);
-      setError("请求权限失败，请重试");
+      console.error("[Push] Permission request failed:", err);
+      setError(pushT.permissionFailed);
     } finally {
       setLoading(false);
     }
   };
 
-  // 订阅推送服务
+  // Subscribe to push service
   const subscribeToPush = async () => {
     try {
       const registration = await navigator.serviceWorker.ready;
 
-      // VAPID 公钥 (需要从后端获取或配置)
-      // 这是一个示例，实际应用中需要使用你自己的密钥
-      const vapidPublicKey = process.env.VITE_VAPID_PUBLIC_KEY || 
-        "BEl62iUYgUivxIkv69yViEuiBIa-Ib37J8xQmrII6O28PGo7B1vI-B-6jLmEDWHlJMW5XZdPTHm5m8WwjKZkZvQ";
-
-      // 将 base64 字符串转换为 Uint8Array
+      // VAPID public key from config
+      const vapidPublicKey = pushConfig.vapidPublicKey;
       const convertedVapidKey = urlBase64ToUint8Array(vapidPublicKey);
 
-      // 订阅推送
+      // Subscribe to push
       const pushSubscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: convertedVapidKey,
@@ -100,17 +120,17 @@ export function PushNotifications({ onSubscriptionChange }: PushNotificationsPro
       setSubscription(pushSubscription);
       onSubscriptionChange?.(pushSubscription);
 
-      // 发送订阅信息到后端
+      // Send subscription to backend
       await sendSubscriptionToBackend(pushSubscription);
 
-      console.log("推送订阅成功:", pushSubscription);
+      console.log("[Push] Subscription successful");
     } catch (err) {
-      console.error("订阅推送失败:", err);
-      setError("订阅推送失败，请重试");
+      console.error("[Push] Subscription failed:", err);
+      setError(pushT.subscribeFailed);
     }
   };
 
-  // 取消订阅
+  // Unsubscribe
   const unsubscribe = async () => {
     if (!subscription) return;
 
@@ -120,92 +140,99 @@ export function PushNotifications({ onSubscriptionChange }: PushNotificationsPro
     try {
       await subscription.unsubscribe();
       setSubscription(null);
+      setBackendAvailable(null);
       onSubscriptionChange?.(null);
 
-      // 通知后端删除订阅
-      await removeSubscriptionFromBackend(subscription);
+      // Notify backend to remove subscription
+      if (isBackendConfigured()) {
+        await removeSubscriptionFromBackend(subscription);
+      }
 
-      console.log("取消订阅成功");
+      console.log("[Push] Unsubscribed successfully");
     } catch (err) {
-      console.error("取消订阅失败:", err);
-      setError("取消订阅失败，请重试");
+      console.error("[Push] Unsubscribe failed:", err);
+      setError(pushT.unsubscribeFailed);
     } finally {
       setLoading(false);
     }
   };
 
-  // 发送订阅到后端
-  const sendSubscriptionToBackend = async (subscription: PushSubscription) => {
-    try {
-      // 替换为你的后端API地址
-      const response = await fetch("/api/push/subscribe", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(subscription),
-      });
-
-      if (!response.ok) {
-        throw new Error("保存订阅失败");
-      }
-
-      console.log("订阅已保存到后端");
-    } catch (err) {
-      console.error("保存订阅到后端失败:", err);
-      // 不影响前端订阅，只记录错误
-    }
-  };
-
-  // 从后端删除订阅
-  const removeSubscriptionFromBackend = async (subscription: PushSubscription) => {
-    try {
-      const response = await fetch("/api/push/unsubscribe", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(subscription),
-      });
-
-      if (!response.ok) {
-        throw new Error("删除订阅失败");
-      }
-
-      console.log("订阅已从后端删除");
-    } catch (err) {
-      console.error("从后端删除订阅失败:", err);
-    }
-  };
-
-  // 测试推送通知
-  const testNotification = () => {
-    if (permission !== "granted") {
-      setError("请先允许推送通知");
+  // Send subscription to backend
+  const sendSubscriptionToBackend = async (sub: PushSubscription) => {
+    if (!isBackendConfigured()) {
+      setBackendAvailable(false);
       return;
     }
 
-    new Notification("TaprootAgro 测试通知", {
-      body: "这是一条测试推送通知 🌱",
-      icon: "/icon-192.svg",
-      badge: "/icon-192.svg",
+    try {
+      const response = await fetch(`${pushConfig.pushApiBase}/push/subscribe`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(sub),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      setBackendAvailable(true);
+      console.log("[Push] Subscription saved to backend");
+    } catch (err) {
+      console.error("[Push] Failed to save subscription to backend:", err);
+      setBackendAvailable(false);
+      // Don't block frontend subscription - backend will be configured later
+    }
+  };
+
+  // Remove subscription from backend
+  const removeSubscriptionFromBackend = async (sub: PushSubscription) => {
+    if (!isBackendConfigured()) return;
+
+    try {
+      const response = await fetch(`${pushConfig.pushApiBase}/push/unsubscribe`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(sub),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      console.log("[Push] Subscription removed from backend");
+    } catch (err) {
+      console.error("[Push] Failed to remove subscription from backend:", err);
+    }
+  };
+
+  // Test local notification
+  const testNotification = () => {
+    if (permission !== "granted") {
+      setError(pushT.needPermission);
+      return;
+    }
+
+    new Notification(pushT.testTitle, {
+      body: pushT.testBody,
+      icon: "/icons/icon-192.png",
+      badge: "/icons/icon-192.png",
       tag: "test-notification",
       vibrate: [200, 100, 200],
     });
   };
 
-  // 不支持的浏览器
+  // Browser not supported
   if (!isSupported) {
     return (
       <div className="bg-yellow-50 rounded-lg" style={{ padding: "clamp(12px, 3vw, 16px)" }}>
         <div className="flex items-start" style={{ gap: "clamp(8px, 2vw, 12px)" }}>
           <BellOff className="text-yellow-600 flex-shrink-0" style={{ width: "20px", height: "20px" }} />
           <div>
-            <p className="text-yellow-800 font-medium" style={{ fontSize: "clamp(12px, 3.2vw, 14px)" }}>
-              推送通知不可用
+            <p className="text-yellow-800" style={{ fontSize: "clamp(12px, 3.2vw, 14px)" }}>
+              {pushT.notSupported}
             </p>
             <p className="text-yellow-700" style={{ fontSize: "clamp(10px, 2.8vw, 12px)", marginTop: "4px" }}>
-              当前浏览器不支持推送通知功能
+              {pushT.notSupportedDesc}
             </p>
           </div>
         </div>
@@ -215,7 +242,7 @@ export function PushNotifications({ onSubscriptionChange }: PushNotificationsPro
 
   return (
     <div className="space-y-3">
-      {/* 状态显示 */}
+      {/* Status display */}
       <div className="bg-gray-50 rounded-lg" style={{ padding: "clamp(12px, 3vw, 16px)" }}>
         <div className="flex items-center justify-between">
           <div className="flex items-center" style={{ gap: "clamp(8px, 2vw, 12px)" }}>
@@ -225,16 +252,20 @@ export function PushNotifications({ onSubscriptionChange }: PushNotificationsPro
               <BellOff className="text-gray-400" style={{ width: "20px", height: "20px" }} />
             )}
             <div>
-              <p className="text-gray-900 font-medium" style={{ fontSize: "clamp(12px, 3.2vw, 14px)" }}>
-                推送通知
+              <p className="text-gray-900" style={{ fontSize: "clamp(12px, 3.2vw, 14px)" }}>
+                {pushT.title}
               </p>
               <p className="text-gray-600" style={{ fontSize: "clamp(10px, 2.8vw, 12px)", marginTop: "2px" }}>
-                {subscription ? "已开启" : permission === "denied" ? "已拒绝" : "未开启"}
+                {subscription
+                  ? pushT.enabled
+                  : permission === "denied"
+                    ? pushT.denied
+                    : pushT.disabled}
               </p>
             </div>
           </div>
 
-          {/* 状态图标 */}
+          {/* Status icon */}
           {subscription && (
             <div className="bg-emerald-100 rounded-full" style={{ padding: "4px" }}>
               <Check className="text-emerald-600" style={{ width: "16px", height: "16px" }} />
@@ -248,7 +279,19 @@ export function PushNotifications({ onSubscriptionChange }: PushNotificationsPro
         </div>
       </div>
 
-      {/* 错误信息 */}
+      {/* Backend not configured warning */}
+      {backendAvailable === false && (
+        <div className="bg-amber-50 rounded-lg" style={{ padding: "clamp(10px, 2.5vw, 12px)" }}>
+          <div className="flex items-start" style={{ gap: "clamp(6px, 1.5vw, 8px)" }}>
+            <AlertTriangle className="text-amber-600 flex-shrink-0 mt-0.5" style={{ width: "14px", height: "14px" }} />
+            <p className="text-amber-700" style={{ fontSize: "clamp(10px, 2.8vw, 11px)", lineHeight: "1.5" }}>
+              {pushT.noBackendNote}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Error message */}
       {error && (
         <div className="bg-red-50 rounded-lg" style={{ padding: "clamp(10px, 2.5vw, 12px)" }}>
           <p className="text-red-600" style={{ fontSize: "clamp(10px, 2.8vw, 12px)" }}>
@@ -257,58 +300,60 @@ export function PushNotifications({ onSubscriptionChange }: PushNotificationsPro
         </div>
       )}
 
-      {/* 操作按钮 */}
+      {/* Action buttons */}
       <div className="flex" style={{ gap: "clamp(8px, 2vw, 12px)" }}>
-        {!subscription ? (
+        {!subscription && permission !== "granted" ? (
           <button
             onClick={requestPermission}
             disabled={loading || permission === "denied"}
-            className="flex-1 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors font-medium"
+            className="flex-1 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
             style={{
               padding: "clamp(10px, 2.5vw, 12px)",
               fontSize: "clamp(12px, 3.2vw, 14px)",
             }}
           >
-            {loading ? "正在开启..." : "开启推送通知"}
+            {loading ? pushT.enabling : pushT.enableButton}
           </button>
         ) : (
           <>
             <button
               onClick={testNotification}
-              className="flex-1 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-medium"
+              className="flex-1 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
               style={{
                 padding: "clamp(10px, 2.5vw, 12px)",
                 fontSize: "clamp(12px, 3.2vw, 14px)",
               }}
             >
-              测试通知
+              {pushT.testButton}
             </button>
-            <button
-              onClick={unsubscribe}
-              disabled={loading}
-              className="flex-1 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 disabled:bg-gray-100 disabled:cursor-not-allowed transition-colors font-medium"
-              style={{
-                padding: "clamp(10px, 2.5vw, 12px)",
-                fontSize: "clamp(12px, 3.2vw, 14px)",
-              }}
-            >
-              {loading ? "正在关闭..." : "关闭通知"}
-            </button>
+            {subscription && (
+              <button
+                onClick={unsubscribe}
+                disabled={loading}
+                className="flex-1 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 disabled:bg-gray-100 disabled:cursor-not-allowed transition-colors"
+                style={{
+                  padding: "clamp(10px, 2.5vw, 12px)",
+                  fontSize: "clamp(12px, 3.2vw, 14px)",
+                }}
+              >
+                {loading ? pushT.disabling : pushT.disableButton}
+              </button>
+            )}
           </>
         )}
       </div>
 
-      {/* 说明文字 */}
+      {/* Tip text */}
       <div className="bg-blue-50 rounded-lg" style={{ padding: "clamp(10px, 2.5vw, 12px)" }}>
         <p className="text-blue-700" style={{ fontSize: "clamp(10px, 2.8vw, 11px)", lineHeight: "1.5" }}>
-          💡 开启后，您将收到：农业资讯、天气预警、订单提醒等重要通知
+          {pushT.tip}
         </p>
       </div>
     </div>
   );
 }
 
-// 工具函数：将 base64 字符串转换为 Uint8Array
+// Utility: Convert base64 string to Uint8Array
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
   const base64 = (base64String + padding)

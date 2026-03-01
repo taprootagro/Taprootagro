@@ -5,17 +5,10 @@ import { Layout } from "./components/Layout";
 import { SplashScreen } from "./components/SplashScreen";
 import { 
   SkeletonScreen,
-  HomePageSkeleton, 
-  MarketPageSkeleton, 
-  CommunityPageSkeleton, 
-  ProfilePageSkeleton 
 } from "./components/SkeletonScreen";
 
 // 懒加载页面组件 - 按需加载，减少首次加载体积
-const HomePage = lazy(() => import("./components/HomePage"));
-const MarketPage = lazy(() => import("./components/MarketPage"));
-const CommunityPage = lazy(() => import("./components/CommunityPage"));
-const ProfilePage = lazy(() => import("./components/ProfilePage"));
+// 注意: 主 tab 页面（Home/Market/Community/Profile）已由 Layout.tsx 内部 keep-alive 管理
 const SettingsPage = lazy(() => import("./components/SettingsPage"));
 const LoginPage = lazy(() => import("./components/LoginPage"));
 const ConfigManagerPage = lazy(() => import("./components/ConfigManagerPage"));
@@ -57,42 +50,9 @@ export const router = createBrowserRouter([
         ),
       },
       {
-        path: "home",
+        // Keep-alive 模式：Layout 内部渲染所有 tab 页面，不再需要子路由
+        path: "home/*",
         Component: Layout,
-        children: [
-          { 
-            index: true, 
-            element: (
-              <Suspense fallback={<HomePageSkeleton />}>
-                <HomePage />
-              </Suspense>
-            )
-          },
-          { 
-            path: "market", 
-            element: (
-              <Suspense fallback={<MarketPageSkeleton />}>
-                <MarketPage />
-              </Suspense>
-            )
-          },
-          { 
-            path: "community", 
-            element: (
-              <Suspense fallback={<CommunityPageSkeleton />}>
-                <CommunityPage />
-              </Suspense>
-            )
-          },
-          { 
-            path: "profile", 
-            element: (
-              <Suspense fallback={<ProfilePageSkeleton />}>
-                <ProfilePage />
-              </Suspense>
-            )
-          },
-        ],
       },
       {
         path: "settings",
@@ -109,6 +69,23 @@ export const router = createBrowserRouter([
             <ConfigManagerPage />
           </Suspense>
         ),
+      },
+      {
+        path: "sw-reset",
+        // Handled by Service Worker — render nothing so React Router doesn't 404
+        element: null,
+      },
+      {
+        path: "*",
+        // Catch-all: redirect unknown routes to splash
+        element: null,
+        loader: () => {
+          // If not handled by SW, redirect to root
+          if (typeof window !== 'undefined') {
+            window.location.replace('/');
+          }
+          return null;
+        },
       },
     ],
   },

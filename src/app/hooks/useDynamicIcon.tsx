@@ -9,14 +9,13 @@ import { DesktopIconConfig } from "./useHomeConfig";
  * 2. <link rel="apple-touch-icon"> — from icon192Url
  * 3. document.title — from appName
  * 
- * Icon URLs are directly used (no Canvas generation).
- * For already-installed PWAs on iOS, the user must remove
- * and re-add the app to the home screen to see the updated icon.
+ * Uses specific primitive values as deps instead of the whole object reference,
+ * preventing unnecessary re-runs when the parent re-renders.
  */
 export function useDynamicIcon(iconConfig: DesktopIconConfig) {
-  useEffect(() => {
-    const { icon192Url, appName } = iconConfig;
+  const { icon192Url, appName } = iconConfig;
 
+  useEffect(() => {
     // Update document title
     if (appName) {
       document.title = appName;
@@ -46,5 +45,5 @@ export function useDynamicIcon(iconConfig: DesktopIconConfig) {
       appleLink.href = icon192Url;
       document.head.appendChild(appleLink);
     }
-  }, [iconConfig]);
+  }, [icon192Url, appName]);
 }

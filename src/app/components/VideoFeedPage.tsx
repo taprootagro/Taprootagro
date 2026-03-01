@@ -1,9 +1,11 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { X, Heart, MessageCircle, Share2, MapPin, Play, Loader2 } from "lucide-react";
 import { useHomeConfig } from "../hooks/useHomeConfig";
+import { useLanguage } from "../hooks/useLanguage";
 
 interface VideoFeedPageProps {
   onClose: () => void;
+  startIndex?: number;
 }
 
 // 使用小体积的示例视频（几MB而非几百MB）
@@ -16,8 +18,10 @@ const defaultVideoUrls = [
   "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/SubaruOutbackOnStreetAndDirt.mp4",
 ];
 
-export function VideoFeedPage({ onClose }: VideoFeedPageProps) {
+export function VideoFeedPage({ onClose, startIndex = 0 }: VideoFeedPageProps) {
   const { config } = useHomeConfig();
+  const { t } = useLanguage();
+  const v = t.video;
   const liveStreams = config.liveStreams || [];
 
   // 从配置生成视频列表
@@ -32,20 +36,21 @@ export function VideoFeedPage({ onClose }: VideoFeedPageProps) {
     : defaultVideoUrls.slice(0, 3).map((url, index) => ({
         id: index + 1,
         url,
-        title: `示例视频 ${index + 1}`,
+        title: `${v?.sampleVideo || '示例视频'} ${index + 1}`,
         thumbnail: "",
         viewers: "0",
       }));
 
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [isMuted, setIsMuted] = useState(false);
+  // P1 fix: isMuted 初始为 true，移动端自动播放要求静音
+  const [currentIndex, setCurrentIndex] = useState(() => Math.min(startIndex, Math.max(0, (liveStreams.length > 0 ? liveStreams.length : 3) - 1)));
+  const [isMuted, setIsMuted] = useState(true);
   const [isPlaying, setIsPlaying] = useState(true);
   const [likedVideos, setLikedVideos] = useState<Set<number>>(new Set());
   const [touchStart, setTouchStart] = useState(0);
   const [touchEnd, setTouchEnd] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState(0);
-  const [showPlayIcon, setShowPlayIcon] = useState(false);
+  // P3 fix: removed showPlayIcon dead state
   const [loadingStates, setLoadingStates] = useState<Record<number, boolean>>({});
   const [errorStates, setErrorStates] = useState<Record<number, boolean>>({});
   
@@ -96,6 +101,34 @@ export function VideoFeedPage({ onClose }: VideoFeedPageProps) {
     }
   }, [currentIndex, isPlaying]);
 
+  // P2 fix: 使用原生事件监听器处理 wheel，设置 {passive: false} 以正确 preventDefault
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleNativeWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      if (wheelTimer.current) return;
+      
+      const threshold = 30;
+      if (Math.abs(e.deltaY) > threshold) {
+        if (e.deltaY > 0) {
+          setCurrentIndex(prev => prev < videos.length - 1 ? prev + 1 : 0);
+        } else {
+          setCurrentIndex(prev => prev > 0 ? prev - 1 : videos.length - 1);
+        }
+        wheelTimer.current = setTimeout(() => {
+          wheelTimer.current = null;
+        }, 500);
+      }
+    };
+
+    container.addEventListener('wheel', handleNativeWheel, { passive: false });
+    return () => {
+      container.removeEventListener('wheel', handleNativeWheel);
+    };
+  }, [videos.length]);
+
   // 处理触摸
   const handleTouchStart = (e: React.TouchEvent) => {
     setTouchStart(e.targetTouches[0].clientY);
@@ -127,24 +160,6 @@ export function VideoFeedPage({ onClose }: VideoFeedPageProps) {
     setTouchEnd(0);
   };
 
-  // 处理滚轮 - 加防抖
-  const handleWheel = (e: React.WheelEvent) => {
-    e.preventDefault();
-    if (wheelTimer.current) return;
-    
-    const threshold = 30;
-    if (Math.abs(e.deltaY) > threshold) {
-      if (e.deltaY > 0) {
-        setCurrentIndex(prev => prev < videos.length - 1 ? prev + 1 : 0);
-      } else {
-        setCurrentIndex(prev => prev > 0 ? prev - 1 : videos.length - 1);
-      }
-      wheelTimer.current = setTimeout(() => {
-        wheelTimer.current = null;
-      }, 500);
-    }
-  };
-
   const toggleLike = (videoId: number) => {
     setLikedVideos(prev => {
       const newSet = new Set(prev);
@@ -159,10 +174,8 @@ export function VideoFeedPage({ onClose }: VideoFeedPageProps) {
     if (currentVideo) {
       if (isPlaying) {
         currentVideo.pause();
-        setShowPlayIcon(true);
       } else {
         currentVideo.play();
-        setShowPlayIcon(false);
       }
       setIsPlaying(!isPlaying);
     }
@@ -175,8 +188,27 @@ export function VideoFeedPage({ onClose }: VideoFeedPageProps) {
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
-      onWheel={handleWheel}
     >
+      {/* 静音/取消静音按钮 */}
+      <button
+        onClick={() => setIsMuted(m => !m)}
+        className="absolute top-4 right-12 z-30 w-9 h-9 bg-black/50 backdrop-blur-sm rounded-full flex items-center justify-center active:scale-90 transition-transform"
+        aria-label={isMuted ? "Unmute" : "Mute"}
+      >
+        {isMuted ? (
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+            <line x1="23" y1="9" x2="17" y2="15" />
+            <line x1="17" y1="9" x2="23" y2="15" />
+          </svg>
+        ) : (
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+            <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" />
+          </svg>
+        )}
+      </button>
+
       {/* 视频容器 */}
       <div className="relative flex-1 w-full overflow-hidden">
         {videos.map((video, index) => {
@@ -235,8 +267,8 @@ export function VideoFeedPage({ onClose }: VideoFeedPageProps) {
                     <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
                       <div className="flex flex-col items-center gap-3 bg-black/60 backdrop-blur-sm px-6 py-4 rounded-2xl">
                         <Play className="w-10 h-10 text-white/60" />
-                        <span className="text-white/80 text-sm">视频加载失败</span>
-                        <span className="text-white/50 text-xs">请检查视频URL是否有效</span>
+                        <span className="text-white/80 text-sm">{v?.loadFailed || '视频加载失败'}</span>
+                        <span className="text-white/50 text-xs">{v?.checkVideoUrl || '请检查视频URL是否有效'}</span>
                       </div>
                     </div>
                   )}
@@ -259,7 +291,7 @@ export function VideoFeedPage({ onClose }: VideoFeedPageProps) {
                           {video.title}
                         </h3>
                         <div className="flex items-center gap-2 text-white/80 text-xs">
-                          <span>{video.viewers} 观看</span>
+                          <span>{(v?.views || '{count} 观看').replace('{count}', video.viewers)}</span>
                         </div>
                       </div>
 
@@ -290,17 +322,17 @@ export function VideoFeedPage({ onClose }: VideoFeedPageProps) {
                           <div className="w-11 h-11 bg-white/25 backdrop-blur-md rounded-full flex items-center justify-center border border-white/20">
                             <Share2 className="w-5 h-5 text-white" />
                           </div>
-                          <span className="text-white text-xs drop-shadow-lg font-medium">分享</span>
+                          <span className="text-white text-xs drop-shadow-lg font-medium">{v?.share || '分享'}</span>
                         </button>
 
                         <button
-                          onClick={() => alert('一键导航去大田（功能开发中）')}
+                          onClick={() => alert(v?.navigationWip || '一键导航去大田（功能开发中）')}
                           className="flex flex-col items-center gap-0.5 active:scale-95 transition-transform"
                         >
                           <div className="w-11 h-11 bg-emerald-600/95 backdrop-blur-md rounded-full flex items-center justify-center border border-emerald-400/30 shadow-lg">
                             <MapPin className="w-5 h-5 text-white" />
                           </div>
-                          <span className="text-white text-xs drop-shadow-lg font-medium">导航</span>
+                          <span className="text-white text-xs drop-shadow-lg font-medium">{v?.navigation || '导航'}</span>
                         </button>
                       </div>
                     </div>
@@ -333,7 +365,7 @@ export function VideoFeedPage({ onClose }: VideoFeedPageProps) {
           <button
             onClick={onClose}
             className="flex items-center justify-center p-2 active:scale-95 transition-transform"
-            aria-label="关闭"
+            aria-label={v?.close || '关闭'}
           >
             <X className="w-7 h-7 text-red-500" />
           </button>

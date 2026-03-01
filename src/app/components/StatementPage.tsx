@@ -1,7 +1,11 @@
 import { SecondaryView } from "./SecondaryView";
 import { useLanguage } from "../hooks/useLanguage";
-import { useState, useEffect } from "react";
-import { Plus, TrendingUp, TrendingDown, Wallet, Calendar, Tag, DollarSign, X, Edit, Trash2 } from "lucide-react";
+import { useState, useCallback, useRef, useMemo } from "react";
+import {
+  Plus, TrendingUp, TrendingDown, Wallet, Calendar, Tag,
+  DollarSign, X, Edit, Trash2, Download, Upload, ChevronLeft, ChevronRight,
+  Database, Shield, CheckCircle
+} from "lucide-react";
 
 interface StatementPageProps {
   onClose: () => void;
@@ -18,11 +22,130 @@ interface Transaction {
   timestamp: number;
 }
 
+// ====== Toast 通知状态类型 ======
+interface ToastState {
+  message: string;
+  type: 'success' | 'error';
+  visible: boolean;
+}
+
+// ====== 存储常量 ======
+const STORAGE_KEY = "accounting_transactions";
+const BACKUP_KEY = "accounting_transactions_backup";
+const SAVE_TIME_KEY = "accounting_last_saved";
+const DATA_VERSION_KEY = "accounting_data_version";
+const CURRENT_DATA_VERSION = 2;
+
+// ====== 安全读取 localStorage ======
+function safeReadStorage(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch (e) {
+    console.error(`[Ledger] Failed to read localStorage key="${key}":`, e);
+    return null;
+  }
+}
+
+// ====== 安全写入 localStorage ======
+function safeWriteStorage(key: string, value: string): boolean {
+  try {
+    localStorage.setItem(key, value);
+    return true;
+  } catch (e) {
+    console.error(`[Ledger] Failed to write localStorage key="${key}":`, e);
+    return false;
+  }
+}
+
+// ====== 数据迁移：确保每条记录有 categoryKey ======
+function migrateTransactions(raw: any[]): Transaction[] {
+  return raw.map((tx: any) => ({
+    id: tx.id || Date.now().toString() + Math.random().toString(36).slice(2),
+    type: tx.type === "income" ? "income" : "expense",
+    amount: typeof tx.amount === "number" ? tx.amount : parseFloat(tx.amount) || 0,
+    category: tx.category || tx.categoryKey || "",
+    categoryKey: tx.categoryKey || tx.category || "",
+    note: tx.note || "",
+    date: tx.date || new Date().toISOString().split("T")[0],
+    timestamp: tx.timestamp || new Date(tx.date || Date.now()).getTime(),
+  }));
+}
+
+// ====== 从 localStorage 加载，带备份回退 ======
+function loadTransactionsFromStorage(): Transaction[] {
+  // 先尝试主存储
+  const mainData = safeReadStorage(STORAGE_KEY);
+  if (mainData) {
+    try {
+      const parsed = JSON.parse(mainData);
+      if (Array.isArray(parsed) && parsed.length >= 0) {
+        const migrated = migrateTransactions(parsed);
+        // 写入版本号
+        safeWriteStorage(DATA_VERSION_KEY, CURRENT_DATA_VERSION.toString());
+        return migrated;
+      }
+    } catch (e) {
+      console.error("[Ledger] Main storage corrupted, trying backup:", e);
+    }
+  }
+
+  // 主存储失败或为空，尝试备份
+  const backupData = safeReadStorage(BACKUP_KEY);
+  if (backupData) {
+    try {
+      const parsed = JSON.parse(backupData);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        console.warn("[Ledger] Restored from backup!");
+        const migrated = migrateTransactions(parsed);
+        // 恢复到主存储
+        safeWriteStorage(STORAGE_KEY, JSON.stringify(migrated));
+        return migrated;
+      }
+    } catch (e) {
+      console.error("[Ledger] Backup also corrupted:", e);
+    }
+  }
+
+  return [];
+}
+
+// ====== 翻译回退 ======
+const fallbackStrings: Record<string, string> = {
+  exportData: 'Export Data',
+  importData: 'Import Data',
+  exportSuccess: 'Data exported successfully',
+  importSuccess: 'Data imported successfully! {count} records loaded.',
+  importFailed: 'Import failed: invalid file format',
+  importConfirm: 'This will merge {count} records with your existing data. Continue?',
+  recordCount: '{count} records',
+  lastBackup: 'Last saved: {time}',
+  dataManagement: 'Data Management',
+  monthFilter: 'Filter by Month',
+  allMonths: 'All',
+};
+
 export function StatementPage({ onClose }: StatementPageProps) {
   const { t } = useLanguage();
   const s = t.statement;
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
+
+  // 带回退的翻译获取
+  const ts = (key: string, replacements?: Record<string, string>): string => {
+    let text = (s as any)[key] || fallbackStrings[key] || key;
+    if (replacements) {
+      Object.entries(replacements).forEach(([k, v]) => {
+        text = text.replace(`{${k}}`, v);
+      });
+    }
+    return text;
+  };
+
+  // ====== 惰性初始化：直接从 localStorage 读取，避免 useEffect 竞态 ======
+  const [transactions, setTransactions] = useState<Transaction[]>(() =>
+    loadTransactionsFromStorage()
+  );
+
   const [showAddForm, setShowAddForm] = useState(false);
+  const [showDataPanel, setShowDataPanel] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [formData, setFormData] = useState({
     type: "expense" as "income" | "expense",
@@ -33,7 +156,25 @@ export function StatementPage({ onClose }: StatementPageProps) {
     date: new Date().toISOString().split("T")[0],
   });
 
-  // 预设分类 - 使用翻译键
+  // 月份筛选
+  const [selectedMonth, setSelectedMonth] = useState<string>("all");
+
+  // 文件输入引用
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Toast 通知
+  const [toast, setToast] = useState<ToastState>({ message: '', type: 'success', visible: false });
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showToast = useCallback((message: string, type: 'success' | 'error' = 'success') => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setToast({ message, type, visible: true });
+    toastTimerRef.current = setTimeout(() => {
+      setToast(prev => ({ ...prev, visible: false }));
+    }, 2500);
+  }, []);
+
+  // 预设分类
   const incomeCategoryKeys = [
     "salary", "bonus", "investment", "partTime", "cropSales", "subsidy", "otherIncome"
   ] as const;
@@ -41,34 +182,35 @@ export function StatementPage({ onClose }: StatementPageProps) {
     "seeds", "fertilizer", "pesticide", "equipment", "labor", "rent", "utilities", "transport", "food", "otherExpense"
   ] as const;
 
-  // 获取分类翻译文本
   const getCategoryLabel = (key: string): string => {
     return (s as any)[key] || key;
   };
 
-  // 从 localStorage 加载数据
-  useEffect(() => {
-    const saved = localStorage.getItem("accounting_transactions");
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        // 兼容旧数据：如果没有 categoryKey，尝试匹配或直接使用 category
-        const migrated = parsed.map((tx: any) => ({
-          ...tx,
-          categoryKey: tx.categoryKey || tx.category,
-        }));
-        setTransactions(migrated);
-      } catch (e) {
-        console.error("Failed to load accounting data:", e);
-      }
+  // ====== 安全保存：先备份旧数据，再写入新数据 ======
+  const saveTransactions = useCallback((data: Transaction[]) => {
+    // 1. 备份当前主存储（旧数据）到 backup key
+    const currentMain = safeReadStorage(STORAGE_KEY);
+    if (currentMain) {
+      safeWriteStorage(BACKUP_KEY, currentMain);
     }
-  }, []);
 
-  // 保存数据到 localStorage
-  const saveTransactions = (data: Transaction[]) => {
-    localStorage.setItem("accounting_transactions", JSON.stringify(data));
+    // 2. 写入新数据到主存储
+    const json = JSON.stringify(data);
+    const ok = safeWriteStorage(STORAGE_KEY, json);
+
+    if (ok) {
+      // 3. 记录保存时间
+      safeWriteStorage(SAVE_TIME_KEY, new Date().toISOString());
+      safeWriteStorage(DATA_VERSION_KEY, CURRENT_DATA_VERSION.toString());
+    } else {
+      // 写入失败时触发 Toast 告警
+      console.error("[Ledger] Save failed! Data kept in memory only.");
+      showToast(s.error + ': ' + (s.exportData || 'Save failed'), 'error');
+    }
+
+    // 4. 更新 React 状态
     setTransactions(data);
-  };
+  }, [showToast, s]);
 
   // 添加/编辑交易记录
   const handleSubmit = () => {
@@ -95,6 +237,7 @@ export function StatementPage({ onClose }: StatementPageProps) {
               categoryKey,
               note: formData.note,
               date: formData.date,
+              timestamp: new Date(formData.date).getTime(),
             }
           : tx
       );
@@ -102,7 +245,7 @@ export function StatementPage({ onClose }: StatementPageProps) {
       setEditingTransaction(null);
     } else {
       const newTransaction: Transaction = {
-        id: Date.now().toString(),
+        id: Date.now().toString() + Math.random().toString(36).slice(2, 10),
         type: formData.type,
         amount,
         category: formData.category || getCategoryLabel(categoryKey),
@@ -146,25 +289,193 @@ export function StatementPage({ onClose }: StatementPageProps) {
     setShowAddForm(true);
   };
 
-  // 计算统计数据
-  const stats = transactions.reduce(
-    (acc, tx) => {
-      if (tx.type === "income") {
-        acc.income += tx.amount;
-      } else {
-        acc.expense += tx.amount;
+  // ====== 数据导出：生成 JSON 文件下载 ======
+  const handleExport = () => {
+    const exportPayload = {
+      version: CURRENT_DATA_VERSION,
+      exportDate: new Date().toISOString(),
+      appName: "TaprootAgro-Ledger",
+      transactions,
+    };
+    const blob = new Blob([JSON.stringify(exportPayload, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `ledger_backup_${new Date().toISOString().split("T")[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast(ts("exportSuccess"), 'success');
+  };
+
+  // ====== 数据导入：读取 JSON 文件并合并 ======
+  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const content = ev.target?.result as string;
+        const parsed = JSON.parse(content);
+
+        let importedList: any[] = [];
+        if (parsed.transactions && Array.isArray(parsed.transactions)) {
+          importedList = parsed.transactions;
+        } else if (Array.isArray(parsed)) {
+          importedList = parsed;
+        } else {
+          alert(ts("importFailed"));
+          return;
+        }
+
+        const migrated = migrateTransactions(importedList);
+
+        if (migrated.length === 0) {
+          alert(ts("importFailed"));
+          return;
+        }
+
+        const confirmed = confirm(
+          ts("importConfirm", { count: migrated.length.toString() })
+        );
+        if (!confirmed) return;
+
+        // 合并：按 ID 去重，导入的数据不会覆盖已有记录
+        const existingIds = new Set(transactions.map((tx) => tx.id));
+        const newRecords = migrated.filter((tx) => !existingIds.has(tx.id));
+        const merged = [...transactions, ...newRecords].sort(
+          (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+        );
+
+        saveTransactions(merged);
+        alert(ts("importSuccess", { count: newRecords.length.toString() }));
+      } catch (err) {
+        console.error("[Ledger] Import failed:", err);
+        alert(ts("importFailed"));
       }
+    };
+    reader.readAsText(file);
+
+    // 重置 input 以允许重复选择同一文件
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  // ====== 可用月份列表 ======
+  const availableMonths = useMemo(() => {
+    const months = new Set<string>();
+    transactions.forEach((tx) => {
+      const m = tx.date.substring(0, 7); // "YYYY-MM"
+      months.add(m);
+    });
+    return Array.from(months).sort().reverse();
+  }, [transactions]);
+
+  // ====== 按月筛选的交易 ======
+  const filteredTransactions = useMemo(() => {
+    if (selectedMonth === "all") return transactions;
+    return transactions.filter((tx) => tx.date.startsWith(selectedMonth));
+  }, [transactions, selectedMonth]);
+
+  // ====== 月份导航 ======
+  const currentMonthIndex = availableMonths.indexOf(selectedMonth);
+
+  const goToPrevMonth = () => {
+    if (currentMonthIndex < availableMonths.length - 1) {
+      setSelectedMonth(availableMonths[currentMonthIndex + 1]);
+    }
+  };
+  const goToNextMonth = () => {
+    if (currentMonthIndex > 0) {
+      setSelectedMonth(availableMonths[currentMonthIndex - 1]);
+    }
+  };
+
+  // ====== 计算统计（基于筛选后的数据） ======
+  const stats = filteredTransactions.reduce(
+    (acc, tx) => {
+      if (tx.type === "income") acc.income += tx.amount;
+      else acc.expense += tx.amount;
       return acc;
     },
     { income: 0, expense: 0 }
   );
   const balance = stats.income - stats.expense;
 
+  // 上次保存时间
+  const lastSaved = safeReadStorage(SAVE_TIME_KEY);
+  const lastSavedDisplay = lastSaved
+    ? new Date(lastSaved).toLocaleString()
+    : "--";
+
+  // 月份显示格式
+  const formatMonth = (m: string) => {
+    const [year, month] = m.split("-");
+    return `${year}-${month}`;
+  };
+
   return (
     <SecondaryView onClose={onClose} title={s.title} showTitle={false}>
       <div className="flex flex-col h-full overflow-x-hidden" style={{ backgroundColor: 'var(--app-bg)' }}>
         {/* 统计卡片 */}
         <div className="bg-gradient-to-br from-emerald-500 to-emerald-600 px-4 py-2 shadow-lg">
+          {/* 月份筛选器 */}
+          {availableMonths.length > 0 && (
+            <div className="flex items-center justify-center gap-2 mb-1.5">
+              <button
+                onClick={goToPrevMonth}
+                disabled={selectedMonth === "all" || currentMonthIndex >= availableMonths.length - 1}
+                className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center disabled:opacity-30"
+              >
+                <ChevronLeft className="w-3 h-3 text-white" />
+              </button>
+
+              <button
+                onClick={() => setSelectedMonth("all")}
+                className={`px-3 py-0.5 rounded-full text-xs transition-all ${
+                  selectedMonth === "all"
+                    ? "bg-white text-emerald-600 font-medium"
+                    : "bg-white/20 text-white"
+                }`}
+              >
+                {ts("allMonths")}
+              </button>
+
+              {selectedMonth !== "all" && (
+                <span className="text-white text-xs font-medium">
+                  {formatMonth(selectedMonth)}
+                </span>
+              )}
+
+              {availableMonths.slice(0, selectedMonth === "all" ? 3 : 0).map((m) => (
+                <button
+                  key={m}
+                  onClick={() => setSelectedMonth(m)}
+                  className={`px-2 py-0.5 rounded-full text-xs transition-all ${
+                    selectedMonth === m
+                      ? "bg-white text-emerald-600 font-medium"
+                      : "bg-white/20 text-white"
+                  }`}
+                >
+                  {formatMonth(m)}
+                </button>
+              ))}
+
+              <button
+                onClick={goToNextMonth}
+                disabled={selectedMonth === "all" || currentMonthIndex <= 0}
+                className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center disabled:opacity-30"
+              >
+                <ChevronRight className="w-3 h-3 text-white" />
+              </button>
+            </div>
+          )}
+
           <div className="space-y-1.5">
             {/* 总余额 */}
             <div className="bg-white/20 backdrop-blur-sm rounded-lg px-3 py-1.5 flex items-center justify-between">
@@ -200,24 +511,41 @@ export function StatementPage({ onClose }: StatementPageProps) {
               </div>
               <p className="text-white font-bold text-sm">{stats.expense.toFixed(2)}</p>
             </div>
+
+            {/* 数据状态栏 */}
+            <div className="flex items-center justify-between px-1 pt-0.5">
+              <div className="flex items-center gap-1 text-white/70 text-[10px]">
+                <Shield className="w-2.5 h-2.5" />
+                <span>{ts("recordCount", { count: transactions.length.toString() })}</span>
+                <span className="mx-1">|</span>
+                <span>{ts("lastBackup", { time: lastSavedDisplay })}</span>
+              </div>
+              <button
+                onClick={() => setShowDataPanel(true)}
+                className="flex items-center gap-1 text-white/80 text-[10px] bg-white/15 px-2 py-0.5 rounded-full active:scale-95 transition-transform"
+              >
+                <Database className="w-2.5 h-2.5" />
+                {ts("dataManagement")}
+              </button>
+            </div>
           </div>
         </div>
 
         {/* 记账列表 */}
         <div className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-4 space-y-3 pb-24">
-          {transactions.length === 0 ? (
+          {filteredTransactions.length === 0 ? (
             <div className="text-center py-16">
               <Wallet className="w-16 h-16 text-gray-300 mx-auto mb-4" />
               <p className="text-gray-400 text-sm">{s.noRecords}</p>
               <p className="text-gray-400 text-xs mt-1">{s.startRecording}</p>
             </div>
           ) : (
-            transactions.map((transaction) => (
+            filteredTransactions.map((transaction) => (
               <div
                 key={transaction.id}
                 className="bg-white rounded-2xl p-4 shadow-lg active:scale-95 transition-transform"
               >
-                {/* 日期 - 左上角 */}
+                {/* 日期 */}
                 <div className="flex items-center gap-1 text-gray-400 text-xs mb-3">
                   <Calendar className="w-3 h-3" />
                   {transaction.date}
@@ -225,7 +553,6 @@ export function StatementPage({ onClose }: StatementPageProps) {
 
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
-                    {/* 分类和金额 */}
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
                         <div
@@ -259,14 +586,12 @@ export function StatementPage({ onClose }: StatementPageProps) {
                       </p>
                     </div>
 
-                    {/* 备注 */}
                     {transaction.note && (
                       <p className="text-gray-500 text-xs mb-2 line-clamp-2">
                         {transaction.note}
                       </p>
                     )}
 
-                    {/* 操作按钮 */}
                     <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
                       <button
                         onClick={() => handleEdit(transaction)}
@@ -311,11 +636,84 @@ export function StatementPage({ onClose }: StatementPageProps) {
           </button>
         </div>
 
+        {/* 数据管理面板 */}
+        {showDataPanel && (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-end">
+            <div className="bg-white w-full rounded-t-3xl">
+              <div className="sticky top-0 bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
+                <h3 className="text-lg font-bold text-gray-800">{ts("dataManagement")}</h3>
+                <button
+                  onClick={() => setShowDataPanel(false)}
+                  className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center active:scale-90 transition-transform"
+                >
+                  <X className="w-4 h-4 text-gray-600" />
+                </button>
+              </div>
+
+              <div className="p-4 space-y-3">
+                {/* 数据概览 */}
+                <div className="bg-emerald-50 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Shield className="w-4 h-4 text-emerald-600" />
+                    <span className="text-emerald-800 font-medium text-sm">
+                      {ts("recordCount", { count: transactions.length.toString() })}
+                    </span>
+                  </div>
+                  <p className="text-emerald-600 text-xs">
+                    {ts("lastBackup", { time: lastSavedDisplay })}
+                  </p>
+                </div>
+
+                {/* 导出按钮 */}
+                <button
+                  onClick={() => {
+                    handleExport();
+                    setShowDataPanel(false);
+                  }}
+                  className="w-full flex items-center gap-3 px-4 py-3 bg-blue-50 rounded-xl active:scale-95 transition-transform"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
+                    <Download className="w-5 h-5 text-blue-600" />
+                  </div>
+                  <div className="text-left">
+                    <p className="text-blue-800 font-medium text-sm">{ts("exportData")}</p>
+                    <p className="text-blue-500 text-xs">JSON</p>
+                  </div>
+                </button>
+
+                {/* 导入按钮 */}
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full flex items-center gap-3 px-4 py-3 bg-orange-50 rounded-xl active:scale-95 transition-transform"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center">
+                    <Upload className="w-5 h-5 text-orange-600" />
+                  </div>
+                  <div className="text-left">
+                    <p className="text-orange-800 font-medium text-sm">{ts("importData")}</p>
+                    <p className="text-orange-500 text-xs">JSON</p>
+                  </div>
+                </button>
+
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".json"
+                  onChange={(e) => {
+                    handleImport(e);
+                    setShowDataPanel(false);
+                  }}
+                  className="hidden"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* 添加/编辑表单弹窗 */}
         {showAddForm && (
           <div className="fixed inset-0 bg-black/50 z-50 flex items-end">
             <div className="bg-white w-full rounded-t-3xl max-h-[85vh] overflow-y-auto overflow-x-hidden">
-              {/* 表单头部 */}
               <div className="sticky top-0 bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
                 <h3 className="text-lg font-bold text-gray-800">
                   {editingTransaction ? s.editRecord : s.addRecord}
@@ -377,6 +775,7 @@ export function StatementPage({ onClose }: StatementPageProps) {
                     <input
                       type="number"
                       step="0.01"
+                      inputMode="decimal"
                       value={formData.amount}
                       onChange={(e) =>
                         setFormData({ ...formData, amount: e.target.value })
@@ -412,7 +811,6 @@ export function StatementPage({ onClose }: StatementPageProps) {
                       </button>
                     ))}
                   </div>
-                  {/* 自定义分类输入 */}
                   <input
                     type="text"
                     value={formData.categoryKey && !formData.category ? "" : formData.category}
@@ -472,7 +870,23 @@ export function StatementPage({ onClose }: StatementPageProps) {
             </div>
           </div>
         )}
+
+        {/* Toast 通知 */}
+        {toast.visible && (
+          <div className="fixed top-16 left-1/2 -translate-x-1/2 z-[60] animate-[fadeInDown_0.2s_ease-out]">
+            <div className={`flex items-center gap-2 px-4 py-2.5 rounded-xl shadow-lg ${
+              toast.type === 'success' 
+                ? 'bg-emerald-600 text-white' 
+                : 'bg-red-600 text-white'
+            }`}>
+              <CheckCircle className="w-4 h-4 flex-shrink-0" />
+              <span className="text-sm font-medium whitespace-nowrap">{toast.message}</span>
+            </div>
+          </div>
+        )}
       </div>
     </SecondaryView>
   );
 }
+
+export default StatementPage;

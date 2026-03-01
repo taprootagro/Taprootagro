@@ -1,5 +1,18 @@
 @custom-variant dark (&:is(.dark *));
 
+/* Loading animation for deep analysis */
+@keyframes loading {
+  0% { transform: translateX(-100%); }
+  50% { transform: translateX(60%); }
+  100% { transform: translateX(-100%); }
+}
+
+/* Toast fade-in animation */
+@keyframes fadeInDown {
+  from { opacity: 0; transform: translate(-50%, -12px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
 :root {
   --font-size: 16px;
   --background: #ffffff;
@@ -134,22 +147,8 @@
     -moz-osx-font-smoothing: grayscale;
     /* 确保字体大小可以被动态调整 */
     font-size: var(--font-size);
-    /* 混合字体堆栈 - 中国大陆 + 全球通用 */
-    font-family: 
-      'Alibaba PuHuiTi',         /* 中文简繁体（阿里云 CDN - 中国大陆稳定） */
-      'Noto Sans',               /* 英文、拉丁、西里尔字母（字节镜像 - 中国可访问） */
-      'Noto Sans Arabic',        /* 阿拉伯语、波斯语 */
-      'Noto Sans Thai',          /* 泰语 */
-      'Noto Sans Myanmar',       /* 缅甸语 */
-      'Noto Sans JP',            /* 日语 */
-      -apple-system,             /* iOS/macOS 系统字体 */
-      BlinkMacSystemFont,        /* macOS 系统字体 */
-      'Segoe UI',                /* Windows 系统字体 */
-      'Helvetica Neue',          /* macOS 后备字体 */
-      Arial,                     /* Windows 后备字体 */
-      'Microsoft YaHei',         /* Windows 中文后备 */
-      'PingFang SC',             /* macOS 中文后备 */
-      sans-serif;                /* 最终后备 */
+    /* 使用设备系统自带字体，不加载任何外部字体 */
+    font-family: system-ui, -apple-system, sans-serif;
   }
 
   body {

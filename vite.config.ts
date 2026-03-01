@@ -27,7 +27,6 @@ export default defineConfig({
         manualChunks: {
           'react-vendor': ['react', 'react-dom', 'react-router'],
           'ui-vendor': ['lucide-react'],
-          'slider-vendor': ['react-slick', 'slick-carousel'],
         },
       },
     },

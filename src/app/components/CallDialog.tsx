@@ -1,5 +1,6 @@
 import { X, Phone, Video, Mic, MicOff, VideoOff, Volume2 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { chatService } from "../services/ChatProxyService";
 
 interface CallDialogProps {
   isOpen: boolean;
@@ -16,11 +17,87 @@ export function CallDialog({
   contactName,
   contactAvatar,
   callType,
-  callStatus,
+  callStatus: initialStatus,
 }: CallDialogProps) {
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
+  const [callStatus, setCallStatus] = useState(initialStatus);
+  const [agoraReady, setAgoraReady] = useState(false);
+  const [tokenInfo, setTokenInfo] = useState<{ token: string; appId: string; uid: string | number } | null>(null);
+  const durationTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Step 1: Request token from backend proxy when call starts
+  useEffect(() => {
+    if (!isOpen) return;
+
+    let cancelled = false;
+    const channelName = `call-${contactName}-${Date.now()}`;
+
+    (async () => {
+      try {
+        console.log("[CallDialog] Requesting IM token via backend proxy...");
+        const info = await chatService.joinChannel(channelName);
+        if (cancelled) return;
+
+        setTokenInfo(info);
+        setAgoraReady(true);
+        console.log(`[CallDialog] Token received for ${chatService.providerInfo.name}, ready to join channel`);
+
+        // TODO: When IM provider SDK is installed, use the token here:
+        // For Sendbird: const sbCall = SendbirdCall.dial({ userId, callType });
+        // For CometChat: CometChat.initiateCall(callObj);
+        // For Alibaba Cloud IM: use AliRTC SDK to join channel
+        // if (callType === "audio") {
+        //   const audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
+        //   await client.publish([audioTrack]);
+        // } else {
+        //   const [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
+        //   await client.publish([audioTrack, videoTrack]);
+        // }
+
+        // Simulate connection for mock mode
+        if (chatService.mode === "mock") {
+          setTimeout(() => {
+            if (!cancelled) setCallStatus("connected");
+          }, 2000);
+        }
+      } catch (error) {
+        console.error("[CallDialog] Failed to get token:", error);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, contactName, callType]);
+
+  // Step 2: Track call duration when connected
+  useEffect(() => {
+    if (callStatus === "connected") {
+      durationTimerRef.current = setInterval(() => {
+        setCallDuration((prev) => prev + 1);
+      }, 1000);
+    }
+
+    return () => {
+      if (durationTimerRef.current) {
+        clearInterval(durationTimerRef.current);
+        durationTimerRef.current = null;
+      }
+    };
+  }, [callStatus]);
+
+  // Cleanup on close
+  const handleClose = useCallback(() => {
+    // TODO: When IM provider SDK is integrated:
+    // Clean up call session / leave channel
+    setCallStatus("ended");
+    setCallDuration(0);
+    setAgoraReady(false);
+    setTokenInfo(null);
+    onClose();
+  }, [onClose]);
 
   if (!isOpen) return null;
 
@@ -28,7 +105,7 @@ export function CallDialog({
     <div className="fixed inset-0 bg-black bg-opacity-90 z-50 flex flex-col items-center justify-center">
       {/* 关闭按钮 */}
       <button
-        onClick={onClose}
+        onClick={handleClose}
         className="absolute top-4 right-4 w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center text-white"
       >
         <X className="w-5 h-5" />
@@ -59,11 +136,24 @@ export function CallDialog({
           </p>
         </div>
 
+        {/* IM Token 状态指示 */}
+        <div className="flex items-center gap-2">
+          <div className={`w-2 h-2 rounded-full ${agoraReady ? "bg-emerald-400" : "bg-amber-400 animate-pulse"}`} />
+          <span className="text-xs text-gray-500">
+            {agoraReady
+              ? `${chatService.providerInfo.name} Token Ready (${chatService.mode} mode)`
+              : "Requesting token..."}
+          </span>
+        </div>
+
         {/* 控制按钮 */}
         <div className="flex items-center gap-6">
           {/* 麦克风开关 */}
           <button
-            onClick={() => setIsMuted(!isMuted)}
+            onClick={() => {
+              setIsMuted(!isMuted);
+              // TODO: localAudioTrack.setEnabled(!isMuted);
+            }}
             className={`w-14 h-14 rounded-full flex items-center justify-center transition-colors ${
               isMuted ? "bg-red-500" : "bg-gray-700"
             }`}
@@ -77,7 +167,7 @@ export function CallDialog({
 
           {/* 挂断按钮 */}
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="w-16 h-16 rounded-full bg-red-500 flex items-center justify-center shadow-lg"
           >
             <Phone className="w-7 h-7 text-white rotate-[135deg]" />
@@ -86,7 +176,10 @@ export function CallDialog({
           {/* 视频开关（仅视频通话显示） */}
           {callType === "video" && (
             <button
-              onClick={() => setIsVideoOff(!isVideoOff)}
+              onClick={() => {
+                setIsVideoOff(!isVideoOff);
+                // TODO: localVideoTrack.setEnabled(!isVideoOff);
+              }}
               className={`w-14 h-14 rounded-full flex items-center justify-center transition-colors ${
                 isVideoOff ? "bg-red-500" : "bg-gray-700"
               }`}
@@ -109,8 +202,17 @@ export function CallDialog({
 
         {/* 提示信息 */}
         <div className="text-center text-gray-500 text-xs mt-4">
-          <p>提示：此功能需要集成声网SDK后才能使用</p>
-          <p className="mt-1">当前为UI预览模式</p>
+          {chatService.mode === "mock" ? (
+            <>
+              <p>Backend Proxy Pattern: Token via Supabase Edge Function</p>
+              <p className="mt-1">当前为 Mock 模式 - 需安装 {chatService.providerInfo.name} SDK 并连接 Supabase</p>
+            </>
+          ) : (
+            <>
+              <p>{chatService.providerInfo.name} Backend Proxy Mode Active</p>
+              <p className="mt-1">需安装 {chatService.providerInfo.name} SDK 以启用实时通话</p>
+            </>
+          )}
         </div>
       </div>
     </div>

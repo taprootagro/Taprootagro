@@ -3,6 +3,9 @@ import { useEffect } from 'react';
 /**
  * App Badge Hook - 用于管理PWA应用图标上的未读消息徽章
  * 支持Badging API，在桌面和移动设备的PWA图标上显示未读数字
+ * 
+ * 注意：document.title 由 useDynamicIcon 统一管理（从 config.appBranding.appName 读取），
+ * 此处不再操纵 document.title，避免两个 hook 互相覆盖。
  */
 export function useAppBadge(count: number) {
   useEffect(() => {
@@ -19,13 +22,6 @@ export function useAppBadge(count: number) {
           console.log('清除应用徽章失败:', error);
         });
       }
-    }
-
-    // 同时更新页面标题显示未读数
-    if (count > 0) {
-      document.title = `(${count}) 农业助手`;
-    } else {
-      document.title = '农业助手';
     }
 
     // 清理函数：组件卸载时清除徽章

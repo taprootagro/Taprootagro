@@ -103,9 +103,16 @@ export interface AppBrandingConfig {
 
 // 聊天联系人配置接口
 export interface ChatContactConfig {
-  name: string;           // 联系人名称
+  name: string;           // 联系人名称（商家名）
   avatar: string;         // 联系人头像URL
   subtitle: string;       // 副标题（如：TaprootAgro授权店）
+  imUserId: string;       // IM服务商分配给商家的唯一识别代码
+  imProvider: string;     // 商家注册的IM服务商标识 (aliyun-im / sendbird / cometchat)
+  phone: string;          // 商家联系电话
+  storeId: string;        // 门店编号/商家编号
+  verifiedDomains: string[]; // 域名白名单，扫码绑定时校验来源域名
+  boundAt?: number;       // 绑定时间戳（扫码绑定成功后写入）
+  boundFrom?: string;     // 绑定来源域名（扫码绑定成功后写入）
 }
 
 // 个人资料配置接口
@@ -121,6 +128,74 @@ export interface DesktopIconConfig {
   icon512Url: string;            // 512x512 图标URL
 }
 
+export interface PushConfig {
+  vapidPublicKey: string;    // VAPID 公钥
+  pushApiBase: string;       // 推送后端API基础路径 (例如 https://api.example.com)
+  enabled: boolean;          // 是否启用推送功能
+}
+
+// AI模型配置接口
+export interface AIModelConfig {
+  modelUrl: string;          // ONNX 模型文件URL
+  labelsUrl: string;         // 类别标签JSON文件URL
+  enableLocalModel: boolean; // 是否启用本地ONNX推理模型（关闭则仅使用云端AI）
+}
+
+// 云端AI深度分析配置接口（后端代理模式）
+export interface CloudAIConfig {
+  enabled: boolean;                // 是否启用深度分析
+  providerName: string;            // 显示名称（如：通义千问、Gemini、GPT-4o）
+  edgeFunctionName: string;        // Supabase Edge Function 名称（默认 ai-vision-proxy）
+  modelId: string;                 // 模型标识（传给Edge Function，如 qwen-vl-plus、gemini-2.0-flash）
+  systemPrompt: string;            // 系统提示词（可自定义分析侧重点）
+  maxTokens: number;               // 最大输出token数
+}
+
+// 后端代理配置接口（IM通讯 + Supabase）
+export type ChatProvider = 'aliyun-im' | 'sendbird' | 'cometchat';
+
+export interface BackendProxyConfig {
+  supabaseUrl: string;            // Supabase 项目 URL
+  supabaseAnonKey: string;        // Supabase Anon Key（公开密钥，可安全放前端）
+  edgeFunctionName: string;       // Edge Function 名称（默认 chat-proxy）
+  enabled: boolean;               // 是否启用后端代理模式
+  chatProvider: ChatProvider;     // IM服务商选择
+  // Alibaba Cloud IM (互动消息)
+  aliyunAppId: string;
+  // Sendbird
+  sendbirdAppId: string;
+  // CometChat
+  cometchatAppId: string;
+  cometchatRegion: string;        // 'us' | 'eu' | 'in' 等
+}
+
+// 登录页面配置接口
+export interface OAuthProviderCredentials {
+  wechat: { appId: string };
+  google: { clientId: string };
+  facebook: { appId: string };
+  apple: { serviceId: string; teamId: string; keyId: string };
+  alipay: { appId: string };
+  twitter: { apiKey: string };
+  line: { channelId: string };
+}
+
+export interface LoginConfig {
+  socialProviders: {
+    wechat: boolean;
+    google: boolean;
+    facebook: boolean;
+    apple: boolean;
+    alipay: boolean;
+    twitter: boolean;
+    line: boolean;
+  };
+  oauthCredentials: OAuthProviderCredentials;
+  enablePhoneLogin: boolean;      // 是否启用手机号登录
+  enableEmailLogin: boolean;      // 是否启用邮箱登录
+  defaultLoginMethod: 'phone' | 'email'; // 默认选中的登录方式
+}
+
 export interface MarketPageConfig {
   categories: MarketCategoryConfig[];
   products: MarketProductConfig[];
@@ -134,6 +209,7 @@ export interface HomePageConfig {
   articles: ArticleConfig[];
   videoFeed: VideoFeedConfig;
   marketPage: MarketPageConfig; // 添加第二页配置
+  currencySymbol: string; // 货币符号，如 ¥、$、€
   filing: FilingConfig; // 备案信息
   aboutUs: AboutUsConfig; // 关于我们
   privacyPolicy: PrivacyPolicyConfig; // 隐私政策
@@ -142,6 +218,11 @@ export interface HomePageConfig {
   chatContact: ChatContactConfig; // 聊天联系人
   userProfile: UserProfileConfig; // 个人资料
   desktopIcon: DesktopIconConfig; // 桌面图标配置
+  pushConfig: PushConfig; // 推送通知配置
+  aiModelConfig: AIModelConfig; // AI模型配置
+  cloudAIConfig: CloudAIConfig; // 云端AI深度分析配置
+  backendProxyConfig: BackendProxyConfig; // 后端代理配置
+  loginConfig: LoginConfig; // 登录页面配置
 }
 
 // 默认配置
@@ -172,7 +253,7 @@ const defaultConfig: HomePageConfig = {
   navigation: [
     { id: 1, icon: "ScanLine", title: "病虫识别", subtitle: "AI智能检测" },
     { id: 2, icon: "Bot", title: "AI助手", subtitle: "智能问答" },
-    { id: 3, icon: "Calculator", title: "收益统计", subtitle: "数据分析" },
+    { id: 3, icon: "Calculator", title: "收统计", subtitle: "数据分析" },
     { id: 4, icon: "MapPin", title: "农田地图", subtitle: "位置管理" }
   ],
   liveStreams: [
@@ -245,7 +326,7 @@ const defaultConfig: HomePageConfig = {
     {
       id: 6,
       title: "蔬菜种植中的水肥一体化技术应用",
-      author: "灌��专家",
+      author: "灌专家",
       views: "789",
       category: "灌溉技术",
       date: "4天前",
@@ -271,6 +352,7 @@ const defaultConfig: HomePageConfig = {
       "https://example.com/video2.mp4"
     ]
   },
+  currencySymbol: "¥",
   marketPage: {
     categories: [
       {
@@ -380,7 +462,7 @@ const defaultConfig: HomePageConfig = {
       },
       {
         id: 9,
-        name: "胃毒杀虫颗粒 500g",
+        name: "胃杀虫颗粒 500g",
         image: "https://placehold.co/400x400/10b981/ffffff?text=TAPROOTAGRO&font=raleway",
         price: "¥58",
         category: "insecticide",
@@ -442,12 +524,12 @@ const defaultConfig: HomePageConfig = {
       },
       {
         id: 15,
-        name: "复合型杀菌剂 700ml",
+        name: "复合型杀菌 700ml",
         image: "https://placehold.co/400x400/10b981/ffffff?text=TAPROOTAGRO&font=raleway",
         price: "¥88",
         category: "fungicide",
         subCategory: "复合型",
-        description: "保护加治疗，双重功效",
+        description: "保护加治疗双重功效",
         stock: 95
       },
       {
@@ -528,7 +610,7 @@ const defaultConfig: HomePageConfig = {
         id: 1,
         image: "https://images.unsplash.com/photo-1745258330776-b8c8802fddf8?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxhZ3JpY3VsdHVyZSUyMGZlcnRpbGl6ZXIlMjBwcm9tb3Rpb24lMjBiYW5uZXJ8ZW58MXx8fHwxNzcyMTcxMjI3fDA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral",
         title: "农业技术培训",
-        content: "TaprootAgro 2026年春季农业技术培训班正式开放报名！\n\n培训内容：\n• 现代化精准农业技术\n• 智能灌溉系统操作指南\n• 病虫害AI识别与防治\n• 土壤检测与施肥方案\n\n培训时间：2026年3月15日 - 3月20日\n培训地点：TaprootAgro培训中心\n\n名额有限，先到先得！"
+        content: "TaprootAgro 2026年春季农业技术培训班正式开放报名！\n\n培训内容���\n• 现代化精准农业技术\n• 智能灌溉系统操作指南\n• 病虫害AI识别与防治\n• 土壤检测与施肥方案\n\n培训时间：2026年3月15日 - 3月20日\n培训地点：TaprootAgro培训中心\n\n名额有限，先到先得！"
       },
       {
         id: 2,
@@ -560,7 +642,7 @@ const defaultConfig: HomePageConfig = {
   },
   termsOfService: {
     title: "用户协议",
-    content: "欢迎使用我们的服务！本用户协议（以下简称“协议”）规定了您使用我们服务的条款和条件。\n\n1. 服务描述：我们提供各种农业技术解决方案，包括但不限于病虫害识别、智能助手、收益统计和田地图管理。\n\n2. 用户责任：您必须遵守所有适用的法律和法规，并且不得使用我们的服务进行任何非法活动。\n\n3. 服务变更：我们保留随时更改或终止服务的权利，恕不另行通知。\n\n4. 知识产权：我们拥有服务的所有权利、所有权和利益，包括但不限于版权、商标和专利。\n\n5. 责任限制：我们不对因使用或无法使用我们的服务而产生的任何直接、间接、附带、特殊或后果性损害承担责任。\n\n6. 争议解决：因本协议引起的任何争议应通过友好协商解决；协商不成的，应提交至有管辖权的法院解决。\n\n7. 其他条款：本协议的任何条款无效或不可执行的，不影响其他条款的有效性和可执行性。\n\n8. 接受协议：使用我们的服务即表示您接受本协议的所有条款和条件。如果您不同意本协议的任何条款，请不要使用我们的服务。"
+    content: "欢迎使用我们的服务！本用户协议（以下��称“协议”）规定了您使用我们服务的条款和条件。\n\n1. 服务描述：我们提供各种农业技术解决方案，包括但不限于病虫害识别、智能助手、收益统计和田地图管理。\n\n2. 用户责任：您必须遵守所有适用的法律和法规，并且不得使用我们的服务进行任何非法活动。\n\n3. 服务变更：我们保留随时更改或终止服务的权利，恕不另行通知。\n\n4. 知识产权：我们拥有服务的所有权利、所有权和利益，包括但不限于版权、商标和专利。\n\n5. 责任限制：我们不对因使用或无法使用我们的服务而产生的任何直接、间接、附带、特殊或后果性损害承担责任。\n\n6. 争议解决：因本协议引起的任何议应通过友好协商解决；协商不成的，应提交至有管辖权的法院解决。\n\n7. 其他条款：本协议的任何条款无效或不可执行的，不影响其他条款的有效性和可执行性。\n\n8. 接受协议：使用我们的服务即表示您接受本协议的所有条款和条件。如果您不同意协议的任何款，请不要使用我们的服务。"
   },
   appBranding: {
     logoUrl: "https://images.unsplash.com/photo-1642919854816-98575cbaefa8?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxzaW1wbGUlMjBsZWFmJTIwc2tldGNoJTIwbWluaW1hbCUyMGRyYXdpbmd8ZW58MXx8fHwxNzcwODU0NDU2fDA&ixlib=rb-4.1.0&q=80&w=1080",
@@ -570,7 +652,14 @@ const defaultConfig: HomePageConfig = {
   chatContact: {
     name: "建国",
     avatar: "https://images.unsplash.com/photo-1614558097757-bf9aa8fb830e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxzaW1wbGUlMjBtaW5pbWFsaXN0JTIwYXZhdGFyJTIwc2tldGNoJTIwZHJhd2luZ3xlbnwxfHx8fDE3NzA4NTQxODl8MA&ixlib=rb-4.1.0&q=80&w=1080",
-    subtitle: "TaprootAgro授权店"
+    subtitle: "TaprootAgro授权店",
+    imUserId: "your-im-user-id",
+    imProvider: "aliyun-im",
+    phone: "123-456-7890",
+    storeId: "store123",
+    verifiedDomains: ["taprootagro.com", "agrostore.com"],
+    boundAt: 1672531200000,
+    boundFrom: "taprootagro.com"
   },
   userProfile: {
     name: "Rick",
@@ -580,6 +669,58 @@ const defaultConfig: HomePageConfig = {
     appName: 'TaprootAgro',
     icon192Url: 'https://images.unsplash.com/photo-1642919854816-98575cbaefa8?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxzaW1wbGUlMjBsZWFmJTIwc2tldGNoJTIwbWluaW1hbCUyMGRyYXdpbmd8ZW58MXx8fHwxNzcwODU0NDU2fDA&ixlib=rb-4.1.0&q=80&w=192',
     icon512Url: 'https://images.unsplash.com/photo-1642919854816-98575cbaefa8?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxzaW1wbGUlMjBsZWFmJTIwc2tldGNoJTIwbWluaW1hbCUyMGRyYXdpbmd8ZW58MXx8fHwxNzcwODU0NDU2fDA&ixlib=rb-4.1.0&q=80&w=512',
+  },
+  pushConfig: {
+    vapidPublicKey: "YOUR_VAPID_PUBLIC_KEY",
+    pushApiBase: "https://api.example.com",
+    enabled: true
+  },
+  aiModelConfig: {
+    modelUrl: "",
+    labelsUrl: "",
+    enableLocalModel: false
+  },
+  cloudAIConfig: {
+    enabled: false,
+    providerName: "通义千问",
+    edgeFunctionName: "ai-vision-proxy",
+    modelId: "qwen-vl-plus",
+    systemPrompt: "您正在使用TaprootAgro的云端AI深度分析服务，该服务基于通义千问模型，能够提供精准的农业图像识别和分析。",
+    maxTokens: 512
+  },
+  backendProxyConfig: {
+    supabaseUrl: "https://your-supabase-project.supabase.co",
+    supabaseAnonKey: "your-supabase-anon-key",
+    edgeFunctionName: "chat-proxy",
+    enabled: false,
+    chatProvider: 'aliyun-im',
+    aliyunAppId: 'your-aliyun-app-id',
+    sendbirdAppId: 'your-sendbird-app-id',
+    cometchatAppId: 'your-cometchat-app-id',
+    cometchatRegion: 'us'
+  },
+  loginConfig: {
+    socialProviders: {
+      wechat: true,
+      google: true,
+      facebook: true,
+      apple: true,
+      alipay: true,
+      twitter: true,
+      line: true
+    },
+    oauthCredentials: {
+      wechat: { appId: "your-wechat-app-id" },
+      google: { clientId: "your-google-client-id" },
+      facebook: { appId: "your-facebook-app-id" },
+      apple: { serviceId: "your-apple-service-id", teamId: "your-apple-team-id", keyId: "your-apple-key-id" },
+      alipay: { appId: "your-alipay-app-id" },
+      twitter: { apiKey: "your-twitter-api-key" },
+      line: { channelId: "your-line-channel-id" }
+    },
+    enablePhoneLogin: true,
+    enableEmailLogin: true,
+    defaultLoginMethod: 'phone'
   }
 };
 
@@ -621,7 +762,12 @@ export function useHomeConfig() {
           desktopIcon: {
             ...defaultConfig.desktopIcon,
             ...(parsedConfig.desktopIcon || {}),
-          }
+          },
+          pushConfig: parsedConfig.pushConfig || defaultConfig.pushConfig,
+          aiModelConfig: parsedConfig.aiModelConfig || defaultConfig.aiModelConfig,
+          cloudAIConfig: parsedConfig.cloudAIConfig || defaultConfig.cloudAIConfig,
+          backendProxyConfig: parsedConfig.backendProxyConfig || defaultConfig.backendProxyConfig,
+          loginConfig: parsedConfig.loginConfig || defaultConfig.loginConfig
         };
       } catch (e) {
         console.error("Failed to parse config:", e);

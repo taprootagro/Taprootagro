@@ -1,10 +1,10 @@
 import { useEffect } from "react";
 
 /**
- * 性能监控Hook - 针对老设备
+ * 性能监控Hook - 使用现代 PerformanceNavigationTiming API
  * 
  * 功能：
- * - 监控页面加载性能
+ * - 监控页面加载性能（替换已废弃的 performance.timing）
  * - 检测低端设备
  * - 在控制台输出性能报告
  */
@@ -12,57 +12,41 @@ export function usePerformanceMonitor(pageName: string) {
   useEffect(() => {
     // 检查是否为低端设备
     const isLowEndDevice = () => {
-      // 检查硬件并发数（CPU核心数）
       const hardwareConcurrency = navigator.hardwareConcurrency || 2;
-      
-      // 检查设备内存（如果可用）
       const deviceMemory = (navigator as any).deviceMemory || 4;
-      
-      // 低端设备判断：CPU <= 4核 或 内存 <= 2GB
       return hardwareConcurrency <= 4 || deviceMemory <= 2;
     };
 
-    // 获取性能指标
+    // 使用现代 PerformanceNavigationTiming API
     const getPerformanceMetrics = () => {
-      if (!window.performance || !window.performance.timing) {
-        return null;
-      }
+      const entries = performance.getEntriesByType('navigation') as PerformanceNavigationTiming[];
+      if (!entries || entries.length === 0) return null;
 
-      const timing = window.performance.timing;
-      const navigation = window.performance.navigation;
-
+      const nav = entries[0];
       return {
         // DNS查询耗时
-        dns: timing.domainLookupEnd - timing.domainLookupStart,
-        
+        dns: Math.round(nav.domainLookupEnd - nav.domainLookupStart),
         // TCP连接耗时
-        tcp: timing.connectEnd - timing.connectStart,
-        
+        tcp: Math.round(nav.connectEnd - nav.connectStart),
         // 请求耗时
-        request: timing.responseEnd - timing.requestStart,
-        
+        request: Math.round(nav.responseEnd - nav.requestStart),
         // 响应耗时
-        response: timing.responseEnd - timing.responseStart,
-        
+        response: Math.round(nav.responseEnd - nav.responseStart),
         // DOM解析耗时
-        domParse: timing.domInteractive - timing.domLoading,
-        
+        domParse: Math.round(nav.domInteractive - nav.responseEnd),
         // DOM就绪耗时
-        domReady: timing.domContentLoadedEventEnd - timing.fetchStart,
-        
+        domReady: Math.round(nav.domContentLoadedEventEnd - nav.startTime),
         // 页面完全加载耗时
-        load: timing.loadEventEnd - timing.fetchStart,
-        
+        load: Math.round(nav.loadEventEnd - nav.startTime),
         // 首字节时间 (TTFB)
-        ttfb: timing.responseStart - timing.fetchStart,
-        
-        // 白屏时间
-        whiteScreen: timing.domLoading - timing.fetchStart,
-        
+        ttfb: Math.round(nav.responseStart - nav.startTime),
+        // 白屏时间（近似：responseEnd 到 domInteractive）
+        whiteScreen: Math.round(nav.responseEnd - nav.startTime),
         // 导航类型
-        navType: navigation.type === 0 ? '正常导航' : 
-                 navigation.type === 1 ? '刷新' : 
-                 navigation.type === 2 ? '后退/前进' : '其他',
+        navType: nav.type === 'navigate' ? '正常导航' :
+                 nav.type === 'reload' ? '刷新' :
+                 nav.type === 'back_forward' ? '后退/前进' :
+                 nav.type === 'prerender' ? '预渲染' : '其他',
       };
     };
 
@@ -71,7 +55,7 @@ export function usePerformanceMonitor(pageName: string) {
       const metrics = getPerformanceMetrics();
       const isLowEnd = isLowEndDevice();
 
-      if (metrics) {
+      if (metrics && metrics.load > 0) {
         console.group(`📊 性能报告 - ${pageName}`);
         console.log(`🖥️  设备类型: ${isLowEnd ? '⚠️  低端设备' : '✅ 正常设备'}`);
         console.log(`🌐 DNS查询: ${metrics.dns}ms`);

@@ -8,8 +8,6 @@ import { ErrorBoundary } from './ErrorBoundary';
 import { errorMonitor } from '../utils/errorMonitor';
 import { useHomeConfig } from '../hooks/useHomeConfig';
 import { useDynamicIcon } from '../hooks/useDynamicIcon';
-import 'slick-carousel/slick/slick.css';
-import 'slick-carousel/slick/slick-theme.css';
 
 // Inner component that uses hooks requiring config context
 function RootInner() {
