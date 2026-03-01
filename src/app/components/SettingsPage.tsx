@@ -1,6 +1,6 @@
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
 import { ArrowLeft, Bell, RefreshCw, Shield, Globe, Info, ChevronRight, Check, FileText } from "lucide-react";
-import { useState } from "react";
 import { PushNotifications } from "./PushNotifications";
 import { BackgroundSync } from "./BackgroundSync";
 import { useLanguage, languages, Language } from "../hooks/useLanguage";
@@ -16,6 +16,13 @@ export function SettingsPage() {
   const [showLanguageSelector, setShowLanguageSelector] = useState(false);
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
   const [showTermsOfService, setShowTermsOfService] = useState(false);
+
+  // 进入动画
+  const [animPhase, setAnimPhase] = useState<'entering' | 'visible'>('entering');
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => setAnimPhase('visible'));
+    return () => cancelAnimationFrame(raf);
+  }, []);
 
   const settingsSections = [
     {
@@ -80,9 +87,18 @@ export function SettingsPage() {
   ];
 
   return (
-    <div className="pb-4 min-h-screen" style={{ backgroundColor: 'var(--app-bg)' }}>
+    <div
+      className="fixed inset-0 flex flex-col overflow-hidden"
+      style={{
+        backgroundColor: 'var(--app-bg)',
+        transform: animPhase === 'visible' ? 'none' : 'scale(0.96)',
+        opacity: animPhase === 'visible' ? 1 : 0,
+        transition: 'transform 200ms ease-out, opacity 200ms ease-out',
+        willChange: animPhase === 'visible' ? 'auto' : 'transform, opacity',
+      }}
+    >
       {/* 顶部导航栏 */}
-      <div className="bg-emerald-600 px-4 pt-12 pb-6 sticky top-0 z-10 shadow-md">
+      <div className="bg-emerald-600 px-4 pt-12 pb-6 flex-shrink-0 shadow-md">
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate("/home/profile")}
@@ -94,6 +110,8 @@ export function SettingsPage() {
         </div>
       </div>
 
+      {/* 可滚动内容区域 */}
+      <div className="flex-1 overflow-y-auto overflow-x-hidden pb-4">
       {/* 设置列表 */}
       <div className="px-4 mt-4 space-y-4">
         {settingsSections.map((section, sectionIndex) => (
@@ -159,6 +177,7 @@ export function SettingsPage() {
             </div>
           </div>
         ))}
+      </div>
       </div>
 
       {/* 语言选择器 - 浮现弹出 */}

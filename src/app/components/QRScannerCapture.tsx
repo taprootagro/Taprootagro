@@ -52,6 +52,13 @@ export function QRScannerCapture({ onScan, onClose }: QRScannerCaptureProps) {
   const [scanLineY, setScanLineY] = useState(0);
   const [apiSupported, setApiSupported] = useState(true);
 
+  // 过渡动画
+  const [animPhase, setAnimPhase] = useState<'entering' | 'visible' | 'leaving'>('entering');
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => setAnimPhase('visible'));
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
   const { language } = useLanguage();
   const isChinese = language === "zh";
   const ct = (zh: string, en: string) => (isChinese ? zh : en);
@@ -221,13 +228,22 @@ export function QRScannerCapture({ onScan, onClose }: QRScannerCaptureProps) {
 
   // ── Close handler ─────────────────────────────────────────────
   const handleClose = () => {
+    setAnimPhase('leaving');
     cancelAnimationFrame(rafRef.current);
     stream?.getTracks().forEach((t) => t.stop());
-    onClose();
+    setTimeout(() => onClose(), 150);
   };
 
   return (
-    <div className="fixed inset-0 bg-black z-50 flex flex-col">
+    <div
+      className="fixed inset-0 bg-black z-50 flex flex-col"
+      style={{
+        transform: animPhase === 'visible' ? 'none' : 'scale(0.96)',
+        opacity: animPhase === 'visible' ? 1 : 0,
+        transition: animPhase === 'leaving' ? 'transform 150ms ease-in, opacity 150ms ease-in' : 'transform 200ms ease-out, opacity 200ms ease-out',
+        willChange: animPhase === 'visible' ? 'auto' : 'transform, opacity',
+      }}
+    >
       {/* Hidden canvas (kept for potential future fallback use) */}
       <canvas ref={canvasRef} className="hidden" />
 

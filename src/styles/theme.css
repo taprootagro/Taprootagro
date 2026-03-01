@@ -13,6 +13,18 @@
   to { opacity: 1; transform: translate(-50%, 0); }
 }
 
+/* Tab 切换淡入动画 — 纯 opacity，GPU 合成层属性，低端机无压力 */
+@keyframes tab-fade-in {
+  from { opacity: 0.4; }
+  to { opacity: 1; }
+}
+
+/* SplashScreen 退出动画 */
+@keyframes splash-exit {
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0; transform: scale(1.04); }
+}
+
 :root {
   --font-size: 16px;
   --background: #ffffff;
@@ -138,12 +150,14 @@
     @apply border-border outline-ring/50;
   }
 
+  html {
+    height: 100%;
+  }
+
   html,
   body {
     @apply bg-background text-foreground;
     width: 100%;
-    height: 100vh;
-    height: 100dvh; /* iOS Safari: 减去虚拟home键后的真实视口高度 */
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     /* 确保字体大小可以被动态调整 */
@@ -153,6 +167,12 @@
   }
 
   body {
+    /* iOS 高度三层回退：-webkit-fill-available > 100dvh > 100% */
+    height: 100%;
+    height: 100dvh;
+    height: -webkit-fill-available;
+    /* 禁止 body 滚动，防止 iOS 上容器溢出 */
+    overflow: hidden;
     /* 移动端优化 */
     touch-action: pan-y pinch-zoom;
     -webkit-tap-highlight-color: transparent;
@@ -167,7 +187,7 @@
     overflow: hidden;
   }
 
-  /* 隐藏滚��条但保持功能 */
+  /* 隐藏滚条但保持功能 */
   .scrollbar-hide {
     -ms-overflow-style: none;
     scrollbar-width: none;

@@ -73,15 +73,17 @@ export function HomePage() {
     firstImg.src = optimizedBannerUrls[0].url;
   }, [optimizedBannerUrls]);
 
-  // 直播缩略图也做网络感知优化
+  // 直播缩略图也做网络感知优化：优先使用配置的封面图，其次使用第一条直播缩略图
   const liveThumbnailUrl = useMemo(() => {
+    const coverUrl = config.homeIcons?.liveCoverUrl;
+    if (coverUrl) return optimizeImageUrl(coverUrl, networkQuality);
     const thumb = config.liveStreams?.[0]?.thumbnail;
     if (thumb) return optimizeImageUrl(thumb, networkQuality);
     return optimizeImageUrl(
       "https://images.unsplash.com/photo-1625246333195-78d9c38ad449?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxmYXJtZXIlMjBwbGFudGluZyUyMGNyb3BzJTIwZmllbGR8ZW58MXx8fHwxNzcwODIxNDEzfDA&ixlib=rb-4.1.0&q=80&w=1080",
       networkQuality
     );
-  }, [config.liveStreams, networkQuality]);
+  }, [config.liveStreams, config.homeIcons?.liveCoverUrl, networkQuality]);
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: 'var(--app-bg)' }}>
@@ -183,15 +185,23 @@ export function HomePage() {
                 onClick={() => setCurrentView({ type: "aiAssistant" })}
                 className="bg-white rounded-2xl p-4 flex flex-col items-center justify-center gap-2 active:scale-95 transition-transform shadow-lg aspect-square"
               >
-                <Bot className="w-8 h-8 sm:w-10 sm:h-10 text-emerald-600" />
-                <span className="text-sm text-gray-800 font-medium">{t.home.aiAssistant}</span>
+                {config.homeIcons?.aiAssistantIconUrl ? (
+                  <img src={config.homeIcons.aiAssistantIconUrl} alt={config.homeIcons?.aiAssistantLabel || t.home.aiAssistant} className="w-8 h-8 sm:w-10 sm:h-10 object-contain" />
+                ) : (
+                  <Bot className="w-8 h-8 sm:w-10 sm:h-10 text-emerald-600" />
+                )}
+                <span className="text-sm text-gray-800 font-medium">{config.homeIcons?.aiAssistantLabel || t.home.aiAssistant}</span>
               </button>
               <button 
                 onClick={() => setCurrentView({ type: "statement" })}
                 className="bg-white rounded-2xl p-4 flex flex-col items-center justify-center gap-2 active:scale-95 transition-transform shadow-lg aspect-square"
               >
-                <Calculator className="w-8 h-8 sm:w-10 sm:h-10 text-emerald-600" />
-                <span className="text-sm text-gray-800 font-medium">{t.home.statement}</span>
+                {config.homeIcons?.statementIconUrl ? (
+                  <img src={config.homeIcons.statementIconUrl} alt={config.homeIcons?.statementLabel || t.home.statement} className="w-8 h-8 sm:w-10 sm:h-10 object-contain" />
+                ) : (
+                  <Calculator className="w-8 h-8 sm:w-10 sm:h-10 text-emerald-600" />
+                )}
+                <span className="text-sm text-gray-800 font-medium">{config.homeIcons?.statementLabel || t.home.statement}</span>
               </button>
             </div>
 
@@ -202,16 +212,16 @@ export function HomePage() {
             >
               <img
                 src={liveThumbnailUrl}
-                alt={config.liveStreams?.[0]?.title || t.home.agriVideos}
+                alt={config.homeIcons?.liveTitle || config.liveStreams?.[0]?.title || t.home.agriVideos}
                 className="w-full h-full object-cover"
                 loading="lazy"
               />
               <div className="absolute top-2 ltr:left-2 rtl:right-2 bg-red-500 text-white px-2 py-1 rounded-full text-xs flex items-center gap-1">
                 <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></span>
-                {t.home.liveNavigation}
+                {config.homeIcons?.liveBadge || t.home.liveNavigation}
               </div>
               <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2 text-left">
-                <h3 className="text-white font-medium text-sm">{config.liveStreams?.[0]?.title || t.home.agriVideos}</h3>
+                <h3 className="text-white font-medium text-sm">{config.homeIcons?.liveTitle || config.liveStreams?.[0]?.title || t.home.agriVideos}</h3>
               </div>
             </button>
 

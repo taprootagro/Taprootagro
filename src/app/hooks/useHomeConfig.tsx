@@ -101,6 +101,17 @@ export interface AppBrandingConfig {
   slogan: string;         // Slogan
 }
 
+// 首页功能图标配置接口
+export interface HomeIconsConfig {
+  aiAssistantIconUrl: string;   // AI助手图标URL（留空则使用默认lucide图标）
+  aiAssistantLabel: string;     // AI助手按钮文字（留空则使用多语言默认值）
+  statementIconUrl: string;     // 对账单图标URL（留空则使用默认lucide图标）
+  statementLabel: string;       // 对账单按钮文字（留空则使用多语言默认值）
+  liveCoverUrl: string;         // 直播区封面图URL（留空则使用第一条直播的缩略图）
+  liveTitle: string;            // 直播区标题文字（留空则使用第一条直播标题）
+  liveBadge: string;            // 直播区角标文字（留空则使用多语言默认值如"直播&导航"）
+}
+
 // 聊天联系人配置接口
 export interface ChatContactConfig {
   name: string;           // 联系人名称（商家名）
@@ -215,6 +226,7 @@ export interface HomePageConfig {
   privacyPolicy: PrivacyPolicyConfig; // 隐私政策
   termsOfService: TermsOfServiceConfig; // 用户协议
   appBranding: AppBrandingConfig; // 应用品牌
+  homeIcons: HomeIconsConfig; // 首页功能图标配置
   chatContact: ChatContactConfig; // 聊天联系人
   userProfile: UserProfileConfig; // 个人资料
   desktopIcon: DesktopIconConfig; // 桌面图标配置
@@ -233,7 +245,7 @@ const defaultConfig: HomePageConfig = {
       url: "https://images.unsplash.com/photo-1702896781457-1d4f69aebf7e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxhZ3JpY3VsdHVyZSUyMGZpZWxkJTIwbGFuZHNjYXBlfGVufDF8fHx8MTc3MDgyMDI3Mnww&ixlib=rb-4.1.0&q=80&w=1080",
       alt: "农业田野风光",
       title: "智慧农业新时代",
-      content: "探索现代农业的无限可能，从智能种植到精准管理，TaprootAgro引领农业革命。"
+      content: "探索现代农业的无限可能从智能种植到精准管理，TaprootAgro引领农业革命。"
     },
     {
       id: 2,
@@ -610,7 +622,7 @@ const defaultConfig: HomePageConfig = {
         id: 1,
         image: "https://images.unsplash.com/photo-1745258330776-b8c8802fddf8?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxhZ3JpY3VsdHVyZSUyMGZlcnRpbGl6ZXIlMjBwcm9tb3Rpb24lMjBiYW5uZXJ8ZW58MXx8fHwxNzcyMTcxMjI3fDA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral",
         title: "农业技术培训",
-        content: "TaprootAgro 2026年春季农业技术培训班正式开放报名！\n\n培训内容���\n• 现代化精准农业技术\n• 智能灌溉系统操作指南\n• 病虫害AI识别与防治\n• 土壤检测与施肥方案\n\n培训时间：2026年3月15日 - 3月20日\n培训地点：TaprootAgro培训中心\n\n名额有限，先到先得！"
+        content: "TaprootAgro 2026年春季农业技术培训班正式开放报名！\n\n培训内容：\n• 现代化精准农业技术\n• 智能灌溉系统操作指南\n• 病虫害AI识别与防治\n• 土壤检测与施肥方案\n\n培训时间：2026年3月15日 - 3月20日\n培训地点：TaprootAgro培训中心\n\n名额有限，先到先得！"
       },
       {
         id: 2,
@@ -642,12 +654,21 @@ const defaultConfig: HomePageConfig = {
   },
   termsOfService: {
     title: "用户协议",
-    content: "欢迎使用我们的服务！本用户协议（以下��称“协议”）规定了您使用我们服务的条款和条件。\n\n1. 服务描述：我们提供各种农业技术解决方案，包括但不限于病虫害识别、智能助手、收益统计和田地图管理。\n\n2. 用户责任：您必须遵守所有适用的法律和法规，并且不得使用我们的服务进行任何非法活动。\n\n3. 服务变更：我们保留随时更改或终止服务的权利，恕不另行通知。\n\n4. 知识产权：我们拥有服务的所有权利、所有权和利益，包括但不限于版权、商标和专利。\n\n5. 责任限制：我们不对因使用或无法使用我们的服务而产生的任何直接、间接、附带、特殊或后果性损害承担责任。\n\n6. 争议解决：因本协议引起的任何议应通过友好协商解决；协商不成的，应提交至有管辖权的法院解决。\n\n7. 其他条款：本协议的任何条款无效或不可执行的，不影响其他条款的有效性和可执行性。\n\n8. 接受协议：使用我们的服务即表示您接受本协议的所有条款和条件。如果您不同意协议的任何款，请不要使用我们的服务。"
+    content: "欢迎使用我们的服务！本用户协议（以下简称“协议”）规定了您使用我们服务的条款和条件。\n\n1. 服务描述：我们提供各种农业技术解决方案，包括但不限于病虫害识别、智能助手、收益统计和田地图管理。\n\n2. 用户责任：您必须遵守所有适用的法律和法规，并且不得使用我们的服务进行任何非法活动。\n\n3. 服务变更：我们保留随时更改或终止服务的权利，恕不另行通知。\n\n4. 知识产权：我们拥有服务的所有权利、所有权和利益，包括但不限于版权、商标和专利。\n\n5. 责任限制：我们不对因使用或无法使用我们的服务而产生的任何直接、间接、附带、特殊或后果性损害承担责任。\n\n6. 争议解决：因本协议引起的任何议应通过友好协商解决；协商不成的，应提交至有管辖权的法院解决。\n\n7. 其他条款：本协议的任何条款无效或不可执行的，不影响其他条款的有效性和可执行性。\n\n8. 接受协议：使用我们的服务即表示您接受本协议的所有条款和条件。如果您不同意协议的任何款，请不要使用我们的服务。"
   },
   appBranding: {
     logoUrl: "https://images.unsplash.com/photo-1642919854816-98575cbaefa8?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxzaW1wbGUlMjBsZWFmJTIwc2tldGNoJTIwbWluaW1hbCUyMGRyYXdpbmd8ZW58MXx8fHwxNzcwODU0NDU2fDA&ixlib=rb-4.1.0&q=80&w=1080",
     appName: "TaprootAgro",
     slogan: "To be the taproot of smart agro."
+  },
+  homeIcons: {
+    aiAssistantIconUrl: "",   // AI助手图标URL（留空则使用默认lucide图标）
+    aiAssistantLabel: "",     // AI助手按钮文字（留空则使用多语言默认值）
+    statementIconUrl: "",     // 对账单图标URL（留空则使用默认lucide图标）
+    statementLabel: "",       // 对账单按钮文字（留空则使用多语言默认值）
+    liveCoverUrl: "",         // 直播区封面图URL（留空则使用第一条直播的缩略图）
+    liveTitle: "",            // 直播区标题文字（留空则使用第一条直播标题）
+    liveBadge: "",            // 直播区角标文字（留空则使用多语言默认值如"直播&导航"）
   },
   chatContact: {
     name: "建国",
@@ -754,6 +775,7 @@ export function useHomeConfig() {
           privacyPolicy: parsedConfig.privacyPolicy || defaultConfig.privacyPolicy,
           termsOfService: parsedConfig.termsOfService || defaultConfig.termsOfService,
           appBranding: parsedConfig.appBranding || defaultConfig.appBranding,
+          homeIcons: parsedConfig.homeIcons || defaultConfig.homeIcons,
           chatContact: {
             ...defaultConfig.chatContact,
             ...(parsedConfig.chatContact || {}),

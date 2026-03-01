@@ -27,6 +27,17 @@ export function CallDialog({
   const [tokenInfo, setTokenInfo] = useState<{ token: string; appId: string; uid: string | number } | null>(null);
   const durationTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  // 过渡动画状态
+  const [animPhase, setAnimPhase] = useState<'entering' | 'visible' | 'leaving'>('entering');
+
+  useEffect(() => {
+    if (isOpen) {
+      setAnimPhase('entering');
+      const raf = requestAnimationFrame(() => setAnimPhase('visible'));
+      return () => cancelAnimationFrame(raf);
+    }
+  }, [isOpen]);
+
   // Step 1: Request token from backend proxy when call starts
   useEffect(() => {
     if (!isOpen) return;
@@ -90,19 +101,30 @@ export function CallDialog({
 
   // Cleanup on close
   const handleClose = useCallback(() => {
-    // TODO: When IM provider SDK is integrated:
-    // Clean up call session / leave channel
-    setCallStatus("ended");
-    setCallDuration(0);
-    setAgoraReady(false);
-    setTokenInfo(null);
-    onClose();
+    setAnimPhase('leaving');
+    setTimeout(() => {
+      setCallStatus("ended");
+      setCallDuration(0);
+      setAgoraReady(false);
+      setTokenInfo(null);
+      onClose();
+    }, 150);
   }, [onClose]);
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-90 z-50 flex flex-col items-center justify-center">
+    <div
+      className="fixed inset-0 bg-black bg-opacity-90 z-50 flex flex-col items-center justify-center"
+      style={{
+        transform: animPhase === 'visible' ? 'none' : 'scale(0.96)',
+        opacity: animPhase === 'visible' ? 1 : 0,
+        transition: animPhase === 'leaving'
+          ? 'transform 150ms ease-in, opacity 150ms ease-in'
+          : 'transform 200ms ease-out, opacity 200ms ease-out',
+        willChange: animPhase === 'visible' ? 'auto' : 'transform, opacity',
+      }}
+    >
       {/* 关闭按钮 */}
       <button
         onClick={handleClose}

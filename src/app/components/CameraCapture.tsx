@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect } from 'react';
+import { useRef, useState, useEffect, useCallback } from 'react';
 import { Camera, X } from 'lucide-react';
 import { useLanguage } from '../hooks/useLanguage';
 
@@ -12,7 +12,14 @@ export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [error, setError] = useState<string>('');
   const { t, language } = useLanguage();
-  
+
+  // 过渡动画
+  const [animPhase, setAnimPhase] = useState<'entering' | 'visible' | 'leaving'>('entering');
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => setAnimPhase('visible'));
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
   // 相机翻译备份（如果useLanguage中没有camera字段）
   const cameraTranslations: Record<string, any> = {
     en: {
@@ -83,10 +90,13 @@ export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
   };
 
   const handleClose = () => {
+    setAnimPhase('leaving');
     stopCamera();
-    if (onClose) {
-      onClose();
-    }
+    setTimeout(() => {
+      if (onClose) {
+        onClose();
+      }
+    }, 150);
   };
 
   // 组件挂载时启动相机
@@ -96,7 +106,17 @@ export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
   }, []);
 
   return (
-    <div className="fixed inset-0 bg-black z-50 flex flex-col">
+    <div
+      className="fixed inset-0 bg-black z-50 flex flex-col"
+      style={{
+        transform: animPhase === 'visible' ? 'none' : 'scale(0.96)',
+        opacity: animPhase === 'visible' ? 1 : 0,
+        transition: animPhase === 'leaving'
+          ? 'transform 150ms ease-in, opacity 150ms ease-in'
+          : 'transform 200ms ease-out, opacity 200ms ease-out',
+        willChange: animPhase === 'visible' ? 'auto' : 'transform, opacity',
+      }}
+    >
       {/* 顶部控制栏 */}
       <div className="flex justify-between items-center p-4 bg-black/50">
         <h2 className="text-white font-medium text-lg">{getCameraText('title')}</h2>

@@ -1,8 +1,9 @@
 import { Link, useLocation } from "react-router";
+import { useNetworkQuality } from "../hooks/useNetworkQuality";
+import { useDynamicManifest } from "../hooks/useDynamicManifest";
 import { Home, BookOpen, MessageCircle, User } from "lucide-react";
 import { useLanguage } from "../hooks/useLanguage";
-import { useState, useEffect, lazy, Suspense, useMemo } from "react";
-import { useNetworkQuality } from "../hooks/useNetworkQuality";
+import { useState, useEffect, lazy, Suspense, useMemo, useRef } from "react";
 import {
   HomePageSkeleton,
   MarketPageSkeleton,
@@ -31,6 +32,7 @@ export function Layout() {
   const location = useLocation();
   const { t } = useLanguage();
   const networkQuality = useNetworkQuality();
+  useDynamicManifest();
   
   // 未读消息红点状态
   const [showUnreadBadge, setShowUnreadBadge] = useState(true);
@@ -43,6 +45,19 @@ export function Layout() {
 
   const activeTab = getTabKey(location.pathname);
   const activeIndex = TAB_KEYS.indexOf(activeTab as typeof TAB_KEYS[number]);
+
+  // Tab 切换淡入动画：追踪切换计数，用 CSS animation 触发
+  const switchCountRef = useRef(0);
+  const prevTabRef = useRef(activeTab);
+  const [fadeKey, setFadeKey] = useState(0);
+
+  useEffect(() => {
+    if (prevTabRef.current !== activeTab) {
+      prevTabRef.current = activeTab;
+      switchCountRef.current += 1;
+      setFadeKey(switchCountRef.current);
+    }
+  }, [activeTab]);
 
   // 路由变化时标记 tab 为已访问
   useEffect(() => {
@@ -99,7 +114,7 @@ export function Layout() {
     : "bg-white/95 backdrop-blur-md border-t border-gray-100";
 
   return (
-    <div className="h-full w-full flex flex-col overflow-hidden" style={{ backgroundColor: 'var(--app-bg)' }}>
+    <div className="fixed inset-0 flex flex-col overflow-hidden" style={{ backgroundColor: 'var(--app-bg)' }}>
       {/* 状态栏占位 — standalone 模式下用 safe-area-inset-top 撇开 */}
       <div className="bg-emerald-600 safe-top flex-shrink-0" />
 
@@ -113,7 +128,10 @@ export function Layout() {
             <div
               key={key}
               className="absolute inset-0 overflow-y-auto overflow-x-hidden"
-              style={{ display: isActive ? "block" : "none" }}
+              style={{
+                display: isActive ? "block" : "none",
+                animation: isActive && fadeKey > 0 ? `tab-fade-in 180ms ease-out` : undefined,
+              }}
             >
               <Suspense fallback={<Skeleton />}>
                 <Component />
@@ -123,9 +141,9 @@ export function Layout() {
         })}
       </main>
 
-      {/* 底部导航 */}
+      {/* 底部导航 — fixed 定位锚定视口底部，不依赖容器高度 */}
       <nav
-        className={`flex-shrink-0 ${navBgClass} safe-bottom`}
+        className={`fixed bottom-0 left-0 right-0 z-40 ${navBgClass} safe-bottom`}
         style={{ boxShadow: '0 -1px 12px rgba(0,0,0,0.06)' }}
       >
         <div className="relative">
@@ -190,6 +208,9 @@ export function Layout() {
 
         </div>
       </nav>
+
+      {/* 底部导航占位，防止内容被 fixed nav 遮挡 */}
+      <div className="flex-shrink-0 safe-bottom" style={{ height: '52px' }} />
     </div>
   );
 }

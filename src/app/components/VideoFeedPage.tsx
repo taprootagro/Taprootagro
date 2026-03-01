@@ -47,6 +47,22 @@ export function VideoFeedPage({ onClose, startIndex = 0 }: VideoFeedPageProps) {
   // P3 fix: removed showPlayIcon dead state
   const [loadingStates, setLoadingStates] = useState<Record<number, boolean>>({});
   const [errorStates, setErrorStates] = useState<Record<number, boolean>>({});
+
+  // 过渡动画状态
+  const [animPhase, setAnimPhase] = useState<'entering' | 'visible' | 'leaving'>('entering');
+
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => setAnimPhase('visible'));
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  const handleCloseWithAnim = useCallback(() => {
+    setAnimPhase('leaving');
+  }, []);
+
+  const handleTransitionEnd = useCallback(() => {
+    if (animPhase === 'leaving') onClose();
+  }, [animPhase, onClose]);
   
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRefs = useRef<(HTMLVideoElement | null)[]>([]);
@@ -178,10 +194,19 @@ export function VideoFeedPage({ onClose, startIndex = 0 }: VideoFeedPageProps) {
   return (
     <div
       ref={containerRef}
-      className="fixed inset-0 z-50 bg-black overflow-hidden flex flex-col"
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
+      onTransitionEnd={handleTransitionEnd}
+      className="fixed inset-0 z-50 bg-black overflow-hidden flex flex-col"
+      style={{
+        transform: animPhase === 'visible' ? 'none' : 'scale(0.96)',
+        opacity: animPhase === 'visible' ? 1 : 0,
+        transition: animPhase === 'leaving'
+          ? 'transform 150ms ease-in, opacity 150ms ease-in'
+          : 'transform 200ms ease-out, opacity 200ms ease-out',
+        willChange: animPhase === 'visible' ? 'auto' : 'transform, opacity',
+      }}
     >
       {/* 静音/取消静音按钮 */}
       <button
@@ -357,7 +382,7 @@ export function VideoFeedPage({ onClose, startIndex = 0 }: VideoFeedPageProps) {
       <div className="flex-shrink-0 bg-black/80 backdrop-blur-sm border-t border-white/10 z-20 safe-bottom">
         <div className="flex justify-center items-center pt-1.5 pb-1">
           <button
-            onClick={onClose}
+            onClick={handleCloseWithAnim}
             className="flex items-center justify-center p-2 active:scale-95 transition-transform"
             aria-label={v?.close || '关闭'}
           >

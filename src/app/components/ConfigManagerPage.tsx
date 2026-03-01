@@ -10,12 +10,19 @@ export default function ConfigManagerPage() {
   const { config, saveConfig } = useHomeConfig();
   const { t, isChinese } = useLanguage();
 
+  // 进入动画
+  const [animPhase, setAnimPhase] = useState<'entering' | 'visible'>('entering');
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => setAnimPhase('visible'));
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
   // 入口密码门禁状态（必须在所有 hooks 之前声明）
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [gatePassword, setGatePassword] = useState("");
   const [gateError, setGateError] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<"banners" | "live" | "articles" | "marketCategories" | "marketProducts" | "marketAd" | "filing" | "aboutUs" | "privacy" | "terms" | "appBranding" | "chatContact" | "userProfile" | "desktopIcon" | "aiModel" | "backendProxy" | "loginConfig">("banners");
+  const [activeTab, setActiveTab] = useState<"banners" | "live" | "articles" | "marketCategories" | "marketProducts" | "marketAd" | "filing" | "aboutUs" | "privacy" | "terms" | "appBranding" | "homeIcons" | "chatContact" | "userProfile" | "desktopIcon" | "aiModel" | "backendProxy" | "loginConfig">("banners");
   const [editingItem, setEditingItem] = useState<any>(null);
   const [hasChanges, setHasChanges] = useState(false);
   // 本地工作副本：所有编辑操作只修改此副本，不立即持久化
@@ -43,7 +50,7 @@ export default function ConfigManagerPage() {
   // 未解锁时显示密码输入页面
   if (!isUnlocked) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-gray-50" style={{ transform: animPhase === 'visible' ? 'none' : 'scale(0.96)', opacity: animPhase === 'visible' ? 1 : 0, transition: 'transform 200ms ease-out, opacity 200ms ease-out' }}>
         {/* 状态栏占位 — standalone 模式下用 safe-area-inset-top 撇开 */}
         <div className="bg-emerald-600 safe-top flex-shrink-0" />
         {/* 顶部导航栏 */}
@@ -643,7 +650,7 @@ export default function ConfigManagerPage() {
     );
   };
 
-  // 渲染编辑字���
+  // 渲染编辑字段
   const renderEditFields = () => {
     switch (activeTab) {
       case "banners":
@@ -1002,6 +1009,7 @@ export default function ConfigManagerPage() {
       case "privacy": return ct("隐私政策", "Privacy Policy");
       case "terms": return ct("服务条款", "Terms of Service");
       case "appBranding": return ct("应用品牌", "App Branding");
+      case "homeIcons": return ct("首页功能区", "Home Features");
       case "chatContact": return ct("聊天联系", "Chat Contact");
       case "userProfile": return ct("用户资料", "User Profile");
       case "desktopIcon": return ct("桌面图标", "Desktop Icon");
@@ -1012,7 +1020,7 @@ export default function ConfigManagerPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50" style={{ transform: animPhase === 'visible' ? 'none' : 'scale(0.96)', opacity: animPhase === 'visible' ? 1 : 0, transition: 'transform 200ms ease-out, opacity 200ms ease-out' }}>
       {/* 状态栏占位 — standalone 模式下用 safe-area-inset-top 撇开 */}
       <div className="bg-emerald-600 safe-top flex-shrink-0" />
 
@@ -1054,6 +1062,7 @@ export default function ConfigManagerPage() {
             { key: "privacy", label: ct("隐私政策", "Privacy") },
             { key: "terms", label: ct("服务条款", "Terms") },
             { key: "appBranding", label: ct("应用品牌", "Branding") },
+            { key: "homeIcons", label: ct("首页图标", "Home Icons") },
             { key: "chatContact", label: ct("聊天联系", "Chat") },
             { key: "userProfile", label: ct("用户资料", "Profile") },
             { key: "desktopIcon", label: ct("桌面图标", "Desktop Icon") },
@@ -1078,7 +1087,190 @@ export default function ConfigManagerPage() {
 
       {/* 主内容区 */}
       <div className="p-4 max-w-7xl mx-auto">
-        {activeTab === "desktopIcon" ? (
+        {activeTab === "homeIcons" ? (
+          <div className="space-y-4">
+            <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-2">
+              <h3 className="text-base text-gray-800">{ct("首页功能区配置", "Home Feature Section Config")}</h3>
+              <p className="text-xs text-gray-500">{ct(
+                "自定义首页三个功能区块的图标、文字。所有字段留空则使用多语言默认值或默认图标。",
+                "Customize the icon and text for the three feature sections on the homepage. Leave fields empty to use multilingual defaults or default icons."
+              )}</p>
+            </div>
+
+            {/* ── 1. AI 助手 ── */}
+            <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
+              <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
+                <span className="w-6 h-6 rounded-md bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs">1</span>
+                <h4 className="text-sm text-gray-800">{ct("AI 助手按钮", "AI Assistant Button")}</h4>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-600 mb-1">{ct("按钮文字", "Button Label")}</label>
+                <input
+                  type="text"
+                  value={workingConfig.homeIcons?.aiAssistantLabel || ""}
+                  onChange={(e) => {
+                    const newConfig = JSON.parse(JSON.stringify(workingConfig));
+                    if (!newConfig.homeIcons) newConfig.homeIcons = {};
+                    newConfig.homeIcons.aiAssistantLabel = e.target.value;
+                    setWorkingConfig(newConfig);
+                    setHasChanges(true);
+                  }}
+                  placeholder={ct("留空使用默认：AI 助手", "Leave empty for default: AI Assistant")}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-600 mb-1">{ct("图标URL", "Icon URL")}</label>
+                <input
+                  type="text"
+                  value={workingConfig.homeIcons?.aiAssistantIconUrl || ""}
+                  onChange={(e) => {
+                    const newConfig = JSON.parse(JSON.stringify(workingConfig));
+                    if (!newConfig.homeIcons) newConfig.homeIcons = {};
+                    newConfig.homeIcons.aiAssistantIconUrl = e.target.value;
+                    setWorkingConfig(newConfig);
+                    setHasChanges(true);
+                  }}
+                  placeholder={ct("留空使用默认机器人图标", "Leave empty for default Bot icon")}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 font-mono text-xs"
+                />
+                <p className="text-[11px] text-gray-400 mt-1">{ct("建议正方形 PNG/SVG，≥64×64px", "Recommend square PNG/SVG, ≥64×64px")}</p>
+              </div>
+              {workingConfig.homeIcons?.aiAssistantIconUrl && (
+                <div className="flex items-center gap-3 pt-1">
+                  <img src={workingConfig.homeIcons.aiAssistantIconUrl} alt="preview" className="w-10 h-10 rounded-lg border border-gray-200 object-contain" />
+                  <span className="text-xs text-gray-500">{workingConfig.homeIcons?.aiAssistantLabel || ct("AI 助手", "AI Assistant")}</span>
+                </div>
+              )}
+            </div>
+
+            {/* ── 2. 对账单 ── */}
+            <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
+              <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
+                <span className="w-6 h-6 rounded-md bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs">2</span>
+                <h4 className="text-sm text-gray-800">{ct("对账单按钮", "Statement Button")}</h4>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-600 mb-1">{ct("按钮文字", "Button Label")}</label>
+                <input
+                  type="text"
+                  value={workingConfig.homeIcons?.statementLabel || ""}
+                  onChange={(e) => {
+                    const newConfig = JSON.parse(JSON.stringify(workingConfig));
+                    if (!newConfig.homeIcons) newConfig.homeIcons = {};
+                    newConfig.homeIcons.statementLabel = e.target.value;
+                    setWorkingConfig(newConfig);
+                    setHasChanges(true);
+                  }}
+                  placeholder={ct("留空使用默认：对账单", "Leave empty for default: Statement")}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-600 mb-1">{ct("图标URL", "Icon URL")}</label>
+                <input
+                  type="text"
+                  value={workingConfig.homeIcons?.statementIconUrl || ""}
+                  onChange={(e) => {
+                    const newConfig = JSON.parse(JSON.stringify(workingConfig));
+                    if (!newConfig.homeIcons) newConfig.homeIcons = {};
+                    newConfig.homeIcons.statementIconUrl = e.target.value;
+                    setWorkingConfig(newConfig);
+                    setHasChanges(true);
+                  }}
+                  placeholder={ct("留空使用默认计算器图标", "Leave empty for default Calculator icon")}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 font-mono text-xs"
+                />
+                <p className="text-[11px] text-gray-400 mt-1">{ct("建议正方形 PNG/SVG，≥64×64px", "Recommend square PNG/SVG, ≥64×64px")}</p>
+              </div>
+              {workingConfig.homeIcons?.statementIconUrl && (
+                <div className="flex items-center gap-3 pt-1">
+                  <img src={workingConfig.homeIcons.statementIconUrl} alt="preview" className="w-10 h-10 rounded-lg border border-gray-200 object-contain" />
+                  <span className="text-xs text-gray-500">{workingConfig.homeIcons?.statementLabel || ct("对账单", "Statement")}</span>
+                </div>
+              )}
+            </div>
+
+            {/* ── 3. 直播 / 视频区 ── */}
+            <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
+              <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
+                <span className="w-6 h-6 rounded-md bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs">3</span>
+                <h4 className="text-sm text-gray-800">{ct("直播 / 视频区", "Live / Video Section")}</h4>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-600 mb-1">{ct("封面标题文字", "Cover Title")}</label>
+                <input
+                  type="text"
+                  value={workingConfig.homeIcons?.liveTitle || ""}
+                  onChange={(e) => {
+                    const newConfig = JSON.parse(JSON.stringify(workingConfig));
+                    if (!newConfig.homeIcons) newConfig.homeIcons = {};
+                    newConfig.homeIcons.liveTitle = e.target.value;
+                    setWorkingConfig(newConfig);
+                    setHasChanges(true);
+                  }}
+                  placeholder={ct("留空使用第一条直播标题，如：水稻种植技术讲解", "Leave empty for first live stream title")}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm"
+                />
+                <p className="text-[11px] text-gray-400 mt-1">{ct("显示在封面图底部的白色标题", "White title shown at the bottom of cover image")}</p>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-600 mb-1">{ct("角标文字", "Badge Text")}</label>
+                <input
+                  type="text"
+                  value={workingConfig.homeIcons?.liveBadge || ""}
+                  onChange={(e) => {
+                    const newConfig = JSON.parse(JSON.stringify(workingConfig));
+                    if (!newConfig.homeIcons) newConfig.homeIcons = {};
+                    newConfig.homeIcons.liveBadge = e.target.value;
+                    setWorkingConfig(newConfig);
+                    setHasChanges(true);
+                  }}
+                  placeholder={ct("留空使用默认：直播&导航", "Leave empty for default: Live & Navigation")}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm"
+                />
+                <p className="text-[11px] text-gray-400 mt-1">{ct("左上角红色脉冲徽章里的文字", "Text inside the red pulsing badge at top-left")}</p>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-600 mb-1">{ct("封面图URL", "Cover Image URL")}</label>
+                <input
+                  type="text"
+                  value={workingConfig.homeIcons?.liveCoverUrl || ""}
+                  onChange={(e) => {
+                    const newConfig = JSON.parse(JSON.stringify(workingConfig));
+                    if (!newConfig.homeIcons) newConfig.homeIcons = {};
+                    newConfig.homeIcons.liveCoverUrl = e.target.value;
+                    setWorkingConfig(newConfig);
+                    setHasChanges(true);
+                  }}
+                  placeholder={ct("留空自动使用第一条直播的缩略图", "Leave empty for first live stream thumbnail")}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 font-mono text-xs"
+                />
+                <p className="text-[11px] text-gray-400 mt-1">{ct("建议 2:1 横图，≥800×400px", "Recommend 2:1 landscape, ≥800×400px")}</p>
+              </div>
+              {/* Live Section Preview */}
+              {(workingConfig.homeIcons?.liveCoverUrl || workingConfig.homeIcons?.liveTitle || workingConfig.homeIcons?.liveBadge) && (
+                <div className="pt-2 border-t border-gray-100">
+                  <p className="text-xs text-gray-500 mb-2">{ct("预览", "Preview")}</p>
+                  <div className="relative w-full aspect-[2/1] rounded-xl overflow-hidden border border-gray-200">
+                    {workingConfig.homeIcons?.liveCoverUrl ? (
+                      <img src={workingConfig.homeIcons.liveCoverUrl} alt="preview" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full bg-gray-200 flex items-center justify-center text-xs text-gray-400">{ct("默认缩略图", "Default thumbnail")}</div>
+                    )}
+                    <div className="absolute top-1.5 left-1.5 bg-red-500 text-white px-1.5 py-0.5 rounded-full text-[10px] flex items-center gap-1">
+                      <span className="w-1 h-1 bg-white rounded-full"></span>
+                      {workingConfig.homeIcons?.liveBadge || ct("直播&导航", "Live & Navigation")}
+                    </div>
+                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-1.5">
+                      <span className="text-white text-xs">{workingConfig.homeIcons?.liveTitle || ct("水稻种植技术讲解", "Rice Planting Techniques")}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        ) : activeTab === "desktopIcon" ? (
           <div className="space-y-4">
             <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-4">
               {/* App Name */}
@@ -1243,7 +1435,7 @@ export default function ConfigManagerPage() {
 
               {/* Labels URL */}
               <div>
-                <label className="block text-sm text-gray-700 mb-1">{ct("��签文件 URL", "Labels File URL")}</label>
+                <label className="block text-sm text-gray-700 mb-1">{ct("标签文件 URL", "Labels File URL")}</label>
                 <input
                   type="text"
                   value={workingConfig.aiModelConfig?.labelsUrl || ""}

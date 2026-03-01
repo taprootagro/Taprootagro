@@ -1,43 +1,54 @@
-import { ReactNode, useEffect, useState } from "react";
+import { ReactNode, useEffect, useState, useCallback } from "react";
 import { X } from "lucide-react";
 
 interface SecondaryViewProps {
   children: ReactNode;
   onClose: () => void;
   title?: string;
-  showTitle?: boolean; // 控制是否显示标题栏
+  showTitle?: boolean;
 }
 
+/**
+ * SecondaryView — 二级页面容器
+ * 动画：从底部浮上来 translateY(100%) → translateY(0)
+ * 纯 CSS transform，GPU 合成，十年前手机也流畅
+ */
 export function SecondaryView({ children, onClose, title, showTitle = true }: SecondaryViewProps) {
-  const [isVisible, setIsVisible] = useState(false);
+  const [phase, setPhase] = useState<'entering' | 'visible' | 'leaving'>('entering');
 
-  // 组件挂载时触发进入动画
   useEffect(() => {
-    const timer = setTimeout(() => setIsVisible(true), 10);
-    return () => clearTimeout(timer);
+    const raf = requestAnimationFrame(() => setPhase('visible'));
+    return () => cancelAnimationFrame(raf);
   }, []);
 
-  // 关闭动画处理 - 快速干净
-  const handleClose = () => {
-    setIsVisible(false);
-    // 极短延迟，干净利落
-    setTimeout(() => {
-      onClose();
-    }, 80); // 80ms 快速关闭
-  };
+  const handleClose = useCallback(() => {
+    setPhase('leaving');
+  }, []);
+
+  const handleTransitionEnd = useCallback(() => {
+    if (phase === 'leaving') onClose();
+  }, [phase, onClose]);
+
+  const off = phase !== 'visible';
 
   return (
-    <div 
-      className={`fixed inset-0 bg-white z-50 flex flex-col transition-opacity duration-75 ease-in overflow-hidden ${
-        isVisible ? 'opacity-100' : 'opacity-0'
-      }`}
+    <div
+      className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-white"
+      style={{
+        transform: off ? 'scale(0.96)' : 'none',
+        opacity: off ? 0 : 1,
+        transition: phase === 'leaving'
+          ? 'transform 150ms ease-in, opacity 150ms ease-in'
+          : 'transform 200ms ease-out, opacity 200ms ease-out',
+        willChange: off ? 'transform, opacity' : 'auto',
+      }}
+      onTransitionEnd={handleTransitionEnd}
     >
-      {/* 状态栏占位 — standalone 模式下用 safe-area-inset-top 撇开 */}
+      {/* 状态栏占位 */}
       <div className="bg-emerald-600 safe-top flex-shrink-0" />
 
       {/* 内容区域 */}
       <div className="flex-1 overflow-y-auto overflow-x-hidden bg-white">
-        {/* 可选标题栏 */}
         {showTitle && title && (
           <div 
             className="sticky top-0 bg-white border-b border-gray-200 z-10 flex items-center justify-center"
@@ -54,14 +65,12 @@ export function SecondaryView({ children, onClose, title, showTitle = true }: Se
             </h2>
           </div>
         )}
-        
-        {/* 内容主体 */}
         <div className="bg-white h-full">
           {children}
         </div>
       </div>
 
-      {/* Dock栏 - 只显示红色叉号 */}
+      {/* Dock栏 */}
       <nav className="flex-shrink-0 bg-white border-t border-gray-200 safe-bottom">
         <div className="flex justify-center items-center pt-1.5 pb-1">
           <button

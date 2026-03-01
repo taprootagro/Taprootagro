@@ -1,10 +1,19 @@
 <svg width="192" height="192" viewBox="0 0 192 192" xmlns="http://www.w3.org/2000/svg">
-  <!-- 背景 -->
-  <rect width="192" height="192" fill="#10b981" rx="38"/>
-  
-  <!-- 白色边框 -->
-  <rect x="10" y="10" width="172" height="172" fill="none" stroke="#ffffff" stroke-width="4" rx="32"/>
-  
-  <!-- 中文"农"字 - 使用阿里巴巴普惠体（中国大陆高速） -->
-  <text x="96" y="130" font-family="Alibaba PuHuiTi, PingFang SC, Microsoft YaHei, sans-serif" font-size="90" font-weight="bold" fill="#ffffff" text-anchor="middle">农</text>
+  <!-- 圆角背景 -->
+  <rect width="192" height="192" fill="#059669" rx="38"/>
+  <!-- 内圈光晕 -->
+  <circle cx="96" cy="96" r="70" fill="#10b981" opacity="0.3"/>
+  <!-- 叶子主体 (taproot leaf) -->
+  <g transform="translate(96,96)">
+    <!-- 左叶 -->
+    <path d="M-8,-58 C-38,-48 -56,-18 -52,16 C-48,42 -28,52 -8,42 C-8,42 -12,-10 -8,-58Z" fill="#ffffff" opacity="0.95"/>
+    <!-- 右叶 -->
+    <path d="M8,-58 C38,-48 56,-18 52,16 C48,42 28,52 8,42 C8,42 12,-10 8,-58Z" fill="#ffffff" opacity="0.95"/>
+    <!-- 茎 -->
+    <path d="M0,-20 L0,55" stroke="#ffffff" stroke-width="5" stroke-linecap="round" fill="none"/>
+    <!-- 根系 (taproot) -->
+    <path d="M0,55 C0,55 -14,68 -16,72" stroke="#ffffff" stroke-width="3" stroke-linecap="round" fill="none" opacity="0.7"/>
+    <path d="M0,55 C0,55 12,70 14,74" stroke="#ffffff" stroke-width="3" stroke-linecap="round" fill="none" opacity="0.7"/>
+    <path d="M0,55 L0,76" stroke="#ffffff" stroke-width="3.5" stroke-linecap="round" fill="none" opacity="0.8"/>
+  </g>
 </svg>
