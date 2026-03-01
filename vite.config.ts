@@ -24,19 +24,33 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        manualChunks: {
-          'react-vendor': ['react', 'react-dom', 'react-router'],
-          'ui-vendor': ['lucide-react'],
+        manualChunks(id: string) {
+          // React 核心库
+          if (id.includes('react-dom') || id.includes('react-router') || (id.includes('/react/') && !id.includes('react-'))) {
+            return 'react-vendor';
+          }
+          // UI 图标库
+          if (id.includes('lucide-react')) {
+            return 'ui-vendor';
+          }
+          // 国际化（最大单文件，独立分包）
+          if (id.includes('useLanguage')) {
+            return 'i18n';
+          }
         },
       },
     },
     minify: 'terser',
     terserOptions: {
       compress: {
-        drop_console: false,
+        // 生产环境移除 console.log/warn，保留 console.error
+        drop_console: true,
+        pure_funcs: ['console.log', 'console.warn', 'console.info', 'console.group', 'console.groupEnd'],
         drop_debugger: true,
       },
     },
     chunkSizeWarningLimit: 1000,
+    // 启用 CSS 代码分割
+    cssCodeSplit: true,
   },
 })

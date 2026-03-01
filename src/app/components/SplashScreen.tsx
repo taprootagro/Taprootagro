@@ -1,19 +1,51 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { useHomeConfig } from "../hooks/useHomeConfig";
 
+/**
+ * SplashScreen — 智能计时启动屏
+ * 
+ * 改进：不再硬编码 2 秒等待。
+ * 策略：最短 800ms（品牌曝光） + 首张 banner 预加载完成 → 立即跳转
+ * 回访用户（SW 缓存命中）几乎 0 网络延迟，800ms 后就跳转。
+ * 弱网首次用户在 banner 加载完成后跳转，最长等 4 秒兜底。
+ */
 export function SplashScreen() {
   const navigate = useNavigate();
   const { config } = useHomeConfig();
+  const [minTimePassed, setMinTimePassed] = useState(false);
+  const [resourceReady, setResourceReady] = useState(false);
 
+  // 最短展示 800ms（品牌曝光时间）
   useEffect(() => {
-    // 2秒后自动跳转到首页
-    const timer = setTimeout(() => {
-      navigate("/home");
-    }, 2000);
-
+    const timer = setTimeout(() => setMinTimePassed(true), 800);
     return () => clearTimeout(timer);
-  }, [navigate]);
+  }, []);
+
+  // 预加载首张 banner 图片（如有）
+  useEffect(() => {
+    const firstBanner = config?.banners?.[0]?.url;
+    if (!firstBanner) {
+      setResourceReady(true);
+      return;
+    }
+
+    const img = new Image();
+    img.onload = () => setResourceReady(true);
+    img.onerror = () => setResourceReady(true); // 加载失败也继续
+    img.src = firstBanner;
+
+    // 兜底：最长等 4 秒，无论资源是否 ready
+    const maxTimer = setTimeout(() => setResourceReady(true), 4000);
+    return () => clearTimeout(maxTimer);
+  }, [config?.banners]);
+
+  // 两个条件都满足时跳转
+  useEffect(() => {
+    if (minTimePassed && resourceReady) {
+      navigate("/home");
+    }
+  }, [minTimePassed, resourceReady, navigate]);
 
   return (
     <div className="min-h-full bg-white flex flex-col items-center justify-center px-[5vw] relative overflow-hidden">

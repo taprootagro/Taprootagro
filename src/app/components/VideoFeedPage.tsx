@@ -8,15 +8,9 @@ interface VideoFeedPageProps {
   startIndex?: number;
 }
 
-// 使用小体积的示例视频（几MB而非几百MB）
-const defaultVideoUrls = [
-  "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
-  "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
-  "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4",
-  "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4",
-  "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4",
-  "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/SubaruOutbackOnStreetAndDirt.mp4",
-];
+// 视频 URL 列表从配置 (config.videoFeed.videoSources) 读取，
+// 仅当配置无数据时使用空数组兜底，不再硬编码大量 Google Storage URL 在 JS bundle 中。
+const FALLBACK_VIDEO_URLS: string[] = [];
 
 export function VideoFeedPage({ onClose, startIndex = 0 }: VideoFeedPageProps) {
   const { config } = useHomeConfig();
@@ -28,12 +22,12 @@ export function VideoFeedPage({ onClose, startIndex = 0 }: VideoFeedPageProps) {
   const videos = liveStreams.length > 0
     ? liveStreams.map((stream, index) => ({
         id: stream.id,
-        url: stream.videoUrl || defaultVideoUrls[index % defaultVideoUrls.length],
+        url: stream.videoUrl || FALLBACK_VIDEO_URLS[index % FALLBACK_VIDEO_URLS.length],
         title: stream.title,
         thumbnail: stream.thumbnail,
         viewers: stream.viewers,
       }))
-    : defaultVideoUrls.slice(0, 3).map((url, index) => ({
+    : FALLBACK_VIDEO_URLS.slice(0, 3).map((url, index) => ({
         id: index + 1,
         url,
         title: `${v?.sampleVideo || '示例视频'} ${index + 1}`,

@@ -5,11 +5,14 @@ import { useHomeConfig } from "../hooks/useHomeConfig";
 import { CameraCapture } from "./CameraCapture";
 import { MarketAdDetailPage } from "./MarketAdDetailPage";
 import { ProductDetailPage } from "./ProductDetailPage";
+import { LazyImage } from "./LazyImage";
+import { useNetworkQuality, optimizeImageUrl } from "../hooks/useNetworkQuality";
 import type { MarketAdvertisementConfig } from "../hooks/useHomeConfig";
 
 export function MarketPage() {
   const { t } = useLanguage();
   const { config } = useHomeConfig();
+  const networkQuality = useNetworkQuality();
   const [showCamera, setShowCamera] = useState(false);
   
   // 二级界面状态管理
@@ -88,8 +91,7 @@ export function MarketPage() {
           {showCamera && (
             <CameraCapture
               onCapture={(imageData) => {
-                console.log("拍摄的图片:", imageData);
-                // 这里可以处理拍摄的图片
+                // 处理拍摄的图片
               }}
               onClose={() => setShowCamera(false)}
             />
@@ -148,19 +150,21 @@ export function MarketPage() {
               className="flex-1 min-w-0 overflow-y-auto bg-white" 
               style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
             >
-              {/* 顶部广告轮播 */}
+              {/* 顶部广告轮播 — 图片网络感知优化 */}
               {advertisements.length > 0 && (
                 <div className="mx-3 mt-3">
                   <div className="relative overflow-hidden rounded-lg">
-                    <img
-                      src={advertisements[adIndex]?.image}
-                      alt={advertisements[adIndex]?.title || "广告"}
+                    <LazyImage
+                      src={optimizeImageUrl(advertisements[adIndex]?.image || '', networkQuality)}
+                      alt={advertisements[adIndex]?.title || "Ad"}
                       className="w-full aspect-[3/1] object-cover cursor-pointer active:scale-95 transition-transform"
-                      onClick={() => setCurrentView({ type: "ad", data: advertisements[adIndex] })}
                     />
                     {/* 广告标题 */}
                     {advertisements[adIndex]?.title && (
-                      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-2 pb-1.5 pt-4">
+                      <div 
+                        className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-2 pb-1.5 pt-4"
+                        onClick={() => setCurrentView({ type: "ad", data: advertisements[adIndex] })}
+                      >
                         <p className="text-white text-[10px] truncate">{advertisements[adIndex].title}</p>
                       </div>
                     )}
@@ -205,7 +209,7 @@ export function MarketPage() {
                           </h3>
                         </div>
                         
-                        {/* 该子类别下的产品网格 */}
+                        {/* 该子类别下的产品网格 — 使用 LazyImage + 网络感知优化 */}
                         <div className="px-3 py-2">
                           <div className="grid grid-cols-2 gap-3">
                             {productsInSubCat.map((product) => (
@@ -214,8 +218,8 @@ export function MarketPage() {
                                 className="bg-white rounded-xl overflow-hidden active:scale-95 transition-transform shadow-md border border-gray-100"
                                 onClick={() => setCurrentView({ type: "product", data: product })}
                               >
-                                <img
-                                  src={product.image}
+                                <LazyImage
+                                  src={optimizeImageUrl(product.image, networkQuality)}
                                   alt={product.name}
                                   className="w-full aspect-square object-cover"
                                 />

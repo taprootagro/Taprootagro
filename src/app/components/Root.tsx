@@ -8,6 +8,7 @@ import { ErrorBoundary } from './ErrorBoundary';
 import { errorMonitor } from '../utils/errorMonitor';
 import { useHomeConfig } from '../hooks/useHomeConfig';
 import { useDynamicIcon } from '../hooks/useDynamicIcon';
+import { ConfigProvider } from '../hooks/ConfigProvider';
 
 // Inner component that uses hooks requiring config context
 function RootInner() {
@@ -30,11 +31,16 @@ export function Root() {
     errorMonitor.install();
   }, []);
 
+  // 获取 defaultConfig 以传递给 ConfigProvider
+  const { defaultConfig } = useHomeConfig();
+
   return (
     <LanguageProvider>
-      <ErrorBoundary>
-        <RootInner />
-      </ErrorBoundary>
+      <ConfigProvider defaultConfig={defaultConfig}>
+        <ErrorBoundary>
+          <RootInner />
+        </ErrorBoundary>
+      </ConfigProvider>
     </LanguageProvider>
   );
 }

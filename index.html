@@ -32,8 +32,12 @@
 
   <title>TaprootAgro</title>
 
-  <!-- Preconnect to font CDNs for faster loading -->
-  <link rel="preconnect" href="https://lf1-cdn-tos.bytegoofy.com" crossorigin />
+  <!-- Preconnect to critical cross-origin hosts (saves 200-500ms DNS+TLS per host) -->
+  <link rel="preconnect" href="https://images.unsplash.com" crossorigin />
+  <link rel="dns-prefetch" href="https://plus.unsplash.com" />
+  <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+  <link rel="dns-prefetch" href="https://placehold.co" />
+  <link rel="dns-prefetch" href="https://commondatastorage.googleapis.com" />
 </head>
 <body>
   <div id="root"></div>

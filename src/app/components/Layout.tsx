@@ -1,8 +1,8 @@
 import { Link, useLocation } from "react-router";
 import { Home, BookOpen, MessageCircle, User } from "lucide-react";
 import { useLanguage } from "../hooks/useLanguage";
-import { useState, useEffect, lazy, Suspense } from "react";
-import { motion } from "motion/react";
+import { useState, useEffect, lazy, Suspense, useMemo } from "react";
+import { useNetworkQuality } from "../hooks/useNetworkQuality";
 import {
   HomePageSkeleton,
   MarketPageSkeleton,
@@ -24,21 +24,25 @@ const preloadMap: Record<string, () => Promise<any>> = {
   "/home/profile": () => import("./ProfilePage"),
 };
 
+// Tab key 到 index 的映射（用于胶囊滑动动画 translateX 计算）
+const TAB_KEYS = ["home", "market", "community", "profile"] as const;
+
 export function Layout() {
   const location = useLocation();
   const { t } = useLanguage();
+  const networkQuality = useNetworkQuality();
   
   // 未读消息红点状态
   const [showUnreadBadge, setShowUnreadBadge] = useState(true);
 
   // 记录已访问过的 tab，实现「首次访问才懒加载，之后常驻」
   const [mountedTabs, setMountedTabs] = useState<Set<string>>(() => {
-    // 根据当前路径，初始只挂载当前 tab
     const currentTab = getTabKey(location.pathname);
     return new Set([currentTab]);
   });
 
   const activeTab = getTabKey(location.pathname);
+  const activeIndex = TAB_KEYS.indexOf(activeTab as typeof TAB_KEYS[number]);
 
   // 路由变化时标记 tab 为已访问
   useEffect(() => {
@@ -80,6 +84,25 @@ export function Layout() {
     { key: "profile", Component: ProfilePage, Skeleton: ProfilePageSkeleton },
   ] as const;
 
+  // 胶囊滑动样式 — 纯 CSS transition 替代 motion layoutId，省 ~30KB
+  const pillStyle = useMemo(() => ({
+    transform: `translateX(${activeIndex * 100}%)`,
+    width: `${100 / TAB_KEYS.length}%`,
+    transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+  }), [activeIndex]);
+
+  // 底部圆点滑动样式
+  const dotStyle = useMemo(() => ({
+    transform: `translateX(${activeIndex * 100}%)`,
+    width: `${100 / TAB_KEYS.length}%`,
+    transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+  }), [activeIndex]);
+
+  // 根据网络质量决定是否用 backdrop-blur（低端设备/弱网降级为纯白背景）
+  const navBgClass = networkQuality.disableBlur
+    ? "bg-white border-t border-gray-100"
+    : "bg-white/95 backdrop-blur-md border-t border-gray-100";
+
   return (
     <div className="h-full w-full flex flex-col overflow-hidden" style={{ backgroundColor: 'var(--app-bg)' }}>
       {/* 状态栏占位 — standalone 模式下用 safe-area-inset-top 撇开 */}
@@ -107,69 +130,73 @@ export function Layout() {
 
       {/* 底部导航 */}
       <nav
-        className="flex-shrink-0 bg-white/95 backdrop-blur-md border-t border-gray-100 safe-bottom"
+        className={`flex-shrink-0 ${navBgClass} safe-bottom`}
         style={{ boxShadow: '0 -1px 12px rgba(0,0,0,0.06)' }}
       >
-        <div className="flex items-end pt-1.5 pb-1 px-1">
-          {navItems.map((item) => {
-            const isActive = location.pathname === item.path;
-            const Icon = item.icon;
-            return (
-              <Link
-                key={item.path}
-                to={item.path}
-                className="flex flex-col items-center justify-center relative flex-1 min-w-0 max-w-[25%] py-1 select-none"
-                onTouchStart={() => handleTouchStart(item.path)}
-                style={{ WebkitTapHighlightColor: 'transparent' }}
-              >
-                {/* 激活态胶囊背景 — layoutId 实现跨 tab 滑动跟随 */}
-                {isActive && (
-                  <motion.div
-                    layoutId="nav-pill"
-                    className="absolute inset-x-1.5 inset-y-0 bg-emerald-50 rounded-2xl -z-10"
-                    transition={{ type: "spring", stiffness: 500, damping: 35 }}
-                  />
-                )}
+        <div className="relative">
+          {/* 滑动胶囊背景 — 纯 CSS transition 替代 motion/react layoutId */}
+          <div
+            className="absolute top-0 bottom-0 pointer-events-none"
+            style={pillStyle}
+          >
+            <div className="mx-1.5 h-full bg-emerald-50 rounded-2xl" />
+          </div>
 
-                {/* 图标 - 纯变色，无弹跳 */}
-                <div className="relative">
-                  <Icon
-                    className="w-[22px] h-[22px] transition-colors duration-200"
-                    style={{ color: isActive ? '#059669' : '#9ca3af' }}
-                    strokeWidth={isActive ? 2 : 1.8}
-                  />
-
-                  {/* 未读消息红点 - 带脉冲 */}
-                  {item.showBadge && (
-                    <span className="absolute -top-0.5 -right-1.5 flex h-2.5 w-2.5">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-60" />
-                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500 ring-2 ring-white" />
-                    </span>
-                  )}
-                </div>
-
-                {/* 文字标签 */}
-                <span
-                  className="text-[10px] mt-0.5 w-full text-center truncate leading-tight px-0.5 transition-colors duration-200"
-                  style={{
-                    color: isActive ? '#059669' : '#9ca3af',
-                    fontWeight: isActive ? 600 : 400,
-                  }}
+          <div className="flex items-end pt-1.5 pb-1 px-1 relative">
+            {navItems.map((item) => {
+              const isActive = location.pathname === item.path;
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  className="flex flex-col items-center justify-center relative flex-1 min-w-0 max-w-[25%] py-1 select-none"
+                  onTouchStart={() => handleTouchStart(item.path)}
+                  style={{ WebkitTapHighlightColor: 'transparent' }}
                 >
-                  {item.label}
-                </span>
+                  {/* 图标 - 纯变色，无弹跳 */}
+                  <div className="relative">
+                    <Icon
+                      className="w-[22px] h-[22px] transition-colors duration-200"
+                      style={{ color: isActive ? '#059669' : '#9ca3af' }}
+                      strokeWidth={isActive ? 2 : 1.8}
+                    />
 
-                {/* 激活态底部小圆点 — 同样用 layoutId 跨 tab 滑动 */}
-                {isActive && (
-                  <motion.div
-                    layoutId="nav-dot"
-                    className="w-1 h-1 rounded-full bg-emerald-500 mt-0.5"
-                    transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                  />
-                )}
-              </Link>
-            );
-          })}
+                    {/* 未读消息红点 - 带脉冲 */}
+                    {item.showBadge && (
+                      <span className="absolute -top-0.5 -right-1.5 flex h-2.5 w-2.5">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-60" />
+                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500 ring-2 ring-white" />
+                      </span>
+                    )}
+                  </div>
+
+                  {/* 文字标签 */}
+                  <span
+                    className="text-[10px] mt-0.5 w-full text-center truncate leading-tight px-0.5 transition-colors duration-200"
+                    style={{
+                      color: isActive ? '#059669' : '#9ca3af',
+                      fontWeight: isActive ? 600 : 400,
+                    }}
+                  >
+                    {item.label}
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+
+          {/* 激活态底部小圆点 — CSS transition 滑动 */}
+          <div className="flex justify-center pb-0.5">
+            <div className="relative w-full">
+              <div
+                className="flex justify-center pointer-events-none"
+                style={dotStyle}
+              >
+                <div className="w-1 h-1 rounded-full bg-emerald-500" />
+              </div>
+            </div>
+          </div>
         </div>
       </nav>
     </div>

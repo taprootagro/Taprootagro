@@ -329,7 +329,7 @@ async function handleSwReset() {
     await Promise.all(keys.map(k => caches.delete(k)));
     // Also clear IndexedDB model cache
     try { indexedDB.deleteDatabase('taproot-yolo-cache'); } catch(e) {}
-    status.innerHTML = '<div style="font-size:48px;margin-bottom:1rem">���</div>'
+    status.innerHTML = '<div style="font-size:48px;margin-bottom:1rem"></div>'
       + '<h2 style="margin-bottom:0.5rem">Reset Complete</h2>'
       + '<p style="margin-bottom:1rem;color:#6b7280">Service Worker unregistered and all caches cleared.</p>'
       + '<button onclick="location.href=\\'/\\'" style="padding:0.75rem 2rem;background:#10b981;color:white;border:none;border-radius:0.75rem;font-size:1rem;cursor:pointer">Open App</button>';

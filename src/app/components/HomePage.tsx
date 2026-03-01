@@ -2,7 +2,7 @@ import { Search, ScanLine, Bot, Calculator } from "lucide-react";
 import { BannerCarousel } from "./BannerCarousel";
 import { usePerformanceMonitor } from "../hooks/usePerformanceMonitor";
 import { useLanguage } from "../hooks/useLanguage";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { CameraCapture } from "./CameraCapture";
 import { BannerDetailPage } from "./BannerDetailPage";
 import { AIAssistantPage } from "./AIAssistantPage";
@@ -10,14 +10,17 @@ import { StatementPage } from "./StatementPage";
 import { LiveDetailPage } from "./LiveDetailPage";
 import { ArticleDetailPage } from "./ArticleDetailPage";
 import { VideoFeedPage } from "./VideoFeedPage";
+import { LazyImage } from "./LazyImage";
 import { preloadMainPages } from "../routes";
 import { useHomeConfig } from "../hooks/useHomeConfig";
+import { useNetworkQuality, optimizeImageUrl } from "../hooks/useNetworkQuality";
 
 export function HomePage() {
   // 性能监控
   usePerformanceMonitor("首页");
   const { t } = useLanguage();
-  const { config } = useHomeConfig(); // 从配置读取数据
+  const { config } = useHomeConfig();
+  const networkQuality = useNetworkQuality();
   const [showCamera, setShowCamera] = useState(false);
   const [imagesLoaded, setImagesLoaded] = useState(false);
   
@@ -41,33 +44,44 @@ export function HomePage() {
   const articles = config?.articles || [];
   const bannerImages = config?.banners || [];
 
-  // 轮播配置
-  const sliderSettings = {
+  // 轮播配置 — 弱网下禁用自动播放
+  const sliderSettings = useMemo(() => ({
     dots: true,
     infinite: true,
     speed: 800,
-    autoplay: true,
+    autoplay: !networkQuality.disableAutoplay,
     autoplaySpeed: 5000,
     fade: true,
     pauseOnHover: true,
-  };
+  }), [networkQuality.disableAutoplay]);
 
-  // 预加载图片
+  // 优化后的 banner URLs — 只预加载第一张，其余懒加载
+  const optimizedBannerUrls = useMemo(() => 
+    bannerImages.map(img => ({
+      ...img,
+      url: optimizeImageUrl(img.url, networkQuality),
+    })),
+    [bannerImages, networkQuality]
+  );
+
+  // 只预加载第一张 banner 图片（而非全部），减少弱网下的首屏加载压力
   useEffect(() => {
-    if (bannerImages.length === 0) return;
-    const imagePromises = bannerImages.map((image) => {
-      return new Promise((resolve) => {
-        const img = new Image();
-        img.onload = () => resolve(true);
-        img.onerror = () => resolve(false);
-        img.src = image.url;
-      });
-    });
+    if (optimizedBannerUrls.length === 0) return;
+    const firstImg = new Image();
+    firstImg.onload = () => setImagesLoaded(true);
+    firstImg.onerror = () => setImagesLoaded(true); // 失败也继续
+    firstImg.src = optimizedBannerUrls[0].url;
+  }, [optimizedBannerUrls]);
 
-    Promise.all(imagePromises).then(() => {
-      setImagesLoaded(true);
-    });
-  }, [bannerImages]);
+  // 直播缩略图也做网络感知优化
+  const liveThumbnailUrl = useMemo(() => {
+    const thumb = config.liveStreams?.[0]?.thumbnail;
+    if (thumb) return optimizeImageUrl(thumb, networkQuality);
+    return optimizeImageUrl(
+      "https://images.unsplash.com/photo-1625246333195-78d9c38ad449?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxmYXJtZXIlMjBwbGFudGluZyUyMGNyb3BzJTIwZmllbGR8ZW58MXx8fHwxNzcwODIxNDEzfDA&ixlib=rb-4.1.0&q=80&w=1080",
+      networkQuality
+    );
+  }, [config.liveStreams, networkQuality]);
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: 'var(--app-bg)' }}>
@@ -111,7 +125,7 @@ export function HomePage() {
           {showCamera && (
             <CameraCapture
               onCapture={(imageData) => {
-                console.log("拍摄的图片:", imageData);
+                // 处理拍摄的图片
               }}
               onClose={() => setShowCamera(false)}
             />
@@ -139,12 +153,12 @@ export function HomePage() {
 
           {/* 主内容区域 - 增加底部内边距避免被底部导航遮挡 */}
           <div className="px-3 space-y-3 max-w-screen-xl mx-auto pb-32">
-            {/* 轮播图 */}
+            {/* 轮播图 — 使用网络感知优化后的图片 URL */}
             <div 
               className="mt-3 rounded-2xl overflow-hidden bg-gray-100 relative active:scale-95 transition-transform cursor-pointer aspect-[2/1] shadow-lg"
             >
               <BannerCarousel {...sliderSettings}>
-                {bannerImages.map((image, index) => (
+                {optimizedBannerUrls.map((image, index) => (
                   <div 
                     key={image.id} 
                     className="slider-item"
@@ -156,6 +170,7 @@ export function HomePage() {
                       src={image.url}
                       alt={image.alt}
                       className="w-full h-full object-cover"
+                      loading={index === 0 ? "eager" : "lazy"}
                     />
                   </div>
                 ))}
@@ -185,19 +200,12 @@ export function HomePage() {
               onClick={() => setCurrentView({ type: "videoFeed" })}
               className="w-full aspect-[2/1] rounded-2xl overflow-hidden relative active:scale-95 transition-transform shadow-lg"
             >
-              {config.liveStreams?.[0]?.thumbnail ? (
-                <img
-                  src={config.liveStreams[0].thumbnail}
-                  alt={config.liveStreams[0].title || t.home.agriVideos}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <img
-                  src="https://images.unsplash.com/photo-1625246333195-78d9c38ad449?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxmYXJtZXIlMjBwbGFudGluZyUyMGNyb3BzJTIwZmllbGR8ZW58MXx8fHwxNzcwODIxNDEzfDA&ixlib=rb-4.1.0&q=80&w=1080"
-                  alt="农短视频"
-                  className="w-full h-full object-cover"
-                />
-              )}
+              <img
+                src={liveThumbnailUrl}
+                alt={config.liveStreams?.[0]?.title || t.home.agriVideos}
+                className="w-full h-full object-cover"
+                loading="lazy"
+              />
               <div className="absolute top-2 ltr:left-2 rtl:right-2 bg-red-500 text-white px-2 py-1 rounded-full text-xs flex items-center gap-1">
                 <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></span>
                 {t.home.liveNavigation}
@@ -207,7 +215,7 @@ export function HomePage() {
               </div>
             </button>
 
-            {/* 文章列表 */}
+            {/* 文章列表 — 缩略图改用 LazyImage 懒加载 + WebP 优化 */}
             <div className="bg-white rounded-2xl overflow-hidden shadow-lg border border-gray-100">
               <div className="divide-y divide-gray-100">
                 {articles.map((article) => (
@@ -221,8 +229,8 @@ export function HomePage() {
                         {article.title}
                       </h3>
                       {article.thumbnail ? (
-                        <img 
-                          src={article.thumbnail} 
+                        <LazyImage 
+                          src={optimizeImageUrl(article.thumbnail, networkQuality)}
                           alt={article.title}
                           className="w-16 h-16 sm:w-20 sm:h-20 bg-gray-100 rounded-xl flex-shrink-0 object-cover"
                         />
@@ -271,5 +279,5 @@ export function HomePage() {
   );
 }
 
-// 认导出用于懒加载
+// 默认导出用于懒加载
 export default HomePage;

@@ -287,50 +287,8 @@ export function PWARegister() {
     };
   }, [checkRemoteConfig]);
 
-  // Inject PWA meta tags and manifest
-  useEffect(() => {
-    // Manifest
-    if (!document.querySelector('link[rel="manifest"]')) {
-      const link = document.createElement('link');
-      link.rel = 'manifest';
-      link.href = '/manifest.json';
-      document.head.appendChild(link);
-    }
-
-    // Meta tags
-    const metas: Record<string, string> = {
-      'apple-mobile-web-app-capable': 'yes',
-      'apple-mobile-web-app-status-bar-style': 'default',
-      'apple-mobile-web-app-title': 'TaprootAgro',
-      'mobile-web-app-capable': 'yes',
-      'theme-color': '#10b981',
-    };
-
-    const createdElements: HTMLElement[] = [];
-
-    Object.entries(metas).forEach(([name, content]) => {
-      if (!document.querySelector(`meta[name="${name}"]`)) {
-        const meta = document.createElement('meta');
-        meta.name = name;
-        meta.content = content;
-        document.head.appendChild(meta);
-        createdElements.push(meta);
-      }
-    });
-
-    // Apple touch icon
-    if (!document.querySelector('link[rel="apple-touch-icon"]')) {
-      const icon = document.createElement('link');
-      icon.rel = 'apple-touch-icon';
-      icon.href = '/icon-192.png';
-      document.head.appendChild(icon);
-      createdElements.push(icon);
-    }
-
-    return () => {
-      createdElements.forEach((el) => el.parentNode?.removeChild(el));
-    };
-  }, []);
+  // PWA meta tags and manifest are now declared statically in index.html.
+  // No need to inject them dynamically — removes duplicate DOM manipulation.
 
   // Don't render banner if no update or dismissed
   if (!updateAvailable || dismissed) return null;
