@@ -51,6 +51,7 @@ export interface Translations {
     tapToUpdate: string;
     updating: string;
     update: string;
+    updateOnRestart: string;
   };
   
   home: {
@@ -461,6 +462,7 @@ const translationsData: Record<Language, Translations> = {
       tapToUpdate: 'Tap to update for the latest features',
       updating: 'Updating...',
       update: 'Update',
+      updateOnRestart: 'Update ready! Please close and reopen the app to complete.',
     },
     home: {
       searchPlaceholder: 'Search for products, news, or tips',
@@ -816,6 +818,7 @@ const translationsData: Record<Language, Translations> = {
       tapToUpdate: '点击更新获取最新功能',
       updating: '更新中...',
       update: '更新',
+      updateOnRestart: '更新已准备就绪，请关闭并重新打开应用以完成更新',
     },
     home: {
       searchPlaceholder: '搜索产品、新闻或技巧',
@@ -4687,7 +4690,7 @@ const translationsData: Record<Language, Translations> = {
     },
     login: {
       title: 'ログイン',
-      subtitle: 'タップルートアグロへようこそ',
+      subtitle: 'タップ��ートアグロへようこそ',
       welcomeTitle: 'スマート農業の旅を始めよう',
       welcomeSubtitle: '世界中の農家とつながる',
       email: 'メール',
@@ -4811,7 +4814,7 @@ const translationsData: Record<Language, Translations> = {
       cloudOnlyDesc: 'ローカルモデル不要',
       cloudAnalyzeBtn: 'クラウドAI分析',
       cloudAnalyzeBtnDesc: '写真をクラウドAIに送信して分析',
-      dailyLimitReached: '本日の分析回数上限に達しました。明日再度お試しください',
+      dailyLimitReached: '本日の分析回数上限に達しました。明日���度お試しください',
       dailyUsageInfo: '本日 {used}/{limit} 回使用済み',
       cooldownWait: '{seconds}秒お待ちください',
       cachedResult: '同一画像を検出、キャッシュ結果を表示',

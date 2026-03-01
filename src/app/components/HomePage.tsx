@@ -154,7 +154,7 @@ export function HomePage() {
           </div>
 
           {/* 主内容区域 - 增加底部内边距避免被底部导航遮挡 */}
-          <div className="px-3 space-y-3 max-w-screen-xl mx-auto pb-32">
+          <div className="px-3 space-y-3 max-w-screen-xl mx-auto pb-safe-nav">
             {/* 轮播图 — 使用网络感知优化后的图片 URL */}
             <div 
               className="mt-3 rounded-2xl overflow-hidden bg-gray-100 relative active:scale-95 transition-transform cursor-pointer aspect-[2/1] shadow-lg"

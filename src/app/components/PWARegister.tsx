@@ -60,6 +60,35 @@ export function PWARegister() {
   // Handle the update action
   const handleUpdate = useCallback(() => {
     if (!waitingWorker) return;
+    
+    // iOS Safari PWA 更新策略：标记待更新，下次启动生效
+    // 避免运行时热切换导致的资源加载失败和崩溃
+    const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+    const isStandalone = (window.navigator as any).standalone === true || 
+                         window.matchMedia('(display-mode: standalone)').matches;
+    
+    if (isIOS && isStandalone) {
+      // iOS PWA 模式：延迟更新策略
+      console.log('[PWA] iOS PWA detected, using deferred update strategy');
+      
+      // 标记有待更新的 SW
+      sessionStorage.setItem('taproot_sw_pending_update', '1');
+      
+      // 告诉 waiting SW 可以 skipWaiting（但不立即激活）
+      waitingWorker.postMessage({ type: 'SKIP_WAITING' });
+      
+      // 显示提示：重启应用后生效
+      setIsUpdating(true);
+      setTimeout(() => {
+        alert(t.common.updateOnRestart || '更新已准备就绪，请关闭并重新打开应用以完成更新');
+        setIsUpdating(false);
+        setDismissed(true);
+      }, 500);
+      
+      return;
+    }
+    
+    // 非 iOS PWA：使用原有的立即更新策略
     setIsUpdating(true);
 
     // Set a flag so the controllerchange handler knows this is an intentional update
@@ -74,7 +103,7 @@ export function PWARegister() {
       sessionStorage.removeItem('taproot_sw_updating');
       window.location.reload();
     }, 3000);
-  }, [waitingWorker]);
+  }, [waitingWorker, t.common.updateOnRestart]);
 
   // Dismiss the update banner (will show again on next check)
   const handleDismiss = useCallback(() => {

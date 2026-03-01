@@ -167,7 +167,7 @@
   body {
     /* 使用 JS 设置的 --app-height 变量（最准确），回退到 100dvh → 100% */
     height: var(--app-height, 100%);
-    /* 禁止 body 滚动，防止 iOS 上容器溢出 */
+    /* 禁止 body 滚动，防止 iOS 上容���溢出 */
     overflow: hidden;
     /* 移动端优化 */
     touch-action: pan-y pinch-zoom;
@@ -218,6 +218,20 @@
   @supports (padding-bottom: max(env(safe-area-inset-bottom), 8px)) {
     .safe-bottom {
       padding-bottom: max(env(safe-area-inset-bottom, 0px), 8px);
+    }
+  }
+
+  /* 主内容区底部padding，为导航栏留出空间
+   * 计算：pt-2(8px) + py-1(8px) + icon(22px) + mt-0.5(2px) + text(14px) + mt-0.5(2px) + dot(4px) + safe-bottom
+   * = 60px + max(env(safe-area-inset-bottom), 8px)
+   */
+  .pb-safe-nav {
+    padding-bottom: 68px; /* 60px + 8px (非PWA/旧设备) */
+  }
+
+  @supports (padding-bottom: calc(60px + max(env(safe-area-inset-bottom), 8px))) {
+    .pb-safe-nav {
+      padding-bottom: calc(60px + max(env(safe-area-inset-bottom, 0px), 8px));
     }
   }
 

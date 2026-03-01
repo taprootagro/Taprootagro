@@ -20,6 +20,21 @@ export function SplashScreen() {
   const [resourceReady, setResourceReady] = useState(false);
   const [exiting, setExiting] = useState(false);
 
+  // 检查是否有待激活的更新（iOS PWA 延迟更新策略）
+  useEffect(() => {
+    const pendingUpdate = sessionStorage.getItem('taproot_sw_pending_update');
+    if (pendingUpdate === '1') {
+      console.log('[Splash] Detected pending update, checking for new controller...');
+      
+      // 检查是否有新的 controller（说明更新已激活）
+      if (navigator.serviceWorker?.controller) {
+        // 清除标记，允许新版本运行
+        sessionStorage.removeItem('taproot_sw_pending_update');
+        console.log('[Splash] Update activated successfully');
+      }
+    }
+  }, []);
+
   // 最短展示 800ms（品牌曝光时间）
   useEffect(() => {
     const timer = setTimeout(() => setMinTimePassed(true), 800);
