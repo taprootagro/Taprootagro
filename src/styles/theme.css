@@ -203,13 +203,22 @@
   }
 
   .safe-bottom {
-    padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding-bottom: 0px;
   }
 
-  /* 仅 standalone PWA 模式才启用底部安全区 padding — 已移除，改为始终启用 */
-  /* 旧逻辑：Safari 中依赖浏览器 UI 保护底部区域，但 position:fixed 元素 */
-  /* 在 Safari 工具栏收起时会贴到视口最底部，Home Indicator 遮挡内容。 */
-  /* 新逻辑：始终应用 env(safe-area-inset-bottom)，无 Home Indicator 的设备返回 0px。 */
+  /* 仅 standalone / fullscreen PWA 模式才启用底部安全区 padding */
+  /* Safari 浏览器自带底栏已处理 Home Indicator 安全区，无需额外 padding */
+  /* standalone / fullscreen 模式下无浏览器 UI，需要手动处理 */
+  @media (display-mode: standalone) {
+    .safe-bottom {
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+  }
+  @media (display-mode: fullscreen) {
+    .safe-bottom {
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+  }
 
   /* 富文本编辑器内容样式 */
   .rich-editor-content {

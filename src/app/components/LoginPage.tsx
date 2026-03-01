@@ -141,7 +141,7 @@ export function LoginPage() {
 
   return (
     <div
-      className="min-h-full bg-white flex flex-col px-[5vw] py-[2vh] relative overflow-y-auto"
+      className="fixed inset-0 bg-white flex flex-col px-[5vw] py-[2vh] overflow-y-auto"
       style={{
         transform: animPhase === 'visible' ? 'none' : 'scale(0.96)',
         opacity: animPhase === 'visible' ? 1 : 0,
@@ -149,7 +149,7 @@ export function LoginPage() {
       }}
     >
       {/* 状态栏占位 — standalone 模式下用 safe-area-inset-top 撇开 */}
-      <div className="bg-emerald-600 safe-top flex-shrink-0 -mx-[5vw] -mt-[2vh]" />
+      <div className="bg-emerald-600 safe-top flex-shrink-0 fixed top-0 left-0 right-0 z-10" />
 
       <button
         onClick={() => navigate("/home")}

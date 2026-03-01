@@ -50,18 +50,18 @@ export default function ConfigManagerPage() {
   // 未解锁时显示密码输入页面
   if (!isUnlocked) {
     return (
-      <div className="min-h-screen bg-gray-50" style={{ transform: animPhase === 'visible' ? 'none' : 'scale(0.96)', opacity: animPhase === 'visible' ? 1 : 0, transition: 'transform 200ms ease-out, opacity 200ms ease-out' }}>
+      <div className="fixed inset-0 bg-gray-50 flex flex-col overflow-hidden" style={{ transform: animPhase === 'visible' ? 'none' : 'scale(0.96)', opacity: animPhase === 'visible' ? 1 : 0, transition: 'transform 200ms ease-out, opacity 200ms ease-out' }}>
         {/* 状态栏占位 — standalone 模式下用 safe-area-inset-top 撇开 */}
         <div className="bg-emerald-600 safe-top flex-shrink-0" />
         {/* 顶部导航栏 */}
-        <div className="bg-emerald-600 text-white px-4 py-3 flex items-center gap-3">
+        <div className="bg-emerald-600 text-white px-4 py-3 flex items-center gap-3 flex-shrink-0">
           <button onClick={() => navigate("/home/profile")} className="p-1.5 hover:bg-emerald-700 rounded-lg transition-colors flex-shrink-0">
             <ArrowLeft className="w-4 h-4" />
           </button>
           <h1 className="font-semibold text-base sm:text-lg truncate">{ct("内容配置管理", "Content Config Manager")}</h1>
         </div>
         {/* 密码输入 */}
-        <div className="flex items-center justify-center px-6" style={{ minHeight: 'calc(100vh - 100px)' }}>
+        <div className="flex-1 flex items-center justify-center px-6">
           <div className="w-full max-w-xs space-y-6 text-center">
             <div className="w-16 h-16 bg-emerald-100 rounded-2xl flex items-center justify-center mx-auto">
               <Lock className="w-8 h-8 text-emerald-600" />
@@ -1020,12 +1020,12 @@ export default function ConfigManagerPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50" style={{ transform: animPhase === 'visible' ? 'none' : 'scale(0.96)', opacity: animPhase === 'visible' ? 1 : 0, transition: 'transform 200ms ease-out, opacity 200ms ease-out' }}>
+    <div className="fixed inset-0 bg-gray-50 flex flex-col overflow-hidden" style={{ transform: animPhase === 'visible' ? 'none' : 'scale(0.96)', opacity: animPhase === 'visible' ? 1 : 0, transition: 'transform 200ms ease-out, opacity 200ms ease-out' }}>
       {/* 状态栏占位 — standalone 模式下用 safe-area-inset-top 撇开 */}
       <div className="bg-emerald-600 safe-top flex-shrink-0" />
 
       {/* 顶部导航栏 */}
-      <div className="bg-emerald-600 text-white px-4 py-3 flex items-center justify-between sticky top-0 z-40 shadow-lg">
+      <div className="bg-emerald-600 text-white px-4 py-3 flex items-center justify-between flex-shrink-0 z-40 shadow-lg">
         <div className="flex items-center gap-3 min-w-0">
           <button onClick={handleGoBack} className="p-1.5 hover:bg-emerald-700 rounded-lg transition-colors flex-shrink-0">
             <ArrowLeft className="w-4 h-4" />
@@ -1047,8 +1047,11 @@ export default function ConfigManagerPage() {
         </button>
       </div>
 
+      {/* 可滚动区域：标签页 + 主内容 */}
+      <div className="flex-1 overflow-y-auto overflow-x-hidden">
+
       {/* 标签页 */}
-      <div className="bg-white border-b shadow-sm sticky top-[52px] z-30">
+      <div className="bg-white border-b shadow-sm sticky top-0 z-30">
         <div className="flex overflow-x-auto">
           {[
             { key: "banners", label: ct("安全守护", "Safety Guard") },
@@ -2370,6 +2373,7 @@ export default function ConfigManagerPage() {
           </>
         )}
       </div>
+      </div>{/* 关闭可滚动区域 */}
 
       {/* 编辑对话框 */}
       {renderEditDialog()}

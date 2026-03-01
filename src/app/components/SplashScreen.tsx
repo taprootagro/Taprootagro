@@ -60,7 +60,7 @@ export function SplashScreen() {
 
   return (
     <div
-      className="min-h-full bg-white flex flex-col items-center justify-center px-[5vw] relative overflow-hidden fixed inset-0"
+      className="fixed inset-0 bg-white flex flex-col items-center justify-center px-[5vw] overflow-hidden"
       style={{
         animation: exiting ? 'splash-exit 200ms ease-in forwards' : undefined,
         willChange: exiting ? 'transform, opacity' : 'auto',
