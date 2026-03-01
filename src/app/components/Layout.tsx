@@ -149,7 +149,7 @@ export function Layout() {
 
       {/* 底部导航 — flex 子元素，自然贴底，避免 iOS fixed bottom 视口偏移 */}
       <nav
-        className={`flex-shrink-0 z-40 ${navBgClass}`}
+        className={`flex-shrink-0 z-40 ${navBgClass} safe-bottom`}
         style={{ boxShadow: '0 -1px 12px rgba(0,0,0,0.06)' }}
       >
         <div className="relative">
@@ -213,9 +213,6 @@ export function Layout() {
 
 
         </div>
-        {/* Home Indicator 安全区：仅在 standalone/fullscreen 模式显示，
-            背景色与 nav 一致，高度由系统决定（iPhone X+ ≈ 34px） */}
-        <div className="safe-bottom" />
       </nav>
     </div>
   );
