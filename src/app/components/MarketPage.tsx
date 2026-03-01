@@ -153,17 +153,19 @@ export function MarketPage() {
               {/* 顶部广告轮播 — 图片网络感知优化 */}
               {advertisements.length > 0 && (
                 <div className="mx-3 mt-3">
-                  <div className="relative overflow-hidden rounded-lg">
+                  <div
+                    className="relative overflow-hidden rounded-lg cursor-pointer active:scale-95 transition-transform"
+                    onClick={() => setCurrentView({ type: "ad", data: advertisements[adIndex] })}
+                  >
                     <LazyImage
                       src={optimizeImageUrl(advertisements[adIndex]?.image || '', networkQuality)}
                       alt={advertisements[adIndex]?.title || "Ad"}
-                      className="w-full aspect-[3/1] object-cover cursor-pointer active:scale-95 transition-transform"
+                      className="w-full aspect-[3/1] object-cover"
                     />
                     {/* 广告标题 */}
                     {advertisements[adIndex]?.title && (
                       <div 
                         className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-2 pb-1.5 pt-4"
-                        onClick={() => setCurrentView({ type: "ad", data: advertisements[adIndex] })}
                       >
                         <p className="text-white text-[10px] truncate">{advertisements[adIndex].title}</p>
                       </div>

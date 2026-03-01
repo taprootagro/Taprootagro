@@ -91,14 +91,9 @@ export function Layout() {
     transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
   }), [activeIndex]);
 
-  // 底部圆点滑动样式
-  const dotStyle = useMemo(() => ({
-    transform: `translateX(${activeIndex * 100}%)`,
-    width: `${100 / TAB_KEYS.length}%`,
-    transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-  }), [activeIndex]);
 
-  // 根据网络质量决定是否用 backdrop-blur（低端设备/弱网降级为纯白背景）
+
+  // 根据网络质量决定是否用 backdrop-blur
   const navBgClass = networkQuality.disableBlur
     ? "bg-white border-t border-gray-100"
     : "bg-white/95 backdrop-blur-md border-t border-gray-100";
@@ -142,7 +137,7 @@ export function Layout() {
             <div className="mx-1.5 h-full bg-emerald-50 rounded-2xl" />
           </div>
 
-          <div className="flex items-end pt-1.5 pb-1 px-1 relative">
+          <div className="flex items-center pt-1 pb-0.5 px-1 relative">
             {navItems.map((item) => {
               const isActive = location.pathname === item.path;
               const Icon = item.icon;
@@ -181,22 +176,18 @@ export function Layout() {
                   >
                     {item.label}
                   </span>
+
+                  {/* 激活态小圆点 - 内联在各 tab 项下方 */}
+                  <div
+                    className="w-1 h-1 rounded-full mt-0.5 transition-colors duration-200"
+                    style={{ backgroundColor: isActive ? '#059669' : 'transparent' }}
+                  />
                 </Link>
               );
             })}
           </div>
 
-          {/* 激活态底部小圆点 — CSS transition 滑动 */}
-          <div className="flex justify-center pb-0.5">
-            <div className="relative w-full">
-              <div
-                className="flex justify-center pointer-events-none"
-                style={dotStyle}
-              >
-                <div className="w-1 h-1 rounded-full bg-emerald-500" />
-              </div>
-            </div>
-          </div>
+
         </div>
       </nav>
     </div>
