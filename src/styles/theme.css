@@ -160,17 +160,13 @@
     width: 100%;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    /* 确保字体大小可以被动态调整 */
     font-size: var(--font-size);
-    /* 使用设备系统自带字体，不加载任何外部字体 */
     font-family: system-ui, -apple-system, sans-serif;
   }
 
   body {
-    /* iOS 高度三层回退：-webkit-fill-available > 100dvh > 100% */
-    height: 100%;
-    height: 100dvh;
-    height: -webkit-fill-available;
+    /* 使用 JS 设置的 --app-height 变量（最准确），回退到 100dvh → 100% */
+    height: var(--app-height, 100%);
     /* 禁止 body 滚动，防止 iOS 上容器溢出 */
     overflow: hidden;
     /* 移动端优化 */

@@ -32,6 +32,22 @@
 
   <title>TaprootAgro</title>
 
+  <!-- iOS Safari 100vh 修正：用 visualViewport API 精确设置真实视口高度 -->
+  <script>
+    (function(){
+      function setAppHeight(){
+        var h = (window.visualViewport ? window.visualViewport.height : window.innerHeight);
+        document.documentElement.style.setProperty('--app-height', h + 'px');
+      }
+      setAppHeight();
+      window.addEventListener('resize', setAppHeight);
+      if(window.visualViewport){
+        window.visualViewport.addEventListener('resize', setAppHeight);
+        window.visualViewport.addEventListener('scroll', setAppHeight);
+      }
+    })();
+  </script>
+
   <!-- Preconnect to critical cross-origin hosts (saves 200-500ms DNS+TLS per host) -->
   <link rel="preconnect" href="https://images.unsplash.com" crossorigin />
   <link rel="dns-prefetch" href="https://plus.unsplash.com" />

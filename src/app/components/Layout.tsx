@@ -115,8 +115,11 @@ export function Layout() {
 
   return (
     <div
-      className="fixed top-0 left-0 right-0 h-viewport flex flex-col overflow-hidden"
-      style={{ backgroundColor: 'var(--app-bg)' }}
+      className="fixed top-0 left-0 right-0 flex flex-col overflow-hidden"
+      style={{
+        backgroundColor: 'var(--app-bg)',
+        height: 'var(--app-height, 100vh)',
+      }}
     >
       {/* 状态栏占位 — standalone 模式下用 safe-area-inset-top 撇开 */}
       <div className="bg-emerald-600 safe-top flex-shrink-0" />
