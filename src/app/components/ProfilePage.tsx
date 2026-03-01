@@ -63,7 +63,7 @@ export function ProfilePage() {
   // 未登录时显示的界面
   if (!isLoggedIn) {
     return (
-      <div className="pb-4 min-h-full relative" style={{ backgroundColor: 'var(--app-bg)' }}>
+      <div className="pb-safe-nav min-h-full relative" style={{ backgroundColor: 'var(--app-bg)' }}>
         {/* 绿色圆角矩形背景层 - 从顶部到Logo和登录卡片之间 */}
         <div className="absolute top-0 left-0 right-0 h-60 bg-emerald-600 rounded-b-3xl shadow-lg">
           {/* 装饰元素 */}
@@ -117,7 +117,7 @@ export function ProfilePage() {
 
   // 已登录时显示的界面
   return (
-    <div className="pb-4 min-h-full" style={{ backgroundColor: 'var(--app-bg)' }}>
+    <div className="pb-safe-nav min-h-full" style={{ backgroundColor: 'var(--app-bg)' }}>
       {/* 相机捕获界面 */}
       {showCamera && (
         <CameraCapture
