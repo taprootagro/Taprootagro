@@ -36,7 +36,16 @@
   <script>
     (function(){
       function setAppHeight(){
-        var h = (window.visualViewport ? window.visualViewport.height : window.innerHeight);
+        // 在 standalone/fullscreen PWA 模式下使用 innerHeight（完整屏幕高度）
+        // 在普通浏览器模式下使用 visualViewport.height（排除浏览器工具栏）
+        var isStandalone = window.matchMedia('(display-mode: standalone)').matches || 
+                           window.matchMedia('(display-mode: fullscreen)').matches ||
+                           (window.navigator as any).standalone === true;
+        
+        var h = isStandalone 
+          ? window.innerHeight 
+          : (window.visualViewport ? window.visualViewport.height : window.innerHeight);
+        
         document.documentElement.style.setProperty('--app-height', h + 'px');
       }
       setAppHeight();
