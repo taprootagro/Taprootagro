@@ -15,6 +15,69 @@ interface State {
 }
 
 /**
+ * 检测是否为 chunk 加载失败错误（版本更新导致旧 chunk 不存在）
+ */
+function isChunkLoadError(error: Error | null): boolean {
+  if (!error) return false;
+  const msg = error.message || '';
+  const name = error.name || '';
+  return (
+    name === 'ChunkLoadError' ||
+    msg.includes('Loading chunk') ||
+    msg.includes('Failed to fetch dynamically imported module') ||
+    msg.includes('Importing a module script failed') ||
+    msg.includes('error loading dynamically imported module') ||
+    // Vite 特有的动态导入失败
+    msg.includes('Unable to preload CSS')
+  );
+}
+
+/** 防止无限刷新循环的 key */
+const CHUNK_RELOAD_KEY = 'taproot_chunk_reload';
+const CHUNK_RELOAD_MAX = 2; // 最多自动刷新 2 次
+
+/**
+ * 尝试自动恢复 chunk 加载失败：
+ * 清除 SW 缓存中可能残留的旧 index.html，然后刷新。
+ * 如果短时间内已刷新过，则不再重试，交给用户手动处理。
+ */
+function attemptChunkRecovery(): boolean {
+  try {
+    const raw = sessionStorage.getItem(CHUNK_RELOAD_KEY);
+    const count = raw ? parseInt(raw, 10) : 0;
+
+    if (count >= CHUNK_RELOAD_MAX) {
+      // 已经刷新过了还失败，不再循环
+      sessionStorage.removeItem(CHUNK_RELOAD_KEY);
+      return false;
+    }
+
+    sessionStorage.setItem(CHUNK_RELOAD_KEY, String(count + 1));
+
+    // 清除 SW 缓存的 index.html，确保下次导航拿到最新版
+    if ('caches' in window) {
+      caches.keys().then(names => {
+        names.filter(n => n.startsWith('taproot-agro')).forEach(name => {
+          caches.open(name).then(cache => {
+            cache.delete('/index.html');
+            cache.delete('/');
+          });
+        });
+      });
+    }
+
+    // 延迟 500ms 让缓存清理完成，然后强制刷新
+    setTimeout(() => {
+      window.location.reload();
+    }, 500);
+
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * React Error Boundary with integrated error monitoring.
  * 
  * Catches React rendering errors and:
@@ -39,6 +102,15 @@ export class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     this.setState({ errorInfo });
+
+    // Chunk 加载失败 → 尝试自动恢复（清缓存+刷新）
+    if (isChunkLoadError(error)) {
+      console.warn('[ErrorBoundary] Chunk load error detected, attempting auto-recovery...');
+      if (attemptChunkRecovery()) {
+        return; // 正在刷新，不上报
+      }
+      console.warn('[ErrorBoundary] Auto-recovery exhausted, showing error UI');
+    }
 
     // Report to error monitor
     errorMonitor.capture(error, {

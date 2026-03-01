@@ -352,28 +352,45 @@ async function handleSwReset() {
 // SPA Navigation Handler
 // ============================================================
 async function handleNavigation() {
-  // 1. Try cached /index.html
-  const cachedIndex = await caches.match('/index.html');
-  if (cachedIndex) {
-    return stripRedirect(cachedIndex);
-  }
-
-  const cachedRoot = await caches.match('/');
-  if (cachedRoot) {
-    return stripRedirect(cachedRoot);
-  }
-
-  // 2. Fetch from network
+  // Network-first for navigation (index.html)
+  // 部署新版本后，旧 HTML 引用的 JS chunk 文件名已存在，
+  // 必须优先从网络获取最新 HTML，只在离线时回退缓存。
   try {
-    const networkResponse = await fetch('/index.html');
+    const controller = new AbortController();
+    // 弱网超时 4 秒后回退缓存，不让用户干等
+    const timeoutId = setTimeout(() => controller.abort(), 4000);
+
+    const networkResponse = await fetch('/index.html', {
+      cache: 'no-store',
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+
     if (networkResponse.ok) {
       const clean = stripRedirect(networkResponse);
+      // 更新缓存，下次离线可用
       const cache = await caches.open(CACHE_NAME);
       cache.put('/index.html', clean.clone());
+      cache.put('/', clean.clone());
       return clean;
     }
-    return networkResponse;
+    // HTTP 错误（4xx/5xx），回退缓存
+    throw new Error(`HTTP ${networkResponse.status}`);
   } catch (error) {
+    // 网络不可用或超时 → 回退缓存
+    console.warn('[SW] Navigation network-first failed, falling back to cache:', error.message || error);
+
+    const cachedIndex = await caches.match('/index.html');
+    if (cachedIndex) {
+      return stripRedirect(cachedIndex);
+    }
+
+    const cachedRoot = await caches.match('/');
+    if (cachedRoot) {
+      return stripRedirect(cachedRoot);
+    }
+
+    // 完全无缓存 → 离线占位页
     return new Response(
       '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
       '<title>TaprootAgro - Offline</title>' +
