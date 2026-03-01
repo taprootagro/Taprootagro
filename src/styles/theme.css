@@ -209,17 +209,14 @@
     padding-bottom: 0px;
   }
 
-  /* 仅 standalone / fullscreen PWA 模式才启用底部安全区 padding */
-  /* Safari 浏览器自带底栏已处理 Home Indicator 安全区，无需额外 padding */
-  /* standalone / fullscreen 模式下无浏览器 UI，需要手动处理 */
-  @media (display-mode: standalone) {
+  /* iOS PWA 模式下的底部安全区处理
+   * 注意：@media (display-mode: standalone) 在某些iOS版本不可靠
+   * 所以我们直接应用 env()，在非PWA模式下会回退到0px
+   * 同时使用 max() 确保至少有基础padding
+   */
+  @supports (padding-bottom: env(safe-area-inset-bottom)) {
     .safe-bottom {
-      padding-bottom: env(safe-area-inset-bottom, 0px);
-    }
-  }
-  @media (display-mode: fullscreen) {
-    .safe-bottom {
-      padding-bottom: env(safe-area-inset-bottom, 0px);
+      padding-bottom: max(env(safe-area-inset-bottom, 0px), 0px);
     }
   }
 

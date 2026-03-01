@@ -161,7 +161,7 @@ export function Layout() {
             <div className="mx-1.5 h-full bg-emerald-50 rounded-2xl" />
           </div>
 
-          <div className="flex items-center pt-1 pb-0.5 px-1 relative">
+          <div className="flex items-center pt-2 pb-1.5 px-1 relative">
             {navItems.map((item) => {
               const isActive = location.pathname === item.path;
               const Icon = item.icon;
