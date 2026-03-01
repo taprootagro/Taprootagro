@@ -202,6 +202,13 @@
     padding-top: env(safe-area-inset-top, 0px);
   }
 
+  /* 主容器高度：三层 CSS 回退，解决 iOS Safari 100vh 比可视区域大的问题 */
+  .h-viewport {
+    height: 100vh;               /* 兜底：所有浏览器都支持 */
+    height: 100dvh;              /* 现代浏览器：动态视口高度，排除 Safari 工具栏 */
+    height: -webkit-fill-available; /* iOS Safari 14-15：用可用空间高度 */
+  }
+
   .safe-bottom {
     padding-bottom: 0px;
   }

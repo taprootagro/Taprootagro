@@ -114,7 +114,10 @@ export function Layout() {
     : "bg-white/95 backdrop-blur-md border-t border-gray-100";
 
   return (
-    <div className="fixed inset-0 flex flex-col overflow-hidden" style={{ backgroundColor: 'var(--app-bg)' }}>
+    <div
+      className="fixed top-0 left-0 right-0 h-viewport flex flex-col overflow-hidden"
+      style={{ backgroundColor: 'var(--app-bg)' }}
+    >
       {/* 状态栏占位 — standalone 模式下用 safe-area-inset-top 撇开 */}
       <div className="bg-emerald-600 safe-top flex-shrink-0" />
 
@@ -141,9 +144,9 @@ export function Layout() {
         })}
       </main>
 
-      {/* 底部导航 — fixed 定位锚定视口底部，不依赖容器高度 */}
+      {/* 底部导航 — flex 子元素，自然贴底，避免 iOS fixed bottom 视口偏移 */}
       <nav
-        className={`fixed bottom-0 left-0 right-0 z-40 ${navBgClass} safe-bottom`}
+        className={`flex-shrink-0 z-40 ${navBgClass}`}
         style={{ boxShadow: '0 -1px 12px rgba(0,0,0,0.06)' }}
       >
         <div className="relative">
@@ -207,10 +210,10 @@ export function Layout() {
 
 
         </div>
+        {/* Home Indicator 安全区：仅在 standalone/fullscreen 模式显示，
+            背景色与 nav 一致，高度由系统决定（iPhone X+ ≈ 34px） */}
+        <div className="safe-bottom" />
       </nav>
-
-      {/* 底部导航占位，防止内容被 fixed nav 遮挡 */}
-      <div className="flex-shrink-0 safe-bottom" style={{ height: '52px' }} />
     </div>
   );
 }
