@@ -210,13 +210,14 @@
   }
 
   /* iOS PWA 模式下的底部安全区处理
-   * 注意：@media (display-mode: standalone) 在某些iOS版本不可靠
-   * 所以我们直接应用 env()，在非PWA模式下会回退到0px
-   * 同时使用 max() 确保至少有基础padding
+   * 策略：max(safe-area-inset-bottom, 8px)
+   * - 有Home Indicator的设备：使用 env() 的实际值（约34px）
+   * - 无Home Indicator的设备：至少8px基础间距
+   * - 非PWA模式：回退到8px
    */
-  @supports (padding-bottom: env(safe-area-inset-bottom)) {
+  @supports (padding-bottom: max(env(safe-area-inset-bottom), 8px)) {
     .safe-bottom {
-      padding-bottom: max(env(safe-area-inset-bottom, 0px), 0px);
+      padding-bottom: max(env(safe-area-inset-bottom, 0px), 8px);
     }
   }
 
