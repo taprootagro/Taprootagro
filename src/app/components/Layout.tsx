@@ -161,7 +161,7 @@ export function Layout() {
             <div className="mx-1.5 h-full bg-emerald-50 rounded-2xl" />
           </div>
 
-          <div className="flex items-center pt-2 px-1 relative">
+          <div className="flex items-center px-1 relative">
             {navItems.map((item) => {
               const isActive = location.pathname === item.path;
               const Icon = item.icon;
@@ -169,16 +169,16 @@ export function Layout() {
                 <Link
                   key={item.path}
                   to={item.path}
-                  className="flex flex-col items-center justify-center relative flex-1 min-w-0 max-w-[25%] py-1 select-none"
+                  className="flex items-center justify-center relative flex-1 min-w-0 max-w-[25%] py-2 select-none"
                   onTouchStart={() => handleTouchStart(item.path)}
                   style={{ WebkitTapHighlightColor: 'transparent' }}
                 >
-                  {/* 图标 - 纯变色，无弹跳 */}
+                  {/* 图标 - 放大，无文字 */}
                   <div className="relative">
                     <Icon
-                      className="w-[22px] h-[22px] transition-colors duration-200"
+                      className="w-7 h-7 transition-colors duration-200"
                       style={{ color: isActive ? '#059669' : '#9ca3af' }}
-                      strokeWidth={isActive ? 2 : 1.8}
+                      strokeWidth={isActive ? 2.2 : 1.8}
                     />
 
                     {/* 未读消息红点 - 带脉冲 */}
@@ -189,23 +189,6 @@ export function Layout() {
                       </span>
                     )}
                   </div>
-
-                  {/* 文字标签 */}
-                  <span
-                    className="text-[10px] mt-0.5 w-full text-center truncate leading-tight px-0.5 transition-colors duration-200"
-                    style={{
-                      color: isActive ? '#059669' : '#9ca3af',
-                      fontWeight: isActive ? 600 : 400,
-                    }}
-                  >
-                    {item.label}
-                  </span>
-
-                  {/* 激活态小圆点 - 内联在各 tab 项下方 */}
-                  <div
-                    className="w-1 h-1 rounded-full mt-0.5 transition-colors duration-200"
-                    style={{ backgroundColor: isActive ? '#059669' : 'transparent' }}
-                  />
                 </Link>
               );
             })}
