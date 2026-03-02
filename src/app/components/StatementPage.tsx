@@ -80,6 +80,8 @@ function loadTransactionsFromStorage(): Transaction[] {
       const parsed = JSON.parse(mainData);
       if (Array.isArray(parsed) && parsed.length >= 0) {
         const migrated = migrateTransactions(parsed);
+        // 确保按日期降序排列，跨版本迁移后顺序一致
+        migrated.sort((a, b) => b.timestamp - a.timestamp);
         // 写入版本号
         safeWriteStorage(DATA_VERSION_KEY, CURRENT_DATA_VERSION.toString());
         return migrated;
@@ -423,7 +425,7 @@ export function StatementPage({ onClose }: StatementPageProps) {
     <SecondaryView onClose={onClose} title={s.title} showTitle={false}>
       <div className="flex flex-col h-full overflow-x-hidden" style={{ backgroundColor: 'var(--app-bg)' }}>
         {/* 统计卡片 */}
-        <div className="bg-gradient-to-br from-emerald-500 to-emerald-600 px-4 py-2 shadow-lg">
+        <div className="bg-[#059669] px-4 py-2 shadow-lg">
           {/* 月份筛选器 */}
           {availableMonths.length > 0 && (
             <div className="flex items-center justify-center gap-2 mb-1.5">

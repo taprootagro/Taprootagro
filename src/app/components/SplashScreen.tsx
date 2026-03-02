@@ -20,6 +20,14 @@ export function SplashScreen() {
   const [resourceReady, setResourceReady] = useState(false);
   const [exiting, setExiting] = useState(false);
 
+  // 开屏页状态栏设为白色，离开时恢复绿色
+  useEffect(() => {
+    const meta = document.querySelector('meta[name="theme-color"]');
+    const prev = meta?.getAttribute('content') || '#059669';
+    meta?.setAttribute('content', '#ffffff');
+    return () => { meta?.setAttribute('content', prev); };
+  }, []);
+
   // 检查是否有待激活的更新（iOS PWA 延迟更新策略）
   useEffect(() => {
     const pendingUpdate = sessionStorage.getItem('taproot_sw_pending_update');
@@ -82,8 +90,8 @@ export function SplashScreen() {
       }}
       onAnimationEnd={handleAnimationEnd}
     >
-      {/* 状态栏绿色占位 — 与 Layout 一致，确保 standalone 下状态栏文字可见 */}
-      <div className="bg-emerald-600 safe-top fixed top-0 left-0 right-0 z-50" />
+      {/* 状态栏白色占位 — 开屏页为白色背景，状态栏同步为白色 */}
+      <div className="bg-white safe-top fixed top-0 left-0 right-0 z-50" />
 
       {/* Logo */}
       <div 

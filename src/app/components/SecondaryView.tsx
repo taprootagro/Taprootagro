@@ -17,7 +17,10 @@ export function SecondaryView({ children, onClose, title, showTitle = true }: Se
   const [phase, setPhase] = useState<'entering' | 'visible' | 'leaving'>('entering');
 
   useEffect(() => {
-    const raf = requestAnimationFrame(() => setPhase('visible'));
+    // 双帧确保浏览器完成首帧布局再触发过渡，低端设备也能稳定触发动画
+    const raf = requestAnimationFrame(() => {
+      requestAnimationFrame(() => setPhase('visible'));
+    });
     return () => cancelAnimationFrame(raf);
   }, []);
 
@@ -35,11 +38,11 @@ export function SecondaryView({ children, onClose, title, showTitle = true }: Se
     <div
       className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-white"
       style={{
-        transform: off ? 'scale(0.96)' : 'none',
+        transform: off ? 'scale(0.92) translateY(18px)' : 'scale(1) translateY(0)',
         opacity: off ? 0 : 1,
         transition: phase === 'leaving'
-          ? 'transform 150ms ease-in, opacity 150ms ease-in'
-          : 'transform 200ms ease-out, opacity 200ms ease-out',
+          ? 'transform 320ms cubic-bezier(0.4, 0, 1, 1), opacity 260ms ease-in'
+          : 'transform 480ms cubic-bezier(0.16, 1, 0.3, 1), opacity 400ms cubic-bezier(0.16, 1, 0.3, 1)',
         willChange: off ? 'transform, opacity' : 'auto',
       }}
       onTransitionEnd={handleTransitionEnd}

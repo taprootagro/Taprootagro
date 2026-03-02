@@ -380,12 +380,6 @@ export function VideoFeedPage({ onClose, startIndex = 0 }: VideoFeedPageProps) {
           </button>
         </div>
       </div>
-
-      {/* 安全区黑底覆盖 - 防止 iPhone Home Indicator 区域露白 */}
-      <div
-        className="fixed bottom-0 left-0 right-0 bg-black z-50"
-        style={{ height: 'env(safe-area-inset-bottom, 0px)' }}
-      />
     </div>
   );
 }

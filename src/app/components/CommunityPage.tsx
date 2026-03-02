@@ -62,6 +62,14 @@ function CommunityChat() {
   const navigate = useNavigate();
   const { t } = useLanguage();
   const { config, saveConfig } = useHomeConfig();
+
+  // 聊天页状态栏颜色与顶部绿色一致
+  useEffect(() => {
+    const meta = document.querySelector('meta[name="theme-color"]');
+    const prev = meta?.getAttribute('content') || '#059669';
+    meta?.setAttribute('content', '#059669');
+    return () => { meta?.setAttribute('content', prev); };
+  }, []);
   
   const [textMessage, setTextMessage] = useState("");
   const [showCamera, setShowCamera] = useState(false);
@@ -667,7 +675,7 @@ function CommunityChat() {
       )}
 
       {/* 顶部绿色区域 */}
-      <div className="bg-gradient-to-br from-emerald-500 to-emerald-600 px-4 pt-3 pb-4 flex-shrink-0 shadow-lg">
+      <div className="bg-[#059669] px-4 pb-4 flex-shrink-0 shadow-lg safe-top" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 12px)' }}>
         <div className="flex items-center gap-3">
           <button className="flex-shrink-0 active:opacity-80 transition-all active:scale-95">
             <div className="relative">
