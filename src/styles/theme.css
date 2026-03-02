@@ -215,8 +215,8 @@
 
   @media (display-mode: standalone) {
     .safe-bottom {
-      /* 削减 safe-area：减掉 26px，iPhone 11 约剩 8px，刚好避开 home indicator */
-      padding-bottom: max(calc(env(safe-area-inset-bottom, 0px) - 26px), 4px);
+      /* 削减 safe-area：减掉 29px，iPhone 11 约剩 5px，刚好避开 home indicator */
+      padding-bottom: max(calc(env(safe-area-inset-bottom, 0px) - 29px), 4px);
     }
   }
 
@@ -227,7 +227,7 @@
 
   @media (display-mode: standalone) {
     .pb-safe-nav {
-      padding-bottom: calc(44px + max(calc(env(safe-area-inset-bottom, 0px) - 26px), 4px));
+      padding-bottom: calc(44px + max(calc(env(safe-area-inset-bottom, 0px) - 29px), 4px));
     }
   }
 
