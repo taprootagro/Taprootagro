@@ -89,6 +89,14 @@ export function LoginPage() {
     return () => cancelAnimationFrame(raf);
   }, []);
 
+  // 登录页白色背景：动态切换 theme-color 让系统状态栏图标变黑色
+  useEffect(() => {
+    const meta = document.querySelector('meta[name="theme-color"]');
+    const prev = meta?.getAttribute('content') || '#059669';
+    meta?.setAttribute('content', '#ffffff');
+    return () => { meta?.setAttribute('content', prev); };
+  }, []);
+
   const showPhone = loginCfg?.enablePhoneLogin !== false;
   const showEmail = loginCfg?.enableEmailLogin !== false;
   const showAccountLogin = showPhone || showEmail;
@@ -149,7 +157,7 @@ export function LoginPage() {
       }}
     >
       {/* 状态栏占位 — standalone 模式下用 safe-area-inset-top 撇开 */}
-      <div className="bg-emerald-600 safe-top flex-shrink-0 fixed top-0 left-0 right-0 z-10" />
+      <div className="bg-white safe-top flex-shrink-0 fixed top-0 left-0 right-0 z-10" />
 
       <button
         onClick={() => navigate("/home")}

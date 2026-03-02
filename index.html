@@ -45,7 +45,12 @@
                            (window.navigator).standalone === true;
 
         var h;
-        if (isStandalone) {
+        if (isStandalone && window.visualViewport) {
+          // PWA 模式：取 innerHeight 和 visualViewport.height 的较小值
+          // 键盘弹出时 visualViewport.height 会缩小，innerHeight 不变
+          // 键盘收起时两者相等，取 innerHeight（全屏高度）
+          h = Math.min(window.innerHeight, window.visualViewport.height);
+        } else if (isStandalone) {
           h = window.innerHeight;
         } else if (window.visualViewport) {
           // 普通浏览器：visualViewport.height 排除浏览器工具栏
@@ -61,7 +66,7 @@
       // 防抖：避免连续 resize 事件导致高频重排（小米浏览器工具栏动画时会连续触发）
       function debouncedSetHeight(){
         clearTimeout(tid);
-        tid = setTimeout(setAppHeight, 80);
+        tid = setTimeout(setAppHeight, 50);
       }
 
       // 首次测量：等一帧确保浏览器工具栏已定位完毕
