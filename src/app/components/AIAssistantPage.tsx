@@ -1,13 +1,7 @@
-import { SecondaryView } from "./SecondaryView";
-import { useLanguage } from "../hooks/useLanguage";
-import { useState, useRef, useEffect, useCallback } from "react";
-import { Camera, Upload, Loader, X, ScanLine, RefreshCw, AlertTriangle, FolderOpen, Play, Sparkles, Copy, Check, ChevronDown, ChevronUp, Cloud, Shield, Clock } from "lucide-react";
-import { TaprootAgroDetector, Detection } from "../utils/taprootAgroDetector";
-import { useHomeConfig } from "../hooks/useHomeConfig";
-import { cloudAIService, type DeepAnalysisResult } from "../services/CloudAIService";
-import { cloudAIGuard } from "../utils/cloudAIGuard";
 import { compressImageFile, COMPRESS_PRESETS } from "../utils/imageCompressor";
 import { safeInputClick, shouldUseCapture } from "../utils/cameraUtils";
+import { CameraOverlay } from "./CameraOverlay";
+import { dataURLtoFile } from "../utils/imageUtils";
 
 interface AIAssistantPageProps {
   onClose: () => void;
@@ -64,6 +58,9 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
   const [errorMsg, setErrorMsg] = useState('');
   const [isDemo, setIsDemo] = useState(false);
   const [demoDetections, setDemoDetections] = useState<Detection[]>([]);
+  
+  // Camera Overlay state
+  const [showCameraOverlay, setShowCameraOverlay] = useState(false);
 
   // Deep Analysis state
   const [deepAnalysisResult, setDeepAnalysisResult] = useState<DeepAnalysisResult | null>(null);
@@ -173,6 +170,26 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
         setDone(false);
       };
       reader.readAsDataURL(f);
+    }
+  };
+
+  // 处理相机拍照
+  const handleCameraCapture = async (imageDataUrl: string) => {
+    try {
+      // 将base64转为File对象
+      const file = dataURLtoFile(imageDataUrl, 'camera-capture.jpg');
+      // 压缩图片
+      const compressed = await compressImageFile(file, COMPRESS_PRESETS.ai);
+      setImage(compressed);
+      setResults([]);
+      setDone(false);
+      setShowCameraOverlay(false); // 关闭相机
+    } catch {
+      // 压缩失败使用原图
+      setImage(imageDataUrl);
+      setResults([]);
+      setDone(false);
+      setShowCameraOverlay(false);
     }
   };
 
@@ -523,7 +540,7 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
                 {!isDemo && (
                   <>
                     <button
-                      onClick={() => safeInputClick(cameraRef.current)}
+                      onClick={() => setShowCameraOverlay(true)}
                       className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white py-3.5 rounded-2xl active:scale-[0.97] transition-transform"
                     >
                       <Camera className="w-5 h-5" /><span className="font-medium">{a.takePhoto}</span>
@@ -534,15 +551,7 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
                     >
                       <Upload className="w-5 h-5" /><span className="font-medium">{a.selectAlbum}</span>
                     </button>
-                    {/* 智能适配capture属性：国产浏览器PWA模式不使用，其他环境使用 */}
-                    <input 
-                      ref={cameraRef} 
-                      type="file" 
-                      accept="image/*" 
-                      onChange={onFile} 
-                      className="hidden" 
-                      {...(useCapture && { capture: "environment" as const })}
-                    />
+                    {/* 从相册选择（保留原有file input） */}
                     <input ref={fileRef} type="file" accept="image/*" onChange={onFile} className="hidden" />
                   </>
                 )}
@@ -895,6 +904,16 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
           </div>
         )}
       </div>
+
+      {/* Camera Overlay */}
+      {showCameraOverlay && (
+        <CameraOverlay
+          onCapture={handleCameraCapture}
+          onClose={() => setShowCameraOverlay(false)}
+          facingMode="environment"
+          title={a.takePhoto}
+        />
+      )}
     </SecondaryView>
   );
 }

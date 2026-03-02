@@ -2,6 +2,7 @@ import { useRef, useState, useEffect, useCallback } from "react";
 import { X, ScanLine, Flashlight, FlashlightOff, AlertTriangle, Camera, ImageIcon, Loader } from "lucide-react";
 import { useLanguage } from "../hooks/useLanguage";
 import { safeInputClick, shouldUseCapture } from "../utils/cameraUtils";
+import { CameraOverlay } from "./CameraOverlay";
 
 // ── BarcodeDetector polyfill type ──────────────────────────────
 interface BarcodeDetectorResult {

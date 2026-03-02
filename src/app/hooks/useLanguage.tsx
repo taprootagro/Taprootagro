@@ -125,6 +125,11 @@ export interface Translations {
     close: string;
     permissionDenied: string;
     permissionDeniedMessage: string;
+    starting?: string;
+    notFound?: string;
+    error?: string;
+    captureFailed?: string;
+    retry?: string;
   };
   
   profile: {
@@ -537,6 +542,11 @@ const translationsData: Record<Language, Translations> = {
       close: 'Close',
       permissionDenied: 'Permission Denied',
       permissionDeniedMessage: 'Please allow camera access in your browser settings.',
+      starting: 'Starting camera...',
+      notFound: 'Camera not found',
+      error: 'Unable to start camera',
+      captureFailed: 'Failed to capture photo',
+      retry: 'Retry',
     },
     profile: {
       title: 'My Profile',
@@ -906,6 +916,11 @@ const translationsData: Record<Language, Translations> = {
       close: '关闭',
       permissionDenied: '权限被拒绝',
       permissionDeniedMessage: '请在浏览器设置中允许访问相机',
+      starting: '正在启动相机...',
+      notFound: '未找到相机设备',
+      error: '无法启动相机',
+      captureFailed: '拍照失败',
+      retry: '重试',
     },
     profile: {
       title: '个人中心',
@@ -2048,7 +2063,7 @@ const translationsData: Record<Language, Translations> = {
       deepAnalysisDesc: 'استخدم الذكاء الاصطناعي السحابي لتحليل مفصل للأمراض',
       deepAnalyzing: 'الذكاء الاصطناعي السحابي يحلل...',
       deepAnalysisResult: 'تقرير التحليل المعمق',
-      deepAnalysisMock: 'وضع تجريبي - قم بتكوين الذكاء الاصطناعي السحابي في الإعدادات',
+      deepAnalysisMock: '��ضع تجريبي - قم بتكوين الذكاء الاصطناعي السحابي في الإعدادات',
       deepAnalysisError: 'فشل التحليل، يرجى المحاولة مرة أخرى',
       deepAnalysisRetry: 'إعادة التحليل',
       deepAnalysisNotConfigured: 'الذكاء الاصطناعي السحابي غير مكوّن. قم بتفعيله في مدير التكوين ← نموذج الذكاء الاصطناعي.',

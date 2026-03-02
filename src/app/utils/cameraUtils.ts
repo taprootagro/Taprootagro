@@ -90,8 +90,9 @@ export function isChineseBrowser(): boolean {
 /**
  * 使用原生事件触发 input.click()，绕过React合成事件拦截
  * 
- * 关键：必须在用户手势的**同步代码**中立即触发，不能有任何延迟！
- * 否则浏览器会认为"这不是用户交互"而拒绝弹出文件选择器
+ * 策略：
+ * - 国产浏览器：使用最小延迟（100-300ms）平衡兼容性和用户手势保持
+ * - 其他浏览器：立即触发
  * 
  * @param inputElement - file input 元素
  */
@@ -101,12 +102,39 @@ export function safeInputClick(inputElement: HTMLInputElement | null): void {
     return;
   }
 
-  try {
-    // 🔥 关键：必须立即触发，不能有任何延迟！
-    // 在用户点击事件的同步代码中执行，保持"用户手势上下文"
-    inputElement.click();
-  } catch (error) {
-    console.error('[safeInputClick] Failed to trigger click:', error);
+  // 检测是否为国产浏览器
+  const isChinese = isChineseBrowser();
+  
+  // 国产浏览器：使用短延迟（既绕过拦截，又尽量保持用户手势）
+  // 其他浏览器：立即触发
+  const delay = isChinese ? 100 : 0;
+
+  if (delay > 0) {
+    setTimeout(() => {
+      try {
+        // 方法1: 原生 MouseEvent
+        const event = new MouseEvent('click', {
+          bubbles: true,
+          cancelable: true,
+          view: window,
+        });
+        inputElement.dispatchEvent(event);
+        
+        // 方法2: 双重保险
+        setTimeout(() => {
+          inputElement.click();
+        }, 50);
+      } catch (error) {
+        console.error('[safeInputClick] Failed to trigger click:', error);
+      }
+    }, delay);
+  } else {
+    // 立即触发
+    try {
+      inputElement.click();
+    } catch (error) {
+      console.error('[safeInputClick] Failed to trigger click:', error);
+    }
   }
 }
 
