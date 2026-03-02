@@ -22,6 +22,8 @@ export default defineConfig({
 
   // 构建优化
   build: {
+    // 显式声明输出目录（Vite 默认值），确保阿里云 ESA 等平台自动检测
+    outDir: 'dist',
     rollupOptions: {
       output: {
         manualChunks(id: string) {
