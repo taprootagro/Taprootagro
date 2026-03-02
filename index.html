@@ -35,24 +35,59 @@
   <!-- iOS Safari 100vh 修正：用 visualViewport API 精确设置真实视口高度 -->
   <script>
     (function(){
+      var root = document.documentElement;
+      var tid = 0;
+
       function setAppHeight(){
-        // 在 standalone/fullscreen PWA 模式下使用 innerHeight（完整屏幕高度）
-        // 在普通浏览器模式下使用 visualViewport.height（排除浏览器工具栏）
-        var isStandalone = window.matchMedia('(display-mode: standalone)').matches || 
+        // standalone/fullscreen PWA：innerHeight 即完整屏幕
+        var isStandalone = window.matchMedia('(display-mode: standalone)').matches ||
                            window.matchMedia('(display-mode: fullscreen)').matches ||
-                           (window.navigator as any).standalone === true;
-        
-        var h = isStandalone 
-          ? window.innerHeight 
-          : (window.visualViewport ? window.visualViewport.height : window.innerHeight);
-        
-        document.documentElement.style.setProperty('--app-height', h + 'px');
+                           (window.navigator).standalone === true;
+
+        var h;
+        if (isStandalone) {
+          h = window.innerHeight;
+        } else if (window.visualViewport) {
+          // 普通浏览器：visualViewport.height 排除浏览器工具栏
+          h = window.visualViewport.height;
+        } else {
+          // 兜底：innerHeight（可能包含工具栏区域）
+          h = window.innerHeight;
+        }
+
+        root.style.setProperty('--app-height', h + 'px');
       }
-      setAppHeight();
-      window.addEventListener('resize', setAppHeight);
-      if(window.visualViewport){
-        window.visualViewport.addEventListener('resize', setAppHeight);
-        window.visualViewport.addEventListener('scroll', setAppHeight);
+
+      // 防抖：避免连续 resize 事件导致高频重排（小米浏览器工具栏动画时会连续触发）
+      function debouncedSetHeight(){
+        clearTimeout(tid);
+        tid = setTimeout(setAppHeight, 80);
+      }
+
+      // 首次测量：等一帧确保浏览器工具栏已定位完毕
+      requestAnimationFrame(function(){
+        setAppHeight();
+        // 再延迟 300ms 二次测量，防止某些浏览器(小米/Samsung)工具栏动画未完成
+        setTimeout(setAppHeight, 300);
+      });
+
+      window.addEventListener('resize', debouncedSetHeight);
+
+      // orientationchange：横竖屏切换后延迟测量（部分安卓浏览器需要等动画结束）
+      window.addEventListener('orientationchange', function(){
+        setTimeout(setAppHeight, 150);
+        setTimeout(setAppHeight, 500);
+      });
+
+      // pageshow：从 bfcache 恢复时重新测量（iOS Safari 常见）
+      window.addEventListener('pageshow', function(e){
+        if (e.persisted) setAppHeight();
+      });
+
+      if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', debouncedSetHeight);
+        // scroll 事件在 iOS 键盘弹出/收起时触发
+        window.visualViewport.addEventListener('scroll', debouncedSetHeight);
       }
     })();
   </script>

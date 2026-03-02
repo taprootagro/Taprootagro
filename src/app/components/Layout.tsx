@@ -169,7 +169,7 @@ export function Layout() {
                 <Link
                   key={item.path}
                   to={item.path}
-                  className="flex items-center justify-center relative flex-1 min-w-0 max-w-[25%] py-2 select-none"
+                  className="flex items-center justify-center relative flex-1 min-w-0 max-w-[25%] py-3 select-none"
                   onTouchStart={() => handleTouchStart(item.path)}
                   style={{ WebkitTapHighlightColor: 'transparent' }}
                 >
