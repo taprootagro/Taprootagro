@@ -49,6 +49,48 @@
             window.navigator.standalone === true) return;
       } catch(e) {}
 
+      var ICON_CACHE_KEY = '__taproot_manifest_icon_cache__';
+
+      // ---- 优先从 localStorage 读取 useDynamicManifest 上次缓存的自定义图标 ----
+      // 这解决了小米浏览器在 React 加载前就触发 beforeinstallprompt 导致用默认图标的问题
+      try {
+        var cached = localStorage.getItem(ICON_CACHE_KEY);
+        if (cached) {
+          var cacheData = JSON.parse(cached);
+          if (cacheData.icon192 || cacheData.icon512) {
+            var icons = [];
+            var appName = cacheData.appName || 'TaprootAgro';
+            if (cacheData.icon192) {
+              icons.push({ src: cacheData.icon192, sizes: '192x192', type: 'image/png', purpose: 'any' });
+              icons.push({ src: cacheData.icon192, sizes: '192x192', type: 'image/png', purpose: 'maskable' });
+            }
+            if (cacheData.icon512) {
+              icons.push({ src: cacheData.icon512, sizes: '512x512', type: 'image/png', purpose: 'any' });
+              icons.push({ src: cacheData.icon512, sizes: '512x512', type: 'image/png', purpose: 'maskable' });
+            }
+            var manifest = {
+              id: '/', name: appName, short_name: appName,
+              description: 'Smart agriculture platform',
+              start_url: '/', scope: '/', display: 'standalone',
+              background_color: '#059669', theme_color: '#059669',
+              orientation: 'portrait', prefer_related_applications: false,
+              icons: icons, categories: ['productivity','agriculture','business'],
+              lang: 'en', dir: 'ltr'
+            };
+            var blob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
+            var url = URL.createObjectURL(blob);
+            var link = document.querySelector('link[rel="manifest"]');
+            if (link) { link.href = url; }
+            else { link = document.createElement('link'); link.rel = 'manifest'; link.href = url; document.head.appendChild(link); }
+            // 同时更新 apple-touch-icon
+            var atIcon = document.querySelector('link[rel="apple-touch-icon"]');
+            if (atIcon && cacheData.icon192) atIcon.href = cacheData.icon192;
+            return; // 缓存命中，跳过默认 SVG 转换
+          }
+        }
+      } catch(e) {}
+
+      // ---- 无缓存：回退到默认 SVG → PNG 转换 ----
       var sizes = [192, 512];
       var svgUrl = '/icon-192.svg';
       var generated = {};
@@ -145,7 +187,7 @@
           // 普通浏览器：visualViewport.height 排除浏览器工具栏
           h = window.visualViewport.height;
         } else {
-          // 兜底：innerHeight（可能包含工具栏区域）
+          // 兜底：innerHeight（可能包含工具栏区���）
           h = window.innerHeight;
         }
 

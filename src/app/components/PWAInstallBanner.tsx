@@ -1,20 +1,39 @@
 import { useInstallPrompt } from '../hooks/useInstallPrompt';
 import { Download, X, Share } from 'lucide-react';
 import { useLanguage } from '../hooks/useLanguage';
+import { useHomeConfig } from '../hooks/useHomeConfig';
 
 /**
  * PWA 安装横幅
  * - Android/Chrome：beforeinstallprompt 触发原生安装
  * - iOS/Safari：引导用户通过"分享 → 添加到主屏幕"安装
+ * - 图标优先使用远程配置的自定义图标，回退到 Download 通用图标
  */
 export function PWAInstallBanner() {
   const { showBanner, platform, triggerInstall, dismiss } = useInstallPrompt();
   const { lang } = useLanguage();
+  const { config } = useHomeConfig();
 
   if (!showBanner || !platform) return null;
 
   // 多语言文案（轻量内联，不扩充全局 i18n）
   const texts = getTexts(lang);
+
+  // 获取实际 App 图标：desktopIcon > appBranding.logoUrl > 回退到通用图标
+  const customIcon = config?.desktopIcon?.icon192Url || config?.appBranding?.logoUrl;
+
+  // 图标渲染：有自定义图标用 img，否则用 Download 通用图标
+  const iconElement = customIcon ? (
+    <img
+      src={customIcon}
+      alt=""
+      className="w-11 h-11 rounded-xl flex-shrink-0 shadow-sm object-cover"
+    />
+  ) : (
+    <div className="w-11 h-11 rounded-xl bg-emerald-600 flex items-center justify-center flex-shrink-0 shadow-sm">
+      <Download className="w-5 h-5 text-white" />
+    </div>
+  );
 
   if (platform === 'ios') {
     return (
@@ -37,9 +56,7 @@ export function PWAInstallBanner() {
 
           <div className="flex items-start gap-3 pr-6">
             {/* 图标 */}
-            <div className="w-11 h-11 rounded-xl bg-emerald-600 flex items-center justify-center flex-shrink-0 shadow-sm">
-              <Download className="w-5 h-5 text-white" />
-            </div>
+            {iconElement}
 
             <div className="flex-1 min-w-0">
               <p className="text-gray-900" style={{ fontSize: '14px' }}>
@@ -69,9 +86,7 @@ export function PWAInstallBanner() {
       >
         <div className="flex items-center gap-3">
           {/* 图标 */}
-          <div className="w-11 h-11 rounded-xl bg-emerald-600 flex items-center justify-center flex-shrink-0 shadow-sm">
-            <Download className="w-5 h-5 text-white" />
-          </div>
+          {iconElement}
 
           <div className="flex-1 min-w-0">
             <p className="text-gray-900 truncate" style={{ fontSize: '14px' }}>
@@ -159,7 +174,7 @@ function getTexts(lang: string) {
       androidTitle: 'تثبيت TaprootAgro',
       androidDesc: 'يعمل بدون إنترنت',
       installBtn: 'تثبيت',
-      iosTitle: 'أضف TaprootAgro للشاش��',
+      iosTitle: 'أضف TaprootAgro للشاش',
       iosStep1: 'اضغط على',
       iosStep2: '← إضافة للشاشة الرئيسية',
     },
@@ -181,7 +196,7 @@ function getTexts(lang: string) {
     },
     bn: {
       androidTitle: 'TaprootAgro ইনস্টল করুন',
-      androidDesc: 'অফলাইনে কাজ করে',
+      androidDesc: 'অফলাই���ে কাজ করে',
       installBtn: 'ইনস্টল',
       iosTitle: 'TaprootAgro হোম স্ক্রিনে যোগ করুন',
       iosStep1: 'নিচে',

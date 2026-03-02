@@ -16,8 +16,16 @@ import { useHomeConfig } from "./useHomeConfig";
  * 因为 Chrome/小米/Samsung 等浏览器要求 manifest 中有 PNG 图标
  * 才能触发 beforeinstallprompt 事件。
  * 
- * 时序：config 加载完成 → 生成 blob → 替换 link → 用户添加到桌面 → 正确图标
+ * 图标缓存策略：
+ * 成功转换后将 PNG data URL 缓存到 localStorage（key: __taproot_manifest_icon_cache__），
+ * 下次访问时 index.html 内联脚本直接读取缓存，避免小米浏览器
+ * 在 useDynamicManifest 执行前就触发 beforeinstallprompt 导致用默认图标。
+ * 
+ * 时序：config 加载完成 → 生成 blob → 替换 link → 缓存图标 → 用户添加到桌面 → 正确图标
  */
+// localStorage key for icon cache (shared with index.html inline script)
+const ICON_CACHE_KEY = '__taproot_manifest_icon_cache__';
+
 export function useDynamicManifest() {
   const { config } = useHomeConfig();
 
@@ -39,6 +47,21 @@ export function useDynamicManifest() {
     // 异步处理：如果图标是 SVG，转为 PNG
     buildManifestIcons(icon192, icon512).then((icons) => {
       if (cancelled) return;
+
+      // 缓存图标 PNG data URLs 到 localStorage，供 index.html 内联脚本下次启动时使用
+      // 这解决了小米浏览器在 React 加载前就触发 beforeinstallprompt 的时序问题
+      try {
+        const cacheData: Record<string, string> = { appName };
+        for (const icon of icons) {
+          if (icon.purpose === 'any') {
+            if (icon.sizes === '192x192') cacheData.icon192 = icon.src;
+            if (icon.sizes === '512x512') cacheData.icon512 = icon.src;
+          }
+        }
+        if (cacheData.icon192 || cacheData.icon512) {
+          localStorage.setItem(ICON_CACHE_KEY, JSON.stringify(cacheData));
+        }
+      } catch { /* localStorage full or unavailable */ }
 
       const dynamicManifest = {
         id: "/",
