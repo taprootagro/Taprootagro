@@ -134,7 +134,6 @@ export function Layout() {
               className={overflowClass}
               style={{
                 display: isActive ? "block" : "none",
-                animation: isActive && fadeKey > 0 ? `tab-fade-in 180ms ease-out` : undefined,
               }}
             >
               <Suspense fallback={<Skeleton />}>

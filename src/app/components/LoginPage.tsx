@@ -436,7 +436,7 @@ export function LoginPage() {
 
   return (
     <div
-      className="fixed inset-0 bg-white flex flex-col px-[5vw] py-[2vh] overflow-y-auto"
+      className="fixed inset-0 bg-white flex flex-col items-center px-[5vw] overflow-y-auto"
       style={{
         transform: animPhase === 'visible' ? 'none' : 'scale(0.96)',
         opacity: animPhase === 'visible' ? 1 : 0,
@@ -454,8 +454,11 @@ export function LoginPage() {
         <X style={{ width: '100%', height: '100%' }} />
       </button>
 
+      {/* 弹性占位 - 把内容推到视觉居中偏上的位置 */}
+      <div style={{ flex: '1 1 8vh', minHeight: 'calc(env(safe-area-inset-top, 0px) + 48px)' }} />
+
       {/* Logo + Branding */}
-      <div className="w-full" style={{ maxWidth: 'min(90vw, 400px)', marginTop: 'clamp(20px, 4vh, 30px)', marginBottom: 'clamp(15px, 3vh, 20px)' }}>
+      <div className="w-full" style={{ maxWidth: 'min(90vw, 400px)', marginBottom: 'clamp(15px, 3vh, 20px)' }}>
         <div className="flex items-center" style={{ gap: 'clamp(10px, 2.5vw, 14px)' }}>
           <div 
             className="bg-white rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm overflow-hidden"
@@ -672,6 +675,9 @@ export function LoginPage() {
           </div>
         )}
       </div>
+
+      {/* 底部弹性占位 - 与顶部占位配合实现垂直居中偏上 */}
+      <div style={{ flex: '1.5 1 12vh' }} />
     </div>
   );
 }

@@ -56,6 +56,15 @@ export function VideoFeedPage({ onClose, startIndex = 0 }: VideoFeedPageProps) {
     return () => cancelAnimationFrame(raf);
   }, []);
 
+  // 直播页全黑：临时将 body 背景改黑，防止 iPhone 安全区露白
+  useEffect(() => {
+    const prevBg = document.body.style.backgroundColor;
+    document.body.style.backgroundColor = '#000000';
+    return () => {
+      document.body.style.backgroundColor = prevBg;
+    };
+  }, []);
+
   const handleCloseWithAnim = useCallback(() => {
     setAnimPhase('leaving');
   }, []);
@@ -371,6 +380,12 @@ export function VideoFeedPage({ onClose, startIndex = 0 }: VideoFeedPageProps) {
           </button>
         </div>
       </div>
+
+      {/* 安全区黑底覆盖 - 防止 iPhone Home Indicator 区域露白 */}
+      <div
+        className="fixed bottom-0 left-0 right-0 bg-black z-50"
+        style={{ height: 'env(safe-area-inset-bottom, 0px)' }}
+      />
     </div>
   );
 }
