@@ -6,6 +6,7 @@ import { TaprootAgroDetector, Detection } from "../utils/taprootAgroDetector";
 import { useHomeConfig } from "../hooks/useHomeConfig";
 import { cloudAIService, type DeepAnalysisResult } from "../services/CloudAIService";
 import { cloudAIGuard } from "../utils/cloudAIGuard";
+import { compressImageFile, COMPRESS_PRESETS } from "../utils/imageCompressor";
 
 interface AIAssistantPageProps {
   onClose: () => void;
@@ -150,17 +151,25 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
     }
   }, []);
 
-  // 选图
-  const onFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // 选图 — 压缩后再 setState，AI 预设保留足够清晰度识别病虫害
+  const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (!f) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      setImage(ev.target?.result as string);
+    try {
+      const compressed = await compressImageFile(f, COMPRESS_PRESETS.ai);
+      setImage(compressed);
       setResults([]);
       setDone(false);
-    };
-    reader.readAsDataURL(f);
+    } catch {
+      // 压缩失败降级读原图
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        setImage(ev.target?.result as string);
+        setResults([]);
+        setDone(false);
+      };
+      reader.readAsDataURL(f);
+    }
   };
 
   // 真实识别

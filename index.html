@@ -90,76 +90,9 @@
         }
       } catch(e) {}
 
-      // ---- 无缓存：回退到默认 SVG → PNG 转换 ----
-      var sizes = [192, 512];
-      var svgUrl = '/icon-192.svg';
-      var generated = {};
-      var done = 0;
-
-      function onAllDone() {
-        if (done < sizes.length) return;
-        // 构建 manifest 图标数组
-        var icons = [];
-        sizes.forEach(function(s) {
-          if (!generated[s]) return;
-          icons.push({ src: generated[s], sizes: s+'x'+s, type: 'image/png', purpose: 'any' });
-          icons.push({ src: generated[s], sizes: s+'x'+s, type: 'image/png', purpose: 'maskable' });
-        });
-        if (icons.length === 0) return;
-
-        var manifest = {
-          id: '/',
-          name: 'TaprootAgro',
-          short_name: 'TaprootAgro',
-          description: 'Smart agriculture platform',
-          start_url: '/',
-          scope: '/',
-          display: 'standalone',
-          background_color: '#059669',
-          theme_color: '#059669',
-          orientation: 'portrait',
-          prefer_related_applications: false,
-          icons: icons,
-          categories: ['productivity','agriculture','business'],
-          lang: 'en',
-          dir: 'ltr'
-        };
-
-        var blob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
-        var url = URL.createObjectURL(blob);
-        var link = document.querySelector('link[rel="manifest"]');
-        if (link) {
-          link.href = url;
-        } else {
-          link = document.createElement('link');
-          link.rel = 'manifest';
-          link.href = url;
-          document.head.appendChild(link);
-        }
-      }
-
-      // 用 canvas 把 SVG 渲染为 PNG
-      var img = new Image();
-      img.onload = function() {
-        sizes.forEach(function(s) {
-          try {
-            var c = document.createElement('canvas');
-            c.width = s; c.height = s;
-            var ctx = c.getContext('2d');
-            ctx.drawImage(img, 0, 0, s, s);
-            generated[s] = c.toDataURL('image/png');
-          } catch(e) {
-            // canvas tainted 或不支持，跳过
-          }
-          done++;
-          onAllDone();
-        });
-      };
-      img.onerror = function() {
-        // SVG 加载失败，保持原始 manifest
-        done = sizes.length;
-      };
-      img.src = svgUrl;
+      // ---- 无缓存：不生成 manifest，等 React 的 useDynamicManifest 用正确图标创建 ----
+      // 这样小米浏览器不会在 React 加载前用默认图标触发 beforeinstallprompt
+      // useDynamicManifest 加载远程配置后会用客户自定义图标（或默认 SVG 兜底）创建 manifest
     })();
   </script>
 
@@ -187,7 +120,7 @@
           // 普通浏览器：visualViewport.height 排除浏览器工具栏
           h = window.visualViewport.height;
         } else {
-          // 兜底：innerHeight（可能包含工具栏区���）
+          // 兜底：innerHeight（可能包含工具栏区）
           h = window.innerHeight;
         }
 

@@ -1,9 +1,9 @@
+import { CameraCapture } from "./CameraCapture";
 import { useState, useEffect, useRef } from "react";
 import { Send, Plus, X, WifiOff, Play, Check, Camera, Phone, Video, Volume2, Mic, ScanLine, MessageSquare, AlertCircle, ShieldCheck, ShieldX, LogIn } from "lucide-react";
 import { useNavigate } from "react-router";
 import { useLanguage } from "../hooks/useLanguage";
 import { useHomeConfig } from "../hooks/useHomeConfig";
-import { CameraCapture } from "./CameraCapture";
 import { QRScannerCapture } from "./QRScannerCapture";
 import { CallDialog } from "./CallDialog";
 import { useAppBadge } from "../hooks/useAppBadge";
@@ -382,13 +382,22 @@ function CommunityChat() {
     }
   };
 
-  // 发送图片消息
+  // 发送图片消息 — 先压缩再发送，节省流量和存储
   const sendImageMessage = async (imageData: string) => {
+    // 压缩图片（chat 预设：最长边1024，质量0.7，上限200KB）
+    let compressed = imageData;
+    try {
+      const { compressImageBase64, COMPRESS_PRESETS } = await import('../utils/imageCompressor');
+      compressed = await compressImageBase64(imageData, COMPRESS_PRESETS.chat);
+    } catch (err) {
+      console.warn('[Chat] Image compression failed, using original', err);
+    }
+
     const optimisticMsg: Message = {
       id: `m${Date.now()}_opt`,
       channelName: "default-channel",
       senderId: currentUserId,
-      content: imageData,
+      content: compressed,
       type: "image",
       timestamp: Date.now(),
       status: "sending",
@@ -397,7 +406,7 @@ function CommunityChat() {
     setChatMessages((prev) => [...prev, optimisticMsg]);
 
     try {
-      const sentMsg = await chatService.sendMessage(imageData, "image", undefined, contact.imUserId || contact.id);
+      const sentMsg = await chatService.sendMessage(compressed, "image", undefined, contact.imUserId || contact.id);
       setChatMessages((prev) =>
         prev.map((m) => (m.id === optimisticMsg.id ? { ...sentMsg } : m))
       );

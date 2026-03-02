@@ -12,7 +12,15 @@ import { useHomeConfig } from "../hooks/useHomeConfig";
  * 
  * 退场动画：scale(1) → scale(1.04) + opacity → 0，200ms ease-in，
  * 动画结束后再执行 navigate，视觉上无缝衔接。
+ * 
+ * PWA 冷启动支持：
+ * standalone 模式下浏览器会恢复上次 URL（如 /home），跳过 /。
+ * Layout 检测到新 session 会重定向到 /，本组件在 sessionStorage 写入
+ * __taproot_splash_shown__ 标记，防止同一 session 重复显示。
  */
+// sessionStorage key — 与 Layout.tsx 共享，标记本次 session 已展示过开屏页
+export const SPLASH_SHOWN_KEY = '__taproot_splash_shown__';
+
 export function SplashScreen() {
   const navigate = useNavigate();
   const { config } = useHomeConfig();
@@ -77,6 +85,8 @@ export function SplashScreen() {
   // 退场动画结束后跳转
   const handleAnimationEnd = useCallback(() => {
     if (exiting) {
+      // 标记本次 session 已展示过开屏页，防止 Layout 再次重定向
+      try { sessionStorage.setItem(SPLASH_SHOWN_KEY, '1'); } catch {}
       navigate("/home", { replace: true });
     }
   }, [exiting, navigate]);

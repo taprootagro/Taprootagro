@@ -2,15 +2,12 @@ import { useEffect } from "react";
 import { useHomeConfig } from "./useHomeConfig";
 
 /**
- * useDynamicManifest — 动态 PWA Manifest 生成器
+ * useDynamicManifest — 动态 PWA Manifest 生成器（唯一的 manifest 来源）
  * 
- * 解决白牌模式下的图标问题：
- * 静态 manifest.json 里的图标是默认的叶子 SVG，
- * 但每个白牌公司在 ConfigManager 里配置了自己的 desktopIcon.icon192Url / icon512Url。
- * 
- * 本 hook 在运行时读取配置，生成动态 manifest blob URL，
- * 替换 <link rel="manifest"> 的 href。
- * 这样用户点击"添加到主屏幕"时，浏览器会读取到正确的品牌图标。
+ * index.html 不再生成默认 manifest（避免小米浏览器用默认图标弹安装提示）。
+ * 本 hook 是 manifest 的唯一生成入口：
+ * - 有远程自定义图标 → 用客户图标
+ * - 没有自定义图标 → 用默认 /icon-192.svg 转 PNG 兜底
  * 
  * 重要：图标如果是 SVG，会通过 canvas 转为 PNG data URL，
  * 因为 Chrome/小米/Samsung 等浏览器要求 manifest 中有 PNG 图标
@@ -18,13 +15,21 @@ import { useHomeConfig } from "./useHomeConfig";
  * 
  * 图标缓存策略：
  * 成功转换后将 PNG data URL 缓存到 localStorage（key: __taproot_manifest_icon_cache__），
- * 下次访问时 index.html 内联脚本直接读取缓存，避免小米浏览器
- * 在 useDynamicManifest 执行前就触发 beforeinstallprompt 导致用默认图标。
+ * 下次访问时 index.html 内联脚本直接读取缓存，在 React 加载前就完成 manifest 替换。
  * 
- * 时序：config 加载完成 → 生成 blob → 替换 link → 缓存图标 → 用户添加到桌面 → 正确图标
+ * 时序（首次访问）：
+ *   HTML 加载 → 无 manifest → 浏览器不触发 beforeinstallprompt
+ *   → React 加载 → config 就绪 → 本 hook 生成 manifest + 缓存图标
+ *   → 浏览器重新评估可安装性 → beforeinstallprompt 触发（正确图标）
+ * 
+ * 时序（回访）：
+ *   HTML 加载 → 内联脚本从 localStorage 读缓存 → 立即生成正确 manifest
+ *   → beforeinstallprompt 立即触发（正确图标）
  */
 // localStorage key for icon cache (shared with index.html inline script)
 const ICON_CACHE_KEY = '__taproot_manifest_icon_cache__';
+// 默认 SVG 图标路径（无自定义配置时的兜底）
+const DEFAULT_ICON_SVG = '/icon-192.svg';
 
 export function useDynamicManifest() {
   const { config } = useHomeConfig();
@@ -34,12 +39,13 @@ export function useDynamicManifest() {
 
     const { desktopIcon, appBranding } = config;
 
-    // 如果没有自定义图标配置，保持 index.html 中早期脚本生成的 PNG manifest
-    if (!desktopIcon?.icon192Url && !desktopIcon?.icon512Url) return;
-
     const appName = desktopIcon?.appName || appBranding?.appName || "TaprootAgro";
-    const icon192 = desktopIcon.icon192Url;
-    const icon512 = desktopIcon.icon512Url || icon192;
+    const slogan = appBranding?.slogan || "Smart agriculture platform";
+
+    // 确定图标来源：自定义 > 默认 SVG
+    const hasCustomIcon = !!(desktopIcon?.icon192Url || desktopIcon?.icon512Url);
+    const icon192 = desktopIcon?.icon192Url || DEFAULT_ICON_SVG;
+    const icon512 = desktopIcon?.icon512Url || icon192;
 
     let cancelled = false;
     let blobUrl = "";
@@ -67,7 +73,7 @@ export function useDynamicManifest() {
         id: "/",
         name: appName,
         short_name: appName,
-        description: appBranding?.slogan || "Smart agriculture platform",
+        description: slogan,
         start_url: "/",
         scope: "/",
         display: "standalone" as const,
@@ -104,8 +110,10 @@ export function useDynamicManifest() {
       updateAppleTouchIcon(icon192);
 
       // 更新 apple-mobile-web-app-title
-      updateMetaTag("apple-mobile-web-app-title", appName);
-      updateMetaTag("application-name", appName);
+      if (hasCustomIcon) {
+        updateMetaTag("apple-mobile-web-app-title", appName);
+        updateMetaTag("application-name", appName);
+      }
     });
 
     return () => {

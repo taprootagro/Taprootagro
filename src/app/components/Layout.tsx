@@ -1,17 +1,12 @@
-import { Link, useLocation } from "react-router";
+import { Link, useLocation, Navigate } from "react-router";
 import { useNetworkQuality } from "../hooks/useNetworkQuality";
 import { useDynamicManifest } from "../hooks/useDynamicManifest";
 import { useKeyboardVisible } from "../hooks/useKeyboardVisible";
 import { Home, NotebookText, MessageCircle, User } from "lucide-react";
 import { useLanguage } from "../hooks/useLanguage";
 import { useState, useEffect, lazy, Suspense, useRef } from "react";
-import {
-  HomePageSkeleton,
-  MarketPageSkeleton,
-  CommunityPageSkeleton,
-  ProfilePageSkeleton,
-} from "./SkeletonScreen";
 import { PWAInstallBanner } from "./PWAInstallBanner";
+import { SPLASH_SHOWN_KEY } from "./SplashScreen";
 
 // Keep-alive: 懒加载但只挂载一次，切换时不卸载
 const HomePage = lazy(() => import("./HomePage"));
@@ -32,6 +27,8 @@ const TAB_KEYS = ["home", "market", "community", "profile"] as const;
 
 export function Layout() {
   const location = useLocation();
+
+  // ---- 所有 hooks 必须无条件调用（React Rules of Hooks）----
   const { t } = useLanguage();
   const networkQuality = useNetworkQuality();
   useDynamicManifest();
@@ -78,6 +75,24 @@ export function Layout() {
     }
   }, [activeTab]);
 
+  // ---- PWA 冷启动检测（放在所有 hooks 之后，遵守 Rules of Hooks）----
+  // standalone 模式下浏览器会恢复上次 URL（如 /home），跳过 / 的开屏页。
+  // 用 sessionStorage 检测：新 session 且 standalone → 重定向到 / 显示开屏页。
+  // sessionStorage 在 PWA 每次冷启动时为空（区别于 localStorage），完美区分冷/热启动。
+  const needsSplash = (() => {
+    try {
+      if (sessionStorage.getItem(SPLASH_SHOWN_KEY)) return false;
+      if (window.matchMedia('(display-mode: standalone)').matches) return true;
+      if (window.matchMedia('(display-mode: fullscreen)').matches) return true;
+      if ((navigator as any).standalone === true) return true;
+    } catch {}
+    return false;
+  })();
+
+  if (needsSplash) {
+    return <Navigate to="/" replace />;
+  }
+
   // 触摸开始时立即预加载页面，提升响应速度
   const handleTouchStart = (path: string) => {
     const preload = preloadMap[path];
@@ -95,10 +110,10 @@ export function Layout() {
 
   // Tab 页面配置
   const tabPages = [
-    { key: "home", Component: HomePage, Skeleton: HomePageSkeleton },
-    { key: "market", Component: MarketPage, Skeleton: MarketPageSkeleton },
-    { key: "community", Component: CommunityPage, Skeleton: CommunityPageSkeleton },
-    { key: "profile", Component: ProfilePage, Skeleton: ProfilePageSkeleton },
+    { key: "home", Component: HomePage },
+    { key: "market", Component: MarketPage },
+    { key: "community", Component: CommunityPage },
+    { key: "profile", Component: ProfilePage },
   ] as const;
 
   // 根据网络质量决定是否用 backdrop-blur
@@ -120,7 +135,7 @@ export function Layout() {
 
       {/* 主内容 — Keep-alive: 所有已访问 tab 同时存在 DOM 中，用 display 切换 */}
       <main className="flex-1 overflow-hidden relative">
-        {tabPages.map(({ key, Component, Skeleton }) => {
+        {tabPages.map(({ key, Component }) => {
           const isActive = activeTab === key;
           const isMounted = mountedTabs.has(key);
           if (!isMounted) return null;
@@ -137,7 +152,7 @@ export function Layout() {
                 display: isActive ? "block" : "none",
               }}
             >
-              <Suspense fallback={<Skeleton />}>
+              <Suspense>
                 <Component />
               </Suspense>
             </div>
