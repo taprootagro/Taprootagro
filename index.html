@@ -32,6 +32,95 @@
 
   <title>TaprootAgro</title>
 
+  <!--
+    PWA 可安装性修复：将 SVG 图标渲染为 PNG 并动态替换 manifest
+    原因：Chrome/小米/Samsung 等浏览器要求 manifest 中有 PNG 格式图标
+    才能触发 beforeinstallprompt 事件。纯 SVG 图标在很多设备上不满足
+    可安装性检查条件。
+    
+    时序：此脚本在 <head> 尾部同步执行，在 Chrome 评估可安装性之前
+    完成 manifest 替换，确保 beforeinstallprompt 正常触发。
+  -->
+  <script>
+    (function(){
+      // 已经是 standalone 模式，无需生成 PNG manifest
+      try {
+        if (window.matchMedia('(display-mode: standalone)').matches ||
+            window.navigator.standalone === true) return;
+      } catch(e) {}
+
+      var sizes = [192, 512];
+      var svgUrl = '/icon-192.svg';
+      var generated = {};
+      var done = 0;
+
+      function onAllDone() {
+        if (done < sizes.length) return;
+        // 构建 manifest 图标数组
+        var icons = [];
+        sizes.forEach(function(s) {
+          if (!generated[s]) return;
+          icons.push({ src: generated[s], sizes: s+'x'+s, type: 'image/png', purpose: 'any' });
+          icons.push({ src: generated[s], sizes: s+'x'+s, type: 'image/png', purpose: 'maskable' });
+        });
+        if (icons.length === 0) return;
+
+        var manifest = {
+          id: '/',
+          name: 'TaprootAgro',
+          short_name: 'TaprootAgro',
+          description: 'Smart agriculture platform',
+          start_url: '/',
+          scope: '/',
+          display: 'standalone',
+          background_color: '#059669',
+          theme_color: '#059669',
+          orientation: 'portrait',
+          prefer_related_applications: false,
+          icons: icons,
+          categories: ['productivity','agriculture','business'],
+          lang: 'en',
+          dir: 'ltr'
+        };
+
+        var blob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
+        var url = URL.createObjectURL(blob);
+        var link = document.querySelector('link[rel="manifest"]');
+        if (link) {
+          link.href = url;
+        } else {
+          link = document.createElement('link');
+          link.rel = 'manifest';
+          link.href = url;
+          document.head.appendChild(link);
+        }
+      }
+
+      // 用 canvas 把 SVG 渲染为 PNG
+      var img = new Image();
+      img.onload = function() {
+        sizes.forEach(function(s) {
+          try {
+            var c = document.createElement('canvas');
+            c.width = s; c.height = s;
+            var ctx = c.getContext('2d');
+            ctx.drawImage(img, 0, 0, s, s);
+            generated[s] = c.toDataURL('image/png');
+          } catch(e) {
+            // canvas tainted 或不支持，跳过
+          }
+          done++;
+          onAllDone();
+        });
+      };
+      img.onerror = function() {
+        // SVG 加载失败，保持原始 manifest
+        done = sizes.length;
+      };
+      img.src = svgUrl;
+    })();
+  </script>
+
   <!-- iOS Safari 100vh 修正：用 visualViewport API 精确设置真实视口高度 -->
   <script>
     (function(){

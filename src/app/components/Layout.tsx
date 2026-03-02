@@ -11,6 +11,7 @@ import {
   CommunityPageSkeleton,
   ProfilePageSkeleton,
 } from "./SkeletonScreen";
+import { PWAInstallBanner } from "./PWAInstallBanner";
 
 // Keep-alive: 懒加载但只挂载一次，切换时不卸载
 const HomePage = lazy(() => import("./HomePage"));
@@ -188,6 +189,7 @@ export function Layout() {
         </div>
       </nav>
       )}
+      <PWAInstallBanner />
     </div>
   );
 }
