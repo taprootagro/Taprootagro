@@ -1,8 +1,8 @@
-import { useRef, useState, useEffect, useCallback } from 'react';
-import { Camera, ImageIcon, X } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Camera, ImageIcon } from 'lucide-react';
 import { useLanguage } from '../hooks/useLanguage';
 import { compressImageFile, COMPRESS_PRESETS } from '../utils/imageCompressor';
-import { safeInputClick } from '../utils/safeInputClick';
+import { SafeFilePicker } from './SafeFilePicker';
 
 interface CameraCaptureProps {
   onCapture?: (imageData: string) => void;
@@ -19,12 +19,10 @@ interface CameraCaptureProps {
  * 1. 拍照（capture="environment" 调起后置相机）
  * 2. 从相册选择（纯 file input）
  * 
- * 兼容性：iOS Safari / Android Chrome / 小米浏览器 / Samsung Internet
- * 在 PWA standalone 模式下均可正常工作。
+ * 使用 SafeFilePicker 双保险策略（透明 overlay + JS 重试），
+ * 兼容国产浏览器 PWA standalone 模式。
  */
 export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
-  const cameraInputRef = useRef<HTMLInputElement>(null);
-  const albumInputRef = useRef<HTMLInputElement>(null);
   const { language } = useLanguage();
 
   // 过渡动画
@@ -114,23 +112,21 @@ export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
             <p className="text-gray-400" style={{ fontSize: '13px' }}>{texts.title}</p>
           </div>
 
-          {/* 拍照 */}
-          <button
-            className="w-full flex items-center justify-center gap-3 py-4 active:bg-gray-50 transition-colors border-t border-gray-100"
-            onClick={() => safeInputClick(cameraInputRef)}
-          >
-            <Camera className="w-5 h-5 text-emerald-600" />
-            <span className="text-emerald-600" style={{ fontSize: '17px' }}>{texts.takePhoto}</span>
-          </button>
+          {/* 拍照 — SafeFilePicker 双保险 */}
+          <SafeFilePicker accept="image/*" capture="environment" onChange={handleFile}>
+            <div className="w-full flex items-center justify-center gap-3 py-4 active:bg-gray-50 transition-colors border-t border-gray-100">
+              <Camera className="w-5 h-5 text-emerald-600" />
+              <span className="text-emerald-600" style={{ fontSize: '17px' }}>{texts.takePhoto}</span>
+            </div>
+          </SafeFilePicker>
 
-          {/* 从相册选择 */}
-          <button
-            className="w-full flex items-center justify-center gap-3 py-4 active:bg-gray-50 transition-colors border-t border-gray-100"
-            onClick={() => safeInputClick(albumInputRef)}
-          >
-            <ImageIcon className="w-5 h-5 text-emerald-600" />
-            <span className="text-emerald-600" style={{ fontSize: '17px' }}>{texts.chooseFromAlbum}</span>
-          </button>
+          {/* 从相册选择 — SafeFilePicker 双保险 */}
+          <SafeFilePicker accept="image/*" onChange={handleFile}>
+            <div className="w-full flex items-center justify-center gap-3 py-4 active:bg-gray-50 transition-colors border-t border-gray-100">
+              <ImageIcon className="w-5 h-5 text-emerald-600" />
+              <span className="text-emerald-600" style={{ fontSize: '17px' }}>{texts.chooseFromAlbum}</span>
+            </div>
+          </SafeFilePicker>
         </div>
 
         {/* 取消按钮 */}
@@ -143,25 +139,6 @@ export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
           </button>
         </div>
       </div>
-
-      {/* 隐藏的 file inputs */}
-      {/* capture="environment" 直接调起后置相机，绕过 getUserMedia 权限问题 */}
-      <input
-        ref={cameraInputRef}
-        type="file"
-        accept="image/*"
-        capture="environment"
-        onChange={handleFile}
-        className="hidden"
-      />
-      {/* 无 capture 属性：弹出系统相册选择器 */}
-      <input
-        ref={albumInputRef}
-        type="file"
-        accept="image/*"
-        onChange={handleFile}
-        className="hidden"
-      />
     </div>
   );
 }

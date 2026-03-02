@@ -7,7 +7,7 @@ import { useHomeConfig } from "../hooks/useHomeConfig";
 import { cloudAIService, type DeepAnalysisResult } from "../services/CloudAIService";
 import { cloudAIGuard } from "../utils/cloudAIGuard";
 import { compressImageFile, COMPRESS_PRESETS } from "../utils/imageCompressor";
-import { safeInputClick } from "../utils/safeInputClick";
+import { SafeFilePicker } from "./SafeFilePicker";
 
 interface AIAssistantPageProps {
   onClose: () => void;
@@ -519,20 +519,20 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
 
                 {!isDemo && (
                   <>
-                    <button
-                      onClick={() => safeInputClick(cameraRef)}
-                      className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white py-3.5 rounded-2xl active:scale-[0.97] transition-transform"
-                    >
-                      <Camera className="w-5 h-5" /><span className="font-medium">{a.takePhoto}</span>
-                    </button>
-                    <button
-                      onClick={() => safeInputClick(fileRef)}
-                      className="w-full flex items-center justify-center gap-2 bg-white border-2 border-emerald-500 text-emerald-600 py-3.5 rounded-2xl active:scale-[0.97] transition-transform"
-                    >
-                      <Upload className="w-5 h-5" /><span className="font-medium">{a.selectAlbum}</span>
-                    </button>
-                    <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={onFile} className="hidden" />
-                    <input ref={fileRef} type="file" accept="image/*" onChange={onFile} className="hidden" />
+                    <SafeFilePicker accept="image/*" capture="environment" onChange={onFile}>
+                      <div
+                        className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white py-3.5 rounded-2xl active:scale-[0.97] transition-transform"
+                      >
+                        <Camera className="w-5 h-5" /><span className="font-medium">{a.takePhoto}</span>
+                      </div>
+                    </SafeFilePicker>
+                    <SafeFilePicker accept="image/*" onChange={onFile}>
+                      <div
+                        className="w-full flex items-center justify-center gap-2 bg-white border-2 border-emerald-500 text-emerald-600 py-3.5 rounded-2xl active:scale-[0.97] transition-transform"
+                      >
+                        <Upload className="w-5 h-5" /><span className="font-medium">{a.selectAlbum}</span>
+                      </div>
+                    </SafeFilePicker>
                   </>
                 )}
 
