@@ -8,16 +8,24 @@
 //   - Navigation: Always resolves to cached index.html (SPA)
 //   - Once per day (first open), background-check server for updates
 //   - Offline: Serve everything from cache, placeholder for uncached images
+//   - Remote config: cache strategy override, maintenance mode, feature flags,
+//     force update/reload, cache purge, kill switch, announcements
 // ============================================================
 
-const CACHE_VERSION = 'v7';
+const CACHE_VERSION = 'v8';
 const CACHE_PREFIX = 'taproot-agro';
 const CACHE_NAME = `${CACHE_PREFIX}-${CACHE_VERSION}`;
 const IMG_CACHE_NAME = `${CACHE_PREFIX}-images-${CACHE_VERSION}`;
 const CDN_CACHE_NAME = `${CACHE_PREFIX}-cdn-${CACHE_VERSION}`;
 
 // Remote config endpoint
-const REMOTE_CONFIG_URL = 'https://www.taprootagro.com/taprootagro/global';
+// Default: TaprootAgro central server (free tier).
+// Self-hosted / paid customers: replace this URL before deploying,
+// or set it via your build pipeline.
+const REMOTE_CONFIG_URL = self.__REMOTE_CONFIG_URL || 'https://www.taprootagro.com/taprootagro/globalpublic/customer.json';
+
+// Remote config cache key (stored in CacheStorage for SW-side access)
+const REMOTE_CONFIG_CACHE_KEY = '__taproot_remote_config__';
 
 // Daily check key stored in cache
 const DAILY_CHECK_KEY = '__taproot_daily_check__';
@@ -36,10 +44,17 @@ const SW_BYPASS_PATHS = [
   '/sw-reset',
 ];
 
-// Maximum entries per cache
-const MAX_CACHE_ENTRIES = 200;
-const MAX_IMG_CACHE_ENTRIES = 300;
+// Default maximum entries per cache (can be overridden by remote config)
+const DEFAULT_MAX_CACHE_ENTRIES = 200;
+const DEFAULT_MAX_IMG_CACHE_ENTRIES = 300;
 const MAX_CDN_CACHE_ENTRIES = 50;
+
+// Default network timeout (can be overridden by remote config)
+const DEFAULT_NETWORK_TIMEOUT = 20000;
+
+// Default navigation timeouts (can be overridden by remote config)
+const DEFAULT_NAV_TIMEOUT_WITH_CACHE = 8000;
+const DEFAULT_NAV_TIMEOUT_WITHOUT_CACHE = 15000;
 
 // Cross-origin domains allowed to be cached
 const CACHEABLE_IMAGE_HOSTS = [
@@ -53,6 +68,53 @@ const CACHEABLE_CDN_HOSTS = [
   'unpkg.com',
   'cdnjs.cloudflare.com',
 ];
+
+// ============================================================
+// ACTIVE REMOTE CONFIG (module-level, updated by checkRemoteConfig)
+// ============================================================
+let activeConfig = null;
+
+/**
+ * Load the cached remote config from CacheStorage into the module variable.
+ * Called on SW startup and after each config fetch.
+ */
+async function loadCachedConfig() {
+  try {
+    const cache = await caches.open(CACHE_NAME);
+    const response = await cache.match(REMOTE_CONFIG_CACHE_KEY);
+    if (response) {
+      activeConfig = await response.json();
+      console.log('[SW] Loaded cached remote config:', activeConfig?.version || 'unknown');
+    }
+  } catch {
+    activeConfig = null;
+  }
+}
+
+/**
+ * Persist the remote config to CacheStorage (SW-accessible, unlike localStorage).
+ */
+async function saveCachedConfig(config) {
+  try {
+    const cache = await caches.open(CACHE_NAME);
+    await cache.put(REMOTE_CONFIG_CACHE_KEY, new Response(
+      JSON.stringify(config),
+      { headers: { 'Content-Type': 'application/json' } }
+    ));
+    activeConfig = config;
+  } catch (err) {
+    console.warn('[SW] Failed to cache remote config:', err);
+  }
+}
+
+/**
+ * Get a config value with fallback to default.
+ */
+function configVal(key, defaultVal) {
+  if (!activeConfig) return defaultVal;
+  const val = activeConfig[key];
+  return val !== undefined && val !== null ? val : defaultVal;
+}
 
 // ============================================================
 // EMERGENCY RECOVERY
@@ -89,22 +151,32 @@ function getTodayDateString() {
   return new Date().toISOString().slice(0, 10);
 }
 
-async function hasCheckedToday() {
+function getCheckIntervalKey() {
+  // Support custom check intervals (e.g., every 6 hours instead of daily)
+  const hours = configVal('checkIntervalHours', 24);
+  if (hours >= 24) return getTodayDateString(); // Daily
+  // Sub-daily: use hour-based bucketing
+  const now = new Date();
+  const bucket = Math.floor(now.getHours() / Math.max(1, Math.min(hours, 24)));
+  return `${getTodayDateString()}-${bucket}`;
+}
+
+async function hasCheckedThisPeriod() {
   try {
     const cache = await caches.open(CACHE_NAME);
     const response = await cache.match(DAILY_CHECK_KEY);
     if (!response) return false;
     const data = await response.json();
-    return data.date === getTodayDateString();
+    return data.date === getCheckIntervalKey();
   } catch {
     return false;
   }
 }
 
-async function markCheckedToday() {
+async function markCheckedThisPeriod() {
   try {
     const cache = await caches.open(CACHE_NAME);
-    const body = JSON.stringify({ date: getTodayDateString() });
+    const body = JSON.stringify({ date: getCheckIntervalKey() });
     await cache.put(DAILY_CHECK_KEY, new Response(body, {
       headers: { 'Content-Type': 'application/json' }
     }));
@@ -123,7 +195,6 @@ const OFFLINE_IMAGE_PLACEHOLDER = 'data:image/svg+xml,' + encodeURIComponent(
 );
 
 function createOfflineImageResponse() {
-  // Return a minimal SVG placeholder
   const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300">' +
     '<rect fill="#f0fdf4" width="400" height="300"/>' +
     '<path d="M185 130 l15-20 l15 20 l-7 0 l0 15 l-16 0 l0-15z" fill="#d1d5db"/>' +
@@ -139,18 +210,115 @@ function createOfflineImageResponse() {
 }
 
 // ============================================================
+// MAINTENANCE MODE PAGE
+// ============================================================
+function createMaintenancePage(config) {
+  const m = config?.maintenance || {};
+  const title = m.title || 'System Maintenance';
+  const message = m.message || 'We are currently performing maintenance. Please check back soon.';
+  const estimatedEnd = m.estimatedEnd ? new Date(m.estimatedEnd) : null;
+  const etaStr = estimatedEnd
+    ? `<p style="color:#6b7280;margin-top:0.5rem;font-size:0.8rem">Estimated completion: ${estimatedEnd.toLocaleString()}</p>`
+    : '';
+
+  const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
+    '<title>TaprootAgro - Maintenance</title>' +
+    '<style>*{margin:0;padding:0;box-sizing:border-box}body{display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:system-ui,-apple-system,sans-serif;background:#f0fdf4;color:#065f46;text-align:center;padding:2rem}' +
+    '.card{background:white;border-radius:1rem;padding:2rem;box-shadow:0 4px 20px rgba(0,0,0,0.08);max-width:360px;width:100%}' +
+    '.icon{width:64px;height:64px;background:#fef3c7;border-radius:1rem;display:flex;align-items:center;justify-content:center;margin:0 auto 1rem}' +
+    'h2{margin-bottom:0.5rem;color:#065f46}p{color:#374151;margin-bottom:0.5rem;font-size:0.875rem}' +
+    'button{padding:0.75rem 1.5rem;background:#10b981;color:white;border:none;border-radius:0.75rem;cursor:pointer;font-size:0.875rem;width:100%;margin-top:1rem}' +
+    'button:active{background:#059669}</style></head>' +
+    '<body><div class="card">' +
+    '<div class="icon"><svg width="32" height="32" fill="none" stroke="#d97706" stroke-width="2" viewBox="0 0 24 24"><path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg></div>' +
+    '<h2>' + title + '</h2>' +
+    '<p>' + message + '</p>' +
+    etaStr +
+    '<button onclick="location.reload()">Retry</button>' +
+    '</div></body></html>';
+
+  return new Response(html, {
+    status: 503,
+    headers: { 'Content-Type': 'text/html; charset=utf-8' }
+  });
+}
+
+// ============================================================
+// CACHE STRATEGY MATCHING
+// ============================================================
+
+/**
+ * Check if a URL pathname matches any pattern in a list.
+ * Patterns support prefix matching: "/api/prices" matches "/api/prices/wheat"
+ */
+function matchesPathPattern(pathname, patterns) {
+  if (!patterns || !Array.isArray(patterns) || patterns.length === 0) return false;
+  return patterns.some((pattern) => {
+    if (typeof pattern !== 'string') return false;
+    // Exact or prefix match
+    return pathname === pattern || pathname.startsWith(pattern + '/') || pathname.startsWith(pattern);
+  });
+}
+
+/**
+ * Determine the cache strategy for a same-origin request based on remote config.
+ * Returns: 'cache-first' (default) | 'network-first' | 'network-only' | 'no-cache'
+ */
+function getStrategyForPath(pathname) {
+  const cs = activeConfig?.cacheStrategy;
+  if (!cs) return 'cache-first';
+
+  if (matchesPathPattern(pathname, cs.networkOnly)) return 'network-only';
+  if (matchesPathPattern(pathname, cs.noCache)) return 'no-cache';
+  if (matchesPathPattern(pathname, cs.networkFirst)) return 'network-first';
+  return 'cache-first';
+}
+
+// ============================================================
 // INSTALL
 // ============================================================
 self.addEventListener('install', (event) => {
   console.log(`[SW] Installing ${CACHE_VERSION}...`);
   event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then((cache) => {
-        console.log('[SW] Pre-caching app shell');
-        return Promise.allSettled(
-          APP_SHELL.map((url) => safeCacheAdd(cache, url))
-        );
-      })
+    (async () => {
+      const cache = await caches.open(CACHE_NAME);
+      console.log('[SW] Pre-caching app shell');
+      await Promise.allSettled(
+        APP_SHELL.map((url) => safeCacheAdd(cache, url))
+      );
+
+      // Auto-discover and pre-cache all JS/CSS chunks referenced by index.html
+      try {
+        const indexResponse = await caches.match('/index.html') || await fetch('/index.html');
+        if (indexResponse && indexResponse.ok !== false) {
+          const html = await indexResponse.clone().text();
+          const chunkUrls = [];
+
+          const scriptMatches = html.matchAll(/(?:src|href)=["'](\/(?:assets\/[^"']+))['"]/g);
+          for (const match of scriptMatches) {
+            chunkUrls.push(match[1]);
+          }
+
+          const preloadMatches = html.matchAll(/rel=["']modulepreload["'][^>]*href=["']([^"']+)['"]/g);
+          for (const match of preloadMatches) {
+            chunkUrls.push(match[1]);
+          }
+
+          if (chunkUrls.length > 0) {
+            console.log(`[SW] Auto-discovered ${chunkUrls.length} asset chunks to pre-cache`);
+            await Promise.allSettled(
+              chunkUrls.map((url) => safeCacheAdd(cache, url))
+            );
+            console.log('[SW] Asset chunk pre-caching complete');
+          }
+        }
+      } catch (err) {
+        console.warn('[SW] Auto-discovery of chunks failed (non-blocking):', err);
+      }
+
+      // Load any cached remote config
+      await loadCachedConfig();
+    })()
   );
   if (EMERGENCY_SKIP_WAITING) {
     console.warn('[SW] EMERGENCY_SKIP_WAITING enabled, forcing skipWaiting()');
@@ -167,6 +335,9 @@ self.addEventListener('activate', (event) => {
     (async () => {
       await self.clients.claim();
       console.log('[SW] Claimed clients');
+
+      // Load remote config into memory
+      await loadCachedConfig();
 
       // Pre-fetch fresh index.html
       try {
@@ -223,7 +394,18 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Trigger daily update check (non-blocking, only once per day)
+  // ---- Maintenance mode check (intercept navigation) ----
+  if (request.mode === 'navigate' && activeConfig?.maintenance?.enabled) {
+    const allowPaths = activeConfig.maintenance.allowPaths || [];
+    const isAllowed = SW_BYPASS_PATHS.includes(url.pathname) ||
+      matchesPathPattern(url.pathname, allowPaths);
+    if (!isAllowed) {
+      event.respondWith(createMaintenancePage(activeConfig));
+      return;
+    }
+  }
+
+  // Trigger periodic update check (non-blocking)
   if (!dailyCheckTriggered) {
     dailyCheckTriggered = true;
     event.waitUntil(triggerDailyCheck());
@@ -235,7 +417,29 @@ self.addEventListener('fetch', (event) => {
       event.respondWith(safeRespond(() => handleNavigation(), request));
       return;
     }
-    event.respondWith(safeRespond(() => cacheFirstStrategy(request, CACHE_NAME, MAX_CACHE_ENTRIES), request));
+
+    // Check remote config for cache strategy override
+    const strategy = getStrategyForPath(url.pathname);
+
+    if (strategy === 'network-only') {
+      // Bypass cache entirely, go straight to network
+      return; // Let browser handle it
+    }
+
+    if (strategy === 'no-cache') {
+      // Fetch from network, don't cache the response
+      event.respondWith(safeRespond(() => fetch(request), request));
+      return;
+    }
+
+    if (strategy === 'network-first') {
+      event.respondWith(safeRespond(() => networkFirstStrategy(request, CACHE_NAME), request));
+      return;
+    }
+
+    // Default: cache-first
+    const maxEntries = configVal('maxCacheEntries', DEFAULT_MAX_CACHE_ENTRIES);
+    event.respondWith(safeRespond(() => cacheFirstStrategy(request, CACHE_NAME, maxEntries), request));
     return;
   }
 
@@ -269,13 +473,11 @@ async function safeRespond(handler, originalRequest) {
     try {
       return await fetch(originalRequest);
     } catch {
-      // Check if this is an image request
       const url = new URL(originalRequest.url);
       if (isImageRequest(originalRequest, url)) {
         return createOfflineImageResponse();
       }
       
-      // If requesting a JS module (like main.tsx) and we are offline/failed
       if (url.pathname.endsWith('.tsx') || url.pathname.endsWith('.ts') || url.pathname.endsWith('.js')) {
          return new Response('console.error("Resource load failed: ' + url.pathname + '");', {
            status: 503,
@@ -327,7 +529,6 @@ async function handleSwReset() {
     await Promise.all(registrations.map(r => r.unregister()));
     const keys = await caches.keys();
     await Promise.all(keys.map(k => caches.delete(k)));
-    // Also clear IndexedDB model cache
     try { indexedDB.deleteDatabase('taproot-yolo-cache'); } catch(e) {}
     status.innerHTML = '<div style="font-size:48px;margin-bottom:1rem"></div>'
       + '<h2 style="margin-bottom:0.5rem">Reset Complete</h2>'
@@ -352,13 +553,16 @@ async function handleSwReset() {
 // SPA Navigation Handler
 // ============================================================
 async function handleNavigation() {
-  // Network-first for navigation (index.html)
-  // 部署新版本后，旧 HTML 引用的 JS chunk 文件名已存在，
-  // 必须优先从网络获取最新 HTML，只在离线时回退缓存。
   try {
     const controller = new AbortController();
-    // 弱网超时 4 秒后回退缓存，不让用户干等
-    const timeoutId = setTimeout(() => controller.abort(), 4000);
+    const hasCachedIndex = !!(await caches.match('/index.html'));
+    
+    // Use remote config overrides for navigation timeouts
+    const navConfig = activeConfig?.navTimeoutMs || {};
+    const navTimeout = hasCachedIndex
+      ? (navConfig.withCache || DEFAULT_NAV_TIMEOUT_WITH_CACHE)
+      : (navConfig.withoutCache || DEFAULT_NAV_TIMEOUT_WITHOUT_CACHE);
+    const timeoutId = setTimeout(() => controller.abort(), navTimeout);
 
     const networkResponse = await fetch('/index.html', {
       cache: 'no-store',
@@ -368,16 +572,13 @@ async function handleNavigation() {
 
     if (networkResponse.ok) {
       const clean = stripRedirect(networkResponse);
-      // 更新缓存，下次离线可用
       const cache = await caches.open(CACHE_NAME);
       cache.put('/index.html', clean.clone());
       cache.put('/', clean.clone());
       return clean;
     }
-    // HTTP 错误（4xx/5xx），回退缓存
     throw new Error(`HTTP ${networkResponse.status}`);
   } catch (error) {
-    // 网络不可用或超时 → 回退缓存
     console.warn('[SW] Navigation network-first failed, falling back to cache:', error.message || error);
 
     const cachedIndex = await caches.match('/index.html');
@@ -390,7 +591,6 @@ async function handleNavigation() {
       return stripRedirect(cachedRoot);
     }
 
-    // 完全无缓存 → 离线占位页
     return new Response(
       '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
       '<title>TaprootAgro - Offline</title>' +
@@ -424,15 +624,18 @@ async function cacheFirstStrategy(request, cacheName, maxEntries) {
     if (isValidCachedResponse(cachedResponse)) {
       return stripRedirect(cachedResponse);
     }
-    // Corrupted → evict
     console.warn('[SW] Corrupted cache entry evicted:', request.url);
     const cache = await caches.open(cacheName);
     cache.delete(request);
   }
 
-  // 2. Fetch from network
+  // 2. Fetch from network with configurable timeout
   try {
-    const networkResponse = await fetch(request);
+    const timeout = configVal('networkTimeoutMs', DEFAULT_NETWORK_TIMEOUT);
+    const fetchController = new AbortController();
+    const fetchTimeout = setTimeout(() => fetchController.abort(), timeout);
+    const networkResponse = await fetch(request, { signal: fetchController.signal });
+    clearTimeout(fetchTimeout);
     if (networkResponse.ok) {
       const clean = stripRedirect(networkResponse);
       const cache = await caches.open(cacheName);
@@ -456,11 +659,41 @@ async function cacheFirstStrategy(request, cacheName, maxEntries) {
 }
 
 // ============================================================
+// Network-first: for paths overridden by remote config
+// ============================================================
+async function networkFirstStrategy(request, cacheName) {
+  try {
+    const timeout = configVal('networkTimeoutMs', DEFAULT_NETWORK_TIMEOUT);
+    const fetchController = new AbortController();
+    const fetchTimeout = setTimeout(() => fetchController.abort(), timeout);
+    const networkResponse = await fetch(request, { signal: fetchController.signal });
+    clearTimeout(fetchTimeout);
+
+    if (networkResponse.ok) {
+      const clean = stripRedirect(networkResponse);
+      const cache = await caches.open(cacheName);
+      cache.put(request, clean.clone());
+      return clean;
+    }
+    throw new Error(`HTTP ${networkResponse.status}`);
+  } catch (error) {
+    // Fallback to cache
+    const cachedResponse = await caches.match(request);
+    if (cachedResponse && isValidCachedResponse(cachedResponse)) {
+      console.log('[SW] Network-first fallback to cache:', request.url);
+      return stripRedirect(cachedResponse);
+    }
+    return new Response('Offline - Resource not cached', {
+      status: 503,
+      headers: { 'Content-Type': 'text/plain' }
+    });
+  }
+}
+
+// ============================================================
 // Cache-first for cross-origin images
-// With offline SVG placeholder fallback
 // ============================================================
 async function cacheFirstImageStrategy(request) {
-  // 1. Check image cache
   const cachedResponse = await caches.match(request);
   if (cachedResponse) {
     if (isValidCachedResponse(cachedResponse)) {
@@ -470,19 +703,17 @@ async function cacheFirstImageStrategy(request) {
     cache.delete(request);
   }
 
-  // 2. Try network
   try {
     const networkResponse = await fetch(request);
     if (networkResponse.ok) {
-      // Cache the cross-origin image (opaque is fine for display)
       const cache = await caches.open(IMG_CACHE_NAME);
       cache.put(request, networkResponse.clone());
-      trimCache(IMG_CACHE_NAME, MAX_IMG_CACHE_ENTRIES);
+      const maxImg = configVal('maxImageCacheEntries', DEFAULT_MAX_IMG_CACHE_ENTRIES);
+      trimCache(IMG_CACHE_NAME, maxImg);
       return networkResponse;
     }
     return networkResponse;
   } catch (error) {
-    // Offline, no cache → return placeholder
     return createOfflineImageResponse();
   }
 }
@@ -492,7 +723,6 @@ async function cacheFirstImageStrategy(request) {
 // ============================================================
 function isValidCachedResponse(response) {
   if (!response || response.status === 0) {
-    // status 0 = opaque response from cross-origin, which is valid for images
     return response && response.type === 'opaque' ? true : false;
   }
   const contentLength = response.headers.get('content-length');
@@ -524,14 +754,14 @@ async function trimCache(cacheName, maxEntries) {
 // ============================================================
 async function triggerDailyCheck() {
   try {
-    const alreadyChecked = await hasCheckedToday();
+    const alreadyChecked = await hasCheckedThisPeriod();
     if (alreadyChecked) {
-      console.log('[SW] Daily check already done, skipping');
+      console.log('[SW] Periodic check already done, skipping');
       return;
     }
 
-    console.log('[SW] First open today — checking server for updates...');
-    await markCheckedToday();
+    console.log('[SW] First open this period — checking server for updates...');
+    await markCheckedThisPeriod();
 
     // 1. Check registration for new service-worker.js
     await self.registration.update();
@@ -548,13 +778,13 @@ async function triggerDailyCheck() {
         console.log('[SW] index.html refreshed in cache');
       }
     } catch {
-      console.warn('[SW] Failed to refresh index.html, will retry tomorrow');
+      console.warn('[SW] Failed to refresh index.html, will retry next period');
     }
 
-    // 3. Check remote config
+    // 3. Check remote config (this also applies config actions)
     await checkRemoteConfig();
   } catch (error) {
-    console.warn('[SW] Daily check failed (will retry tomorrow):', error.message || error);
+    console.warn('[SW] Periodic check failed (will retry):', error.message || error);
   }
 }
 
@@ -574,7 +804,8 @@ self.addEventListener('message', (event) => {
       event.ports[0]?.postMessage({
         version: CACHE_VERSION,
         cacheName: CACHE_NAME,
-        remoteConfigUrl: REMOTE_CONFIG_URL
+        remoteConfigUrl: REMOTE_CONFIG_URL,
+        activeConfig: activeConfig
       });
       break;
 
@@ -603,11 +834,16 @@ self.addEventListener('message', (event) => {
         event.ports[0]?.postMessage({ hasUpdate: false, error: err.message });
       });
       break;
+
+    case 'GET_REMOTE_CONFIG':
+      // Client requests the current active config
+      event.ports[0]?.postMessage({ config: activeConfig });
+      break;
   }
 });
 
 // ============================================================
-// REMOTE CONFIG
+// REMOTE CONFIG - Fetch, apply actions, notify clients
 // ============================================================
 async function checkRemoteConfig() {
   try {
@@ -629,6 +865,13 @@ async function checkRemoteConfig() {
     const config = await response.json();
     console.log('[SW] Remote config received:', config);
 
+    // Persist to CacheStorage (SW-accessible)
+    await saveCachedConfig(config);
+
+    // ---- Execute remote config actions ----
+    await applyRemoteConfigActions(config);
+
+    // ---- Version check ----
     const remoteVersion = config.version || config.cacheVersion || config.appVersion;
     if (remoteVersion && remoteVersion !== CACHE_VERSION) {
       console.log(`[SW] Remote version ${remoteVersion} differs from local ${CACHE_VERSION}, update available`);
@@ -647,9 +890,105 @@ async function checkRemoteConfig() {
 }
 
 // ============================================================
+// APPLY REMOTE CONFIG ACTIONS
+// ============================================================
+async function applyRemoteConfigActions(config) {
+  if (!config) return;
+
+  // ---- Kill Switch ----
+  // Nuclear option: unregister SW + purge all caches
+  if (config.killSwitch === true) {
+    console.warn('[SW] !! KILL SWITCH ACTIVATED !! Unregistering SW and purging all caches');
+    const allCaches = await caches.keys();
+    await Promise.all(allCaches.map((k) => caches.delete(k)));
+    await self.registration.unregister();
+    // Notify all clients to reload (they'll get raw server responses without SW)
+    await broadcastToClients({ type: 'KILL_SWITCH', message: 'Service Worker has been deactivated by remote config.' });
+    return; // Nothing else to do after kill switch
+  }
+
+  // ---- Purge All Caches ----
+  if (config.purgeCache === true) {
+    console.log('[SW] Remote config: purging ALL caches');
+    await Promise.all([
+      caches.delete(CACHE_NAME),
+      caches.delete(IMG_CACHE_NAME),
+      caches.delete(CDN_CACHE_NAME),
+    ]);
+    // Re-create main cache with app shell
+    const cache = await caches.open(CACHE_NAME);
+    await Promise.allSettled(APP_SHELL.map((url) => safeCacheAdd(cache, url)));
+    // Re-save config to the fresh cache
+    await saveCachedConfig(config);
+    console.log('[SW] Cache purge complete, app shell re-cached');
+  }
+
+  // ---- Purge Image Cache Only ----
+  if (config.purgeImageCache === true) {
+    console.log('[SW] Remote config: purging image cache');
+    await caches.delete(IMG_CACHE_NAME);
+  }
+
+  // ---- Force Update (skip rollout, activate waiting SW) ----
+  if (config.forceUpdate === true) {
+    console.log('[SW] Remote config: force update enabled');
+    // If there's a waiting worker, skip waiting immediately
+    const reg = self.registration;
+    if (reg.waiting) {
+      console.log('[SW] Force-activating waiting service worker');
+      reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+    }
+    // Also trigger an update check
+    reg.update().catch(() => {});
+  }
+
+  // ---- Force Reload ----
+  if (config.forceReload === true) {
+    console.log('[SW] Remote config: force reload all clients');
+    await broadcastToClients({ type: 'FORCE_RELOAD', reason: 'Remote config requested reload' });
+  }
+
+  // ---- Maintenance Mode ----
+  // No action needed here — the fetch handler checks activeConfig.maintenance.enabled
+  if (config.maintenance?.enabled) {
+    console.log('[SW] Maintenance mode is ACTIVE:', config.maintenance.message || 'No message');
+  }
+
+  // ---- Notify clients about new config ----
+  // Clients will read from localStorage (written by PWARegister.tsx)
+  // SW also sends a message so clients can react immediately
+  await broadcastToClients({
+    type: 'REMOTE_CONFIG_UPDATED',
+    config: config,
+    version: CACHE_VERSION
+  });
+}
+
+// ============================================================
+// BROADCAST TO ALL CLIENTS
+// ============================================================
+async function broadcastToClients(message) {
+  try {
+    const allClients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const client of allClients) {
+      client.postMessage(message);
+    }
+    console.log(`[SW] Broadcast "${message.type}" to ${allClients.length} client(s)`);
+  } catch (err) {
+    console.warn('[SW] Broadcast failed:', err);
+  }
+}
+
+// ============================================================
 // PUSH NOTIFICATIONS
 // ============================================================
 self.addEventListener('push', (event) => {
+  // Check if push notifications are enabled via feature flags
+  if (activeConfig?.features?.push === false) {
+    console.log('[SW] Push notifications disabled by remote config');
+    return;
+  }
+
   console.log('[SW] Push received');
 
   let data = {
@@ -763,5 +1102,10 @@ async function syncData() {
     throw error;
   }
 }
+
+// ============================================================
+// STARTUP - Load cached config into memory
+// ============================================================
+loadCachedConfig();
 
 console.log(`[SW] Script loaded, version: ${CACHE_VERSION}`);

@@ -105,7 +105,16 @@
   <link rel="dns-prefetch" href="https://commondatastorage.googleapis.com" />
 </head>
 <body style="background-color:#ffffff">
-  <div id="root"></div>
+  <div id="root">
+    <!-- Inline loading skeleton — visible immediately on slow networks, replaced when React renders -->
+    <div id="initial-loader" style="display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:system-ui;background:#ffffff;flex-direction:column;gap:16px">
+      <div style="width:64px;height:64px;border-radius:16px;background:linear-gradient(135deg,#059669,#10b981);display:flex;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(5,150,105,0.3)">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M12 2L12 22M17 7C15 5 13 4 12 4C11 4 9 5 7 7M19 12C17 10 14 9 12 9C10 9 7 10 5 12M20 17C18 15 15 14 12 14C9 14 6 15 4 17"/></svg>
+      </div>
+      <div style="width:24px;height:24px;border:3px solid #d1fae5;border-top-color:#059669;border-radius:50%;animation:s 0.8s linear infinite"></div>
+      <style>#initial-loader{animation:fadeIn 0.3s ease}@keyframes s{to{transform:rotate(360deg)}}@keyframes fadeIn{from{opacity:0}to{opacity:1}}</style>
+    </div>
+  </div>
   <script type="module" src="/src/main.tsx"></script>
 
   <!-- ============================================================

@@ -3,6 +3,7 @@ import { RefreshCw, X, Download } from 'lucide-react';
 import { useLanguage } from '../hooks/useLanguage';
 import { shouldShowUpdate, type RolloutConfig } from '../utils/rollout';
 import { errorMonitor } from '../utils/errorMonitor';
+import { notifyConfigUpdated } from '../hooks/useRemoteConfig';
 
 /**
  * PWA Registration & Update Manager
@@ -27,7 +28,9 @@ import { errorMonitor } from '../utils/errorMonitor';
 // Client only needs to register SW and listen for waiting workers
 
 // Remote config
-const REMOTE_CONFIG_URL = 'https://www.taprootagro.com/taprootagro/global';
+// Default: TaprootAgro central server (free tier).
+// Self-hosted / paid customers can override via VITE_REMOTE_CONFIG_URL at build time.
+const REMOTE_CONFIG_URL = import.meta.env.VITE_REMOTE_CONFIG_URL || 'https://www.taprootagro.com/taprootagro/globalpublic/customer.json';
 const LS_KEY_LAST_REMOTE_CHECK = 'taproot_last_remote_check';
 const LS_KEY_REMOTE_CONFIG = 'taproot_remote_config';
 
@@ -140,6 +143,9 @@ export function PWARegister() {
 
       if (!response.ok) {
         console.warn(`[PWA] Remote config HTTP ${response.status}, keeping current version`);
+        // 4xx = file doesn't exist, don't waste bandwidth retrying today
+        // 5xx = server error, also skip retrying within the same day
+        localStorage.setItem(LS_KEY_LAST_REMOTE_CHECK, today);
         return;
       }
 
@@ -191,6 +197,9 @@ export function PWARegister() {
       } else {
         console.log(`[PWA] Version up to date: ${localVersion || 'unknown'}`);
       }
+
+      // Notify the config update
+      notifyConfigUpdated(config);
     } catch (error: any) {
       // Network error, timeout, offline — silently ignore
       if (error?.name === 'AbortError') {
@@ -304,6 +313,41 @@ export function PWARegister() {
     };
     navigator.serviceWorker.addEventListener('controllerchange', onControllerChange);
 
+    // ---- Listen for SW broadcast messages (remote config actions) ----
+    const onSWMessage = (event: MessageEvent) => {
+      const { type } = event.data || {};
+      switch (type) {
+        case 'FORCE_RELOAD':
+          console.log('[PWA] Force reload requested by remote config');
+          if (!reloading) {
+            reloading = true;
+            window.location.reload();
+          }
+          break;
+        case 'KILL_SWITCH':
+          console.log('[PWA] Kill switch activated, reloading without SW');
+          if (!reloading) {
+            reloading = true;
+            window.location.reload();
+          }
+          break;
+        case 'REMOTE_CONFIG_UPDATED':
+          console.log('[PWA] Remote config updated via SW broadcast');
+          if (event.data.config) {
+            try {
+              localStorage.setItem(LS_KEY_REMOTE_CONFIG, JSON.stringify(event.data.config));
+            } catch { /* ignore */ }
+            notifyConfigUpdated(event.data.config);
+            // Configure error reporting if present
+            if (event.data.config.errorReportUrl) {
+              errorMonitor.setReportEndpoint(event.data.config.errorReportUrl);
+            }
+          }
+          break;
+      }
+    };
+    navigator.serviceWorker.addEventListener('message', onSWMessage);
+
     // Register after page load to not block rendering
     if (document.readyState === 'complete') {
       registerSW();
@@ -313,6 +357,7 @@ export function PWARegister() {
 
     return () => {
       navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange);
+      navigator.serviceWorker.removeEventListener('message', onSWMessage);
     };
   }, [checkRemoteConfig]);
 

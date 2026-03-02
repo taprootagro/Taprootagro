@@ -37,7 +37,7 @@ export function VideoFeedPage({ onClose, startIndex = 0 }: VideoFeedPageProps) {
 
   // P1 fix: isMuted 初始为 true，移动端自动播放要求静音
   const [currentIndex, setCurrentIndex] = useState(() => Math.min(startIndex, Math.max(0, (liveStreams.length > 0 ? liveStreams.length : 3) - 1)));
-  const [isMuted, setIsMuted] = useState(true);
+  const [isMuted] = useState(true);
   const [isPlaying, setIsPlaying] = useState(true);
   const [likedVideos, setLikedVideos] = useState<Set<number>>(new Set());
   const [touchStart, setTouchStart] = useState(0);
@@ -208,26 +208,6 @@ export function VideoFeedPage({ onClose, startIndex = 0 }: VideoFeedPageProps) {
         willChange: animPhase === 'visible' ? 'auto' : 'transform, opacity',
       }}
     >
-      {/* 静音/取消静音按钮 */}
-      <button
-        onClick={() => setIsMuted(m => !m)}
-        className="absolute top-4 right-12 z-30 w-9 h-9 bg-black/50 backdrop-blur-sm rounded-full flex items-center justify-center active:scale-90 transition-transform"
-        aria-label={isMuted ? "Unmute" : "Mute"}
-      >
-        {isMuted ? (
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-            <line x1="23" y1="9" x2="17" y2="15" />
-            <line x1="17" y1="9" x2="23" y2="15" />
-          </svg>
-        ) : (
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-            <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" />
-          </svg>
-        )}
-      </button>
-
       {/* 视频容器 */}
       <div className="relative flex-1 w-full overflow-hidden">
         {videos.map((video, index) => {
@@ -337,21 +317,19 @@ export function VideoFeedPage({ onClose, startIndex = 0 }: VideoFeedPageProps) {
                           </div>
                         </button>
 
-                        <button className="flex flex-col items-center gap-0.5 active:scale-95 transition-transform">
+                        <button className="flex flex-col items-center active:scale-95 transition-transform">
                           <div className="w-11 h-11 bg-white/25 backdrop-blur-md rounded-full flex items-center justify-center border border-white/20">
                             <Share2 className="w-5 h-5 text-white" />
                           </div>
-                          <span className="text-white text-xs drop-shadow-lg font-medium">{v?.share || '分享'}</span>
                         </button>
 
                         <button
                           onClick={() => alert(v?.navigationWip || '一键导航去大田（功能开发中）')}
-                          className="flex flex-col items-center gap-0.5 active:scale-95 transition-transform"
+                          className="flex flex-col items-center active:scale-95 transition-transform"
                         >
                           <div className="w-11 h-11 bg-emerald-600/95 backdrop-blur-md rounded-full flex items-center justify-center border border-emerald-400/30 shadow-lg">
                             <MapPin className="w-5 h-5 text-white" />
                           </div>
-                          <span className="text-white text-xs drop-shadow-lg font-medium">{v?.navigation || '导航'}</span>
                         </button>
                       </div>
                     </div>
@@ -378,9 +356,12 @@ export function VideoFeedPage({ onClose, startIndex = 0 }: VideoFeedPageProps) {
         ))}
       </div>
 
-      {/* 底部Dock栏 */}
-      <div className="flex-shrink-0 bg-black/80 backdrop-blur-sm border-t border-white/10 z-20 safe-bottom">
-        <div className="flex justify-center items-center pt-1.5 pb-1">
+      {/* 底部Dock栏 - 直播页全黑背景，安全区大幅削减让关闭按钮更贴底 */}
+      <div
+        className="flex-shrink-0 bg-black border-t border-white/10 z-20"
+        style={{ paddingBottom: 'max(calc(env(safe-area-inset-bottom, 0px) - 30px), 0px)' }}
+      >
+        <div className="flex justify-center items-center pt-1 pb-0">
           <button
             onClick={handleCloseWithAnim}
             className="flex items-center justify-center p-2 active:scale-95 transition-transform"
