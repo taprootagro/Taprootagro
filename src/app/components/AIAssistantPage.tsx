@@ -274,8 +274,6 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
     setDeepAnalyzing(false);
     setDeepError('');
     setCopied(false);
-    if (fileRef.current) fileRef.current.value = '';
-    if (cameraRef.current) cameraRef.current.value = '';
   };
 
   const enterDemo = () => {

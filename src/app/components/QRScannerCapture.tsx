@@ -42,8 +42,6 @@ export function QRScannerCapture({ onScan, onClose }: QRScannerCaptureProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number>(0);
   const scannedRef = useRef(false);
-  const cameraInputRef = useRef<HTMLInputElement>(null);
-  const albumInputRef = useRef<HTMLInputElement>(null);
 
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [torchOn, setTorchOn] = useState(false);
@@ -240,10 +238,6 @@ export function QRScannerCapture({ onScan, onClose }: QRScannerCaptureProps) {
       }}
     >
       <canvas ref={canvasRef} className="hidden" />
-
-      {/* 隐藏的 file inputs — 保留作为 SafeFilePicker 方案B的备用 ref */}
-      <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handleFileChange} className="hidden" />
-      <input ref={albumInputRef} type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
 
       {/* Top bar */}
       <div className="flex justify-between items-center p-4 bg-black/60 backdrop-blur-sm z-10">
