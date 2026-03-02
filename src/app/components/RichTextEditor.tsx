@@ -1,6 +1,5 @@
 import React, { useRef, useCallback, useEffect, useState } from "react";
 import { Bold, Italic, Underline, List, ListOrdered, ImagePlus, Undo2, Redo2, RemoveFormatting, AlignLeft, AlignCenter, AlignRight } from "lucide-react";
-import { safeDynamicInputClick } from "../utils/safeInputClick";
 
 interface RichTextEditorProps {
   label: string;
@@ -164,8 +163,7 @@ export function RichTextEditor({ label, value, onChange, placeholder, minHeight 
         emitChange();
       }
     };
-    // setTimeout 兜底国产浏览器拦截 input.click()
-    safeDynamicInputClick(input);
+    input.click();
   }, [emitChange]);
 
   const ToolButton = ({ onClick, title, children, className = "" }: { onClick: () => void; title: string; children: React.ReactNode; className?: string }) => (

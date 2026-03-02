@@ -7,7 +7,6 @@ import { useHomeConfig } from "../hooks/useHomeConfig";
 import { cloudAIService, type DeepAnalysisResult } from "../services/CloudAIService";
 import { cloudAIGuard } from "../utils/cloudAIGuard";
 import { compressImageFile, COMPRESS_PRESETS } from "../utils/imageCompressor";
-import { SafeFilePicker } from "./SafeFilePicker";
 
 interface AIAssistantPageProps {
   onClose: () => void;
@@ -274,6 +273,8 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
     setDeepAnalyzing(false);
     setDeepError('');
     setCopied(false);
+    if (fileRef.current) fileRef.current.value = '';
+    if (cameraRef.current) cameraRef.current.value = '';
   };
 
   const enterDemo = () => {
@@ -517,20 +518,21 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
 
                 {!isDemo && (
                   <>
-                    <SafeFilePicker accept="image/*" capture="environment" onChange={onFile}>
-                      <div
-                        className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white py-3.5 rounded-2xl active:scale-[0.97] transition-transform"
-                      >
-                        <Camera className="w-5 h-5" /><span className="font-medium">{a.takePhoto}</span>
-                      </div>
-                    </SafeFilePicker>
-                    <SafeFilePicker accept="image/*" onChange={onFile}>
-                      <div
-                        className="w-full flex items-center justify-center gap-2 bg-white border-2 border-emerald-500 text-emerald-600 py-3.5 rounded-2xl active:scale-[0.97] transition-transform"
-                      >
-                        <Upload className="w-5 h-5" /><span className="font-medium">{a.selectAlbum}</span>
-                      </div>
-                    </SafeFilePicker>
+                    <button
+                      onClick={() => cameraRef.current?.click()}
+                      className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white py-3.5 rounded-2xl active:scale-[0.97] transition-transform"
+                    >
+                      <Camera className="w-5 h-5" /><span className="font-medium">{a.takePhoto}</span>
+                    </button>
+                    <button
+                      onClick={() => fileRef.current?.click()}
+                      className="w-full flex items-center justify-center gap-2 bg-white border-2 border-emerald-500 text-emerald-600 py-3.5 rounded-2xl active:scale-[0.97] transition-transform"
+                    >
+                      <Upload className="w-5 h-5" /><span className="font-medium">{a.selectAlbum}</span>
+                    </button>
+                    {/* 国产浏览器兼容：移除capture属性 */}
+                    <input ref={cameraRef} type="file" accept="image/*" onChange={onFile} className="hidden" />
+                    <input ref={fileRef} type="file" accept="image/*" onChange={onFile} className="hidden" />
                   </>
                 )}
 

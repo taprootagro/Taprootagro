@@ -6,7 +6,6 @@ import {
   DollarSign, X, Edit, Trash2, Download, Upload, ChevronLeft, ChevronRight,
   Database, Shield, CheckCircle
 } from "lucide-react";
-import { SafeFilePicker } from "./SafeFilePicker";
 
 interface StatementPageProps {
   onClose: () => void;
@@ -685,22 +684,29 @@ export function StatementPage({ onClose }: StatementPageProps) {
                 </button>
 
                 {/* 导入按钮 */}
-                <SafeFilePicker accept=".json" onChange={(e) => {
-                  handleImport(e);
-                  setShowDataPanel(false);
-                }}>
-                  <div
-                    className="w-full flex items-center gap-3 px-4 py-3 bg-orange-50 rounded-xl active:scale-95 transition-transform"
-                  >
-                    <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center">
-                      <Upload className="w-5 h-5 text-orange-600" />
-                    </div>
-                    <div className="text-left">
-                      <p className="text-orange-800 font-medium text-sm">{ts("importData")}</p>
-                      <p className="text-orange-500 text-xs">JSON</p>
-                    </div>
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full flex items-center gap-3 px-4 py-3 bg-orange-50 rounded-xl active:scale-95 transition-transform"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center">
+                    <Upload className="w-5 h-5 text-orange-600" />
                   </div>
-                </SafeFilePicker>
+                  <div className="text-left">
+                    <p className="text-orange-800 font-medium text-sm">{ts("importData")}</p>
+                    <p className="text-orange-500 text-xs">JSON</p>
+                  </div>
+                </button>
+
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".json"
+                  onChange={(e) => {
+                    handleImport(e);
+                    setShowDataPanel(false);
+                  }}
+                  className="hidden"
+                />
               </div>
             </div>
           </div>
