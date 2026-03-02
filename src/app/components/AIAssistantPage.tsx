@@ -7,7 +7,7 @@ import { useHomeConfig } from "../hooks/useHomeConfig";
 import { cloudAIService, type DeepAnalysisResult } from "../services/CloudAIService";
 import { cloudAIGuard } from "../utils/cloudAIGuard";
 import { compressImageFile, COMPRESS_PRESETS } from "../utils/imageCompressor";
-import { safeInputClick } from "../utils/cameraUtils";
+import { safeInputClick, shouldUseCapture } from "../utils/cameraUtils";
 
 interface AIAssistantPageProps {
   onClose: () => void;
@@ -22,6 +22,9 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
 
   // Cloud-only mode: local model disabled, use cloud AI directly
   const cloudOnlyMode = config.aiModelConfig?.enableLocalModel === false;
+  
+  // 动态检测是否应该使用 capture 属性
+  const useCapture = shouldUseCapture();
 
   // ===== 演示数据 =====
   const DEMO_SAMPLES = [
@@ -531,8 +534,15 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
                     >
                       <Upload className="w-5 h-5" /><span className="font-medium">{a.selectAlbum}</span>
                     </button>
-                    {/* 国产浏览器兼容：移除capture属性 */}
-                    <input ref={cameraRef} type="file" accept="image/*" onChange={onFile} className="hidden" />
+                    {/* 智能适配capture属性：国产浏览器PWA模式不使用，其他环境使用 */}
+                    <input 
+                      ref={cameraRef} 
+                      type="file" 
+                      accept="image/*" 
+                      onChange={onFile} 
+                      className="hidden" 
+                      {...(useCapture && { capture: "environment" as const })}
+                    />
                     <input ref={fileRef} type="file" accept="image/*" onChange={onFile} className="hidden" />
                   </>
                 )}

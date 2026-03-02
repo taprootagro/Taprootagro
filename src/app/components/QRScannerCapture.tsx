@@ -1,7 +1,7 @@
 import { useRef, useState, useEffect, useCallback } from "react";
 import { X, ScanLine, Flashlight, FlashlightOff, AlertTriangle, Camera, ImageIcon, Loader } from "lucide-react";
 import { useLanguage } from "../hooks/useLanguage";
-import { safeInputClick } from "../utils/cameraUtils";
+import { safeInputClick, shouldUseCapture } from "../utils/cameraUtils";
 
 // ── BarcodeDetector polyfill type ──────────────────────────────
 interface BarcodeDetectorResult {
@@ -53,6 +53,9 @@ export function QRScannerCapture({ onScan, onClose }: QRScannerCaptureProps) {
   const [cameraFailed, setCameraFailed] = useState(false);
   const [scanningImage, setScanningImage] = useState(false);
   const [imageError, setImageError] = useState("");
+  
+  // 动态检测是否应该使用 capture 属性
+  const useCapture = shouldUseCapture();
 
   // 过渡动画
   const [animPhase, setAnimPhase] = useState<"entering" | "visible" | "leaving">("entering");
@@ -241,8 +244,15 @@ export function QRScannerCapture({ onScan, onClose }: QRScannerCaptureProps) {
     >
       <canvas ref={canvasRef} className="hidden" />
 
-      {/* 隐藏的 file inputs - 国产浏览器兼容：移除capture属性 */}
-      <input ref={cameraInputRef} type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
+      {/* 隐藏的 file inputs - 智能适配capture属性 */}
+      <input 
+        ref={cameraInputRef} 
+        type="file" 
+        accept="image/*" 
+        {...(useCapture && { capture: "environment" })}
+        onChange={handleFileChange} 
+        className="hidden" 
+      />
       <input ref={albumInputRef} type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
 
       {/* Top bar */}
@@ -284,7 +294,7 @@ export function QRScannerCapture({ onScan, onClose }: QRScannerCaptureProps) {
             ) : (
               <div className="flex flex-col gap-3">
                 <button
-                  onClick={() => safeInputClick(cameraInputRef.current)}
+                  onClick={() => safeInputClick(cameraInputRef.current, useCapture)}
                   className="w-full flex items-center justify-center gap-2 bg-emerald-600 text-white py-3.5 rounded-2xl active:scale-[0.97] transition-transform"
                 >
                   <Camera className="w-5 h-5" />

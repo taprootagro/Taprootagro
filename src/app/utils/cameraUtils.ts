@@ -39,6 +39,47 @@ export function supportsCaptureAttribute(): boolean {
 }
 
 /**
+ * 检测是否应该使用 capture 属性
+ * 
+ * 策略：
+ * - 国产浏览器PWA模式：不使用（兼容性优先）
+ * - iOS Safari：使用（用户体验优先）
+ * - Chrome Android：使用（用户体验优先）
+ * - 其他：根据设备判断
+ */
+export function shouldUseCapture(): boolean {
+  const ua = navigator.userAgent.toLowerCase();
+  
+  // 检测是否在PWA模式下运行
+  const isPWA = window.matchMedia('(display-mode: standalone)').matches ||
+                (window.navigator as any).standalone === true ||
+                document.referrer.includes('android-app://');
+  
+  // 国产浏览器 + PWA模式 = 不使用capture（会被拦截）
+  if (isChineseBrowser() && isPWA) {
+    return false;
+  }
+  
+  // iOS Safari：始终支持
+  if (/iphone|ipad|ipod/.test(ua) && /safari/.test(ua)) {
+    return true;
+  }
+  
+  // Chrome Android（非国产）：支持
+  if (/android/.test(ua) && /chrome/.test(ua) && !isChineseBrowser()) {
+    return true;
+  }
+  
+  // 国产浏览器非PWA模式：可以尝试使用
+  if (isChineseBrowser() && !isPWA) {
+    return true;
+  }
+  
+  // 默认：不使用（最安全）
+  return false;
+}
+
+/**
  * 检测是否为国产浏览器
  */
 export function isChineseBrowser(): boolean {
@@ -49,77 +90,24 @@ export function isChineseBrowser(): boolean {
 /**
  * 使用原生事件触发 input.click()，绕过React合成事件拦截
  * 
- * 国产浏览器在React合成事件中会静默拦截文件选择器，
- * 必须使用原生 MouseEvent 才能触发
+ * 关键：必须在用户手势的**同步代码**中立即触发，不能有任何延迟！
+ * 否则浏览器会认为"这不是用户交互"而拒绝弹出文件选择器
  * 
  * @param inputElement - file input 元素
- * @param delay - 延迟触发时间（ms），国产浏览器需要至少1500ms
  */
-export function safeInputClick(inputElement: HTMLInputElement | null, delay = 1500): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (!inputElement) {
-      reject(new Error('Input element is null'));
-      return;
-    }
+export function safeInputClick(inputElement: HTMLInputElement | null): void {
+  if (!inputElement) {
+    console.warn('[safeInputClick] Input element is null');
+    return;
+  }
 
-    // 对于国产浏览器，使用更长延迟
-    const actualDelay = isChineseBrowser() ? Math.max(delay, 1500) : delay;
-
-    setTimeout(() => {
-      try {
-        // 方法1: 原生 MouseEvent（最兼容）
-        const event = new MouseEvent('click', {
-          bubbles: true,
-          cancelable: true,
-          view: window,
-        });
-        inputElement.dispatchEvent(event);
-
-        // 方法2: 如果方法1失败，直接调用 click
-        setTimeout(() => {
-          inputElement.click();
-          resolve();
-        }, 100);
-      } catch (err) {
-        reject(err);
-      }
-    }, actualDelay);
-  });
-}
-
-/**
- * 渐进式重试策略：500ms → 1000ms → 1500ms
- * 最多重试3次
- */
-export function safeInputClickWithRetry(
-  inputElement: HTMLInputElement | null,
-  onRetry?: (attemptNum: number) => void
-): Promise<void> {
-  const delays = [500, 1000, 1500];
-  
-  return new Promise((resolve, reject) => {
-    let attemptCount = 0;
-
-    const tryClick = () => {
-      attemptCount++;
-      const currentDelay = delays[Math.min(attemptCount - 1, delays.length - 1)];
-      
-      onRetry?.(attemptCount);
-      
-      safeInputClick(inputElement, currentDelay)
-        .then(resolve)
-        .catch((err) => {
-          if (attemptCount >= 3) {
-            reject(err);
-          } else {
-            // 等待一段时间后重试
-            setTimeout(tryClick, currentDelay);
-          }
-        });
-    };
-
-    tryClick();
-  });
+  try {
+    // 🔥 关键：必须立即触发，不能有任何延迟！
+    // 在用户点击事件的同步代码中执行，保持"用户手势上下文"
+    inputElement.click();
+  } catch (error) {
+    console.error('[safeInputClick] Failed to trigger click:', error);
+  }
 }
 
 /**
@@ -186,7 +174,7 @@ export function captureVideoFrame(video: HTMLVideoElement, quality = 0.85): stri
 }
 
 /**
- * 检测当前运行模式
+ * 检测前运行模式
  */
 export function getPWADisplayMode(): 'standalone' | 'browser' {
   // @ts-ignore - 检测 iOS standalone
