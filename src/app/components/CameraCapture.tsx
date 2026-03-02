@@ -2,6 +2,7 @@ import { useRef, useState, useEffect, useCallback } from 'react';
 import { Camera, ImageIcon, X } from 'lucide-react';
 import { useLanguage } from '../hooks/useLanguage';
 import { compressImageFile, COMPRESS_PRESETS } from '../utils/imageCompressor';
+import { safeInputClick } from '../utils/safeInputClick';
 
 interface CameraCaptureProps {
   onCapture?: (imageData: string) => void;
@@ -116,7 +117,7 @@ export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
           {/* 拍照 */}
           <button
             className="w-full flex items-center justify-center gap-3 py-4 active:bg-gray-50 transition-colors border-t border-gray-100"
-            onClick={() => cameraInputRef.current?.click()}
+            onClick={() => safeInputClick(cameraInputRef)}
           >
             <Camera className="w-5 h-5 text-emerald-600" />
             <span className="text-emerald-600" style={{ fontSize: '17px' }}>{texts.takePhoto}</span>
@@ -125,7 +126,7 @@ export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
           {/* 从相册选择 */}
           <button
             className="w-full flex items-center justify-center gap-3 py-4 active:bg-gray-50 transition-colors border-t border-gray-100"
-            onClick={() => albumInputRef.current?.click()}
+            onClick={() => safeInputClick(albumInputRef)}
           >
             <ImageIcon className="w-5 h-5 text-emerald-600" />
             <span className="text-emerald-600" style={{ fontSize: '17px' }}>{texts.chooseFromAlbum}</span>

@@ -6,6 +6,7 @@ import {
   DollarSign, X, Edit, Trash2, Download, Upload, ChevronLeft, ChevronRight,
   Database, Shield, CheckCircle
 } from "lucide-react";
+import { safeInputClick } from "../utils/safeInputClick";
 
 interface StatementPageProps {
   onClose: () => void;
@@ -685,7 +686,7 @@ export function StatementPage({ onClose }: StatementPageProps) {
 
                 {/* 导入按钮 */}
                 <button
-                  onClick={() => fileInputRef.current?.click()}
+                  onClick={() => safeInputClick(fileInputRef)}
                   className="w-full flex items-center gap-3 px-4 py-3 bg-orange-50 rounded-xl active:scale-95 transition-transform"
                 >
                   <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center">

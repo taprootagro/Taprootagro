@@ -163,7 +163,8 @@ export function RichTextEditor({ label, value, onChange, placeholder, minHeight 
         emitChange();
       }
     };
-    input.click();
+    // setTimeout 兜底国产浏览器拦截 input.click()
+    setTimeout(() => input.click(), 10);
   }, [emitChange]);
 
   const ToolButton = ({ onClick, title, children, className = "" }: { onClick: () => void; title: string; children: React.ReactNode; className?: string }) => (

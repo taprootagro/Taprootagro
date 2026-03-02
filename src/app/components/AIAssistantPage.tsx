@@ -7,6 +7,7 @@ import { useHomeConfig } from "../hooks/useHomeConfig";
 import { cloudAIService, type DeepAnalysisResult } from "../services/CloudAIService";
 import { cloudAIGuard } from "../utils/cloudAIGuard";
 import { compressImageFile, COMPRESS_PRESETS } from "../utils/imageCompressor";
+import { safeInputClick } from "../utils/safeInputClick";
 
 interface AIAssistantPageProps {
   onClose: () => void;
@@ -519,13 +520,13 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
                 {!isDemo && (
                   <>
                     <button
-                      onClick={() => cameraRef.current?.click()}
+                      onClick={() => safeInputClick(cameraRef)}
                       className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white py-3.5 rounded-2xl active:scale-[0.97] transition-transform"
                     >
                       <Camera className="w-5 h-5" /><span className="font-medium">{a.takePhoto}</span>
                     </button>
                     <button
-                      onClick={() => fileRef.current?.click()}
+                      onClick={() => safeInputClick(fileRef)}
                       className="w-full flex items-center justify-center gap-2 bg-white border-2 border-emerald-500 text-emerald-600 py-3.5 rounded-2xl active:scale-[0.97] transition-transform"
                     >
                       <Upload className="w-5 h-5" /><span className="font-medium">{a.selectAlbum}</span>
