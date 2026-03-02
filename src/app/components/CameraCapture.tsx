@@ -2,7 +2,6 @@ import { useRef, useState, useEffect, useCallback } from 'react';
 import { Camera, ImageIcon, X } from 'lucide-react';
 import { useLanguage } from '../hooks/useLanguage';
 import { compressImageFile, COMPRESS_PRESETS } from '../utils/imageCompressor';
-import { safeInputClick, isChineseBrowser, getRecommendedCameraStrategy } from '../utils/cameraUtils';
 
 interface CameraCaptureProps {
   onCapture?: (imageData: string) => void;
@@ -12,14 +11,12 @@ interface CameraCaptureProps {
 /**
  * CameraCapture — PWA 兼容的图片采集组件
  * 
- * 已优化国产手机（小米/OPPO/vivo）兼容性：
- * - 移除 capture="environment"（国产浏览器不支持）
- * - 使用原生事件触发 input.click()
- * - 两个 input 都用 accept="image/*"，让系统决定调用相机还是相册
+ * 不再使用 getUserMedia（PWA standalone 模式下很多设备不支持），
+ * 改为调用 <input type="file"> 触发系统原生的拍照/相册选择器。
  * 
  * 展示为底部 Action Sheet，两个选项：
- * 1. 拍照（优先调起相机）
- * 2. 从相册选择
+ * 1. 拍照（capture="environment" 调起后置相机）
+ * 2. 从相册选择（纯 file input）
  * 
  * 兼容性：iOS Safari / Android Chrome / 小米浏览器 / Samsung Internet
  * 在 PWA standalone 模式下均可正常工作。
@@ -31,8 +28,6 @@ export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
 
   // 过渡动画
   const [animPhase, setAnimPhase] = useState<'entering' | 'visible' | 'leaving'>('entering');
-  const [isClicking, setIsClicking] = useState(false); // 防止重复点击
-
   useEffect(() => {
     const raf = requestAnimationFrame(() => setAnimPhase('visible'));
     return () => cancelAnimationFrame(raf);
@@ -121,12 +116,7 @@ export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
           {/* 拍照 */}
           <button
             className="w-full flex items-center justify-center gap-3 py-4 active:bg-gray-50 transition-colors border-t border-gray-100"
-            onClick={() => {
-              if (isClicking) return;
-              setIsClicking(true);
-              safeInputClick(cameraInputRef.current);
-              setTimeout(() => setIsClicking(false), 500);
-            }}
+            onClick={() => cameraInputRef.current?.click()}
           >
             <Camera className="w-5 h-5 text-emerald-600" />
             <span className="text-emerald-600" style={{ fontSize: '17px' }}>{texts.takePhoto}</span>
@@ -135,12 +125,7 @@ export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
           {/* 从相册选择 */}
           <button
             className="w-full flex items-center justify-center gap-3 py-4 active:bg-gray-50 transition-colors border-t border-gray-100"
-            onClick={() => {
-              if (isClicking) return;
-              setIsClicking(true);
-              safeInputClick(albumInputRef.current);
-              setTimeout(() => setIsClicking(false), 500);
-            }}
+            onClick={() => albumInputRef.current?.click()}
           >
             <ImageIcon className="w-5 h-5 text-emerald-600" />
             <span className="text-emerald-600" style={{ fontSize: '17px' }}>{texts.chooseFromAlbum}</span>
@@ -159,19 +144,16 @@ export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
       </div>
 
       {/* 隐藏的 file inputs */}
-      {/* 国产浏览器兼容方案：移除 capture 属性，让系统自动决定调用相机/相册 */}
-      {/* 
-        原因：小米/OPPO/vivo浏览器在PWA桌面模式下不支持 capture="environment"
-        解决方案：两个input都用 accept="image/*"，通过按钮文案引导用户
-        系统会根据设备能力自动提供相机/相册选项
-      */}
+      {/* capture="environment" 直接调起后置相机，绕过 getUserMedia 权限问题 */}
       <input
         ref={cameraInputRef}
         type="file"
         accept="image/*"
+        capture="environment"
         onChange={handleFile}
         className="hidden"
       />
+      {/* 无 capture 属性：弹出系统相册选择器 */}
       <input
         ref={albumInputRef}
         type="file"

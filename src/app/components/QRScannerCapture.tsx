@@ -1,8 +1,6 @@
 import { useRef, useState, useEffect, useCallback } from "react";
 import { X, ScanLine, Flashlight, FlashlightOff, AlertTriangle, Camera, ImageIcon, Loader } from "lucide-react";
 import { useLanguage } from "../hooks/useLanguage";
-import { safeInputClick, shouldUseCapture } from "../utils/cameraUtils";
-import { CameraOverlay } from "./CameraOverlay";
 
 // ── BarcodeDetector polyfill type ──────────────────────────────
 interface BarcodeDetectorResult {
@@ -54,9 +52,6 @@ export function QRScannerCapture({ onScan, onClose }: QRScannerCaptureProps) {
   const [cameraFailed, setCameraFailed] = useState(false);
   const [scanningImage, setScanningImage] = useState(false);
   const [imageError, setImageError] = useState("");
-  
-  // 动态检测是否应该使用 capture 属性
-  const useCapture = shouldUseCapture();
 
   // 过渡动画
   const [animPhase, setAnimPhase] = useState<"entering" | "visible" | "leaving">("entering");
@@ -245,15 +240,8 @@ export function QRScannerCapture({ onScan, onClose }: QRScannerCaptureProps) {
     >
       <canvas ref={canvasRef} className="hidden" />
 
-      {/* 隐藏的 file inputs - 智能适配capture属性 */}
-      <input 
-        ref={cameraInputRef} 
-        type="file" 
-        accept="image/*" 
-        {...(useCapture && { capture: "environment" })}
-        onChange={handleFileChange} 
-        className="hidden" 
-      />
+      {/* 隐藏的 file inputs */}
+      <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handleFileChange} className="hidden" />
       <input ref={albumInputRef} type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
 
       {/* Top bar */}
@@ -295,14 +283,14 @@ export function QRScannerCapture({ onScan, onClose }: QRScannerCaptureProps) {
             ) : (
               <div className="flex flex-col gap-3">
                 <button
-                  onClick={() => safeInputClick(cameraInputRef.current, useCapture)}
+                  onClick={() => cameraInputRef.current?.click()}
                   className="w-full flex items-center justify-center gap-2 bg-emerald-600 text-white py-3.5 rounded-2xl active:scale-[0.97] transition-transform"
                 >
                   <Camera className="w-5 h-5" />
                   <span>{ct("拍照识别", "Take Photo")}</span>
                 </button>
                 <button
-                  onClick={() => safeInputClick(albumInputRef.current)}
+                  onClick={() => albumInputRef.current?.click()}
                   className="w-full flex items-center justify-center gap-2 bg-white/10 text-white py-3.5 rounded-2xl active:scale-[0.97] transition-transform border border-white/20"
                 >
                   <ImageIcon className="w-5 h-5" />
@@ -381,7 +369,7 @@ export function QRScannerCapture({ onScan, onClose }: QRScannerCaptureProps) {
               {/* 相册入口 — 即使相机正常也提供 */}
               <div className="flex justify-center">
                 <button
-                  onClick={() => safeInputClick(albumInputRef.current)}
+                  onClick={() => albumInputRef.current?.click()}
                   className="flex items-center gap-2 bg-white/15 backdrop-blur-sm text-white/90 px-5 py-2.5 rounded-full active:scale-95 transition-transform border border-white/20"
                 >
                   <ImageIcon className="w-4 h-4" />

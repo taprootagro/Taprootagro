@@ -49,21 +49,6 @@ function detectIOS(): boolean {
   return false;
 }
 
-/**
- * 检测 Android 设备（排除 iOS 和纯桌面）
- */
-function detectAndroid(): boolean {
-  const ua = navigator.userAgent;
-  // 明确 Android UA
-  if (/Android/i.test(ua)) return true;
-  // 移动设备但非 iOS（兜底：一些国产浏览器 UA 不标准）
-  if (/Mobile|Tablet/i.test(ua) && !detectIOS()) return true;
-  return false;
-}
-
-// 超时兜底时间：3 秒内没收到 beforeinstallprompt 就显示手动引导
-const ANDROID_FALLBACK_TIMEOUT = 3000;
-
 // ================================================================
 // 模块级 beforeinstallprompt 事件捕获
 // 解决：事件在 React 挂载之前触发导致被错过的问题
@@ -84,7 +69,6 @@ if (typeof window !== 'undefined') {
 export function useInstallPrompt() {
   const [showBanner, setShowBanner] = useState(false);
   const [platform, setPlatform] = useState<InstallPlatform>(null);
-  const [manualInstall, setManualInstall] = useState(false);
   const deferredPrompt = useRef<BeforeInstallPromptEvent | null>(null);
 
   useEffect(() => {
@@ -94,7 +78,9 @@ export function useInstallPrompt() {
 
     // ---- iOS：所有浏览器都显示引导 ----
     if (isIOS) {
+      // 延迟 1.5s 让用户先看到内容，但用 module 级 flag 防止重入丢失
       const timer = setTimeout(() => {
+        // 再次检查（防止期间用户安装了或关了）
         if (shouldShowBanner()) {
           setPlatform('ios');
           setShowBanner(true);
@@ -109,35 +95,20 @@ export function useInstallPrompt() {
       deferredPrompt.current = _capturedPromptEvent;
       setPlatform('android');
       setShowBanner(true);
-      return;
+      return; // 不需要再监听
     }
 
     // 2) 还没捕获到，注册回调等待
-    let gotPrompt = false;
     const handler = (e: BeforeInstallPromptEvent) => {
-      gotPrompt = true;
       deferredPrompt.current = e;
       if (!detectStandalone()) {
-        setManualInstall(false);
         setPlatform('android');
         setShowBanner(true);
       }
     };
     _promptListeners.add(handler);
 
-    // 3) 超时兜底：3 秒后仍无事件 → Android 设备显示手动安装引导
-    let fallbackTimer: ReturnType<typeof setTimeout> | null = null;
-    if (detectAndroid()) {
-      fallbackTimer = setTimeout(() => {
-        if (!gotPrompt && !_capturedPromptEvent && shouldShowBanner()) {
-          setManualInstall(true);
-          setPlatform('android');
-          setShowBanner(true);
-        }
-      }, ANDROID_FALLBACK_TIMEOUT);
-    }
-
-    // 4) 同时也监听 appinstalled
+    // 3) 同时也监听 appinstalled
     const installedHandler = () => {
       setShowBanner(false);
       deferredPrompt.current = null;
@@ -150,7 +121,6 @@ export function useInstallPrompt() {
     return () => {
       _promptListeners.delete(handler);
       window.removeEventListener('appinstalled', installedHandler);
-      if (fallbackTimer) clearTimeout(fallbackTimer);
     };
   }, []);
 
@@ -179,5 +149,5 @@ export function useInstallPrompt() {
     deferredPrompt.current = null;
   }, []);
 
-  return { showBanner, platform, manualInstall, triggerInstall, dismiss };
+  return { showBanner, platform, triggerInstall, dismiss };
 }
