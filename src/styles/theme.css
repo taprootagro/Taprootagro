@@ -205,27 +205,29 @@
     height: -webkit-fill-available; /* iOS Safari 14-15：用可用空间高度 */
   }
 
+  /* 底部安全区：浏览器模式下只用极小间距（浏览器工具栏已处理安全区）
+   * 仅 PWA standalone 模式才启用完整 env(safe-area-inset-bottom)
+   * 避免浏览器模式下双重间距导致 dock 区域过高 */
   .safe-bottom {
-    padding-bottom: 4px; /* 极小基础间距，与 X/Twitter 一致 */
-    padding-bottom: max(env(safe-area-inset-bottom, 0px), 4px);
+    padding-bottom: 4px;
   }
 
-  /* iOS PWA 模式下的底部安全区处理 */
-  @supports (padding-bottom: max(env(safe-area-inset-bottom), 4px)) {
+  /* PWA standalone 模式：浏览器工具栏不存在，需要自行处理安全区 */
+  @media (display-mode: standalone) {
     .safe-bottom {
       padding-bottom: max(env(safe-area-inset-bottom, 0px), 4px);
     }
   }
 
   /* 主内容区底部padding，为导航栏留出空间
-   * 计算：nav content (44px = 10+28+6) + safe-bottom
+   * 浏览器模式：44px dock + 4px = 48px
+   * standalone 模式：44px dock + safe-area-inset-bottom
    */
   .pb-safe-nav {
-    padding-bottom: 48px; /* 44px + 4px */
-    padding-bottom: calc(44px + max(env(safe-area-inset-bottom, 0px), 4px));
+    padding-bottom: 48px;
   }
 
-  @supports (padding-bottom: calc(44px + max(env(safe-area-inset-bottom), 4px))) {
+  @media (display-mode: standalone) {
     .pb-safe-nav {
       padding-bottom: calc(44px + max(env(safe-area-inset-bottom, 0px), 4px));
     }
