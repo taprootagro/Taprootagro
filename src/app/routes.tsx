@@ -12,6 +12,7 @@ import {
 const SettingsPage = lazy(() => import("./components/SettingsPage"));
 const LoginPage = lazy(() => import("./components/LoginPage"));
 const ConfigManagerPage = lazy(() => import("./components/ConfigManagerPage"));
+const OAuthCallback = lazy(() => import("./components/OAuthCallback"));
 
 // 预加载函数 - 在首页加载完成后预加载其他主要页面，提升切换速度
 export function preloadMainPages() {
@@ -46,6 +47,14 @@ export const router = createBrowserRouter([
         element: (
           <Suspense fallback={<SkeletonScreen />}>
             <LoginPage />
+          </Suspense>
+        ),
+      },
+      {
+        path: "auth/callback",
+        element: (
+          <Suspense fallback={<SkeletonScreen />}>
+            <OAuthCallback />
           </Suspense>
         ),
       },

@@ -206,6 +206,19 @@ export interface Translations {
     alipay: string;
     twitter: string;
     line: string;
+    codeSent: string;
+    codeSendFailed: string;
+    codeCountdown: string;
+    invalidPhone: string;
+    invalidEmail: string;
+    codeRequired: string;
+    loginFailed: string;
+    redirecting: string;
+    oauthNotConfigured: string;
+    oauthError: string;
+    networkError: string;
+    backendRequired: string;
+    demoLoginNote: string;
   };
 
   statement: {
@@ -602,6 +615,19 @@ const translationsData: Record<Language, Translations> = {
       alipay: 'Alipay',
       twitter: 'X',
       line: 'Line',
+      codeSent: 'Code sent successfully',
+      codeSendFailed: 'Failed to send code, please try again',
+      codeCountdown: 'Resend in {seconds}s',
+      invalidPhone: 'Please enter a valid phone number',
+      invalidEmail: 'Please enter a valid email address',
+      codeRequired: 'Please enter the verification code',
+      loginFailed: 'Login failed, please try again',
+      redirecting: 'Redirecting...',
+      oauthNotConfigured: 'This login method is not configured yet',
+      oauthError: 'OAuth login failed, please try again',
+      networkError: 'Network error, please check your connection',
+      backendRequired: 'Backend not configured, using demo mode',
+      demoLoginNote: 'Demo mode: no real verification',
     },
     statement: {
       title: 'Ledger',
@@ -958,6 +984,19 @@ const translationsData: Record<Language, Translations> = {
       alipay: '支付宝',
       twitter: 'X',
       line: 'Line',
+      codeSent: '验证码已发送',
+      codeSendFailed: '发送验证码失败，请重试',
+      codeCountdown: '{seconds}秒后重新获取',
+      invalidPhone: '请输入有效的手机号码',
+      invalidEmail: '请输入有效的邮箱地址',
+      codeRequired: '请输入验证码',
+      loginFailed: '登录失败，请重试',
+      redirecting: '正在跳转...',
+      oauthNotConfigured: '该登录方式尚未配置',
+      oauthError: '第三方登录失败，请重试',
+      networkError: '网络错误，请检查网络连接',
+      backendRequired: '后端未配置，使用演示模式',
+      demoLoginNote: '演示模式：无真实验证',
     },
     statement: {
       title: '记账本',
@@ -1308,6 +1347,19 @@ const translationsData: Record<Language, Translations> = {
       alipay: 'Alipay',
       twitter: 'X',
       line: 'Line',
+      codeSent: 'Code sent successfully',
+      codeSendFailed: 'Failed to send code',
+      codeCountdown: 'Resend in {seconds}s',
+      invalidPhone: 'Please enter a valid phone number',
+      invalidEmail: 'Please enter a valid email address',
+      codeRequired: 'Please enter the verification code',
+      loginFailed: 'Login failed, please try again',
+      redirecting: 'Redirecting...',
+      oauthNotConfigured: 'This login method is not configured',
+      oauthError: 'OAuth login failed',
+      networkError: 'Network error',
+      backendRequired: 'Backend not configured, demo mode',
+      demoLoginNote: 'Demo mode: no real verification',
     },
     statement: {
       title: 'Libro de Cuentas',
@@ -1588,6 +1640,37 @@ const translationsData: Record<Language, Translations> = {
       google: 'Google',
       facebook: 'Facebook',
       apple: 'Apple',
+      quickLogin: 'Connexion rapide',
+      accountLogin: 'Connexion par compte',
+      phone: 'Téléphone',
+      verificationCode: 'Code de vérification',
+      getCode: 'Obtenir le code',
+      oneClickLogin: 'S\'inscrire / Se connecter',
+      agreeTerms: 'J\'ai lu et j\'accepte',
+      userAgreement: 'Accord utilisateur',
+      and: 'et',
+      privacyPolicy: 'Politique de confidentialité',
+      agreeFirst: 'Veuillez d\'abord accepter l\'accord utilisateur et la politique de confidentialité',
+      phonePlaceholder: 'Entrez le numéro de téléphone',
+      emailPlaceholder: 'Entrez l\'email',
+      codePlaceholder: 'Code de vérification',
+      wechat: 'WeChat',
+      alipay: 'Alipay',
+      twitter: 'X',
+      line: 'Line',
+      codeSent: 'Code envoyé avec succès',
+      codeSendFailed: 'Échec de l\'envoi du code',
+      codeCountdown: 'Renvoyer dans {seconds}s',
+      invalidPhone: 'Veuillez entrer un numéro valide',
+      invalidEmail: 'Veuillez entrer un email valide',
+      codeRequired: 'Veuillez entrer le code de vérification',
+      loginFailed: 'Échec de la connexion',
+      redirecting: 'Redirection...',
+      oauthNotConfigured: 'Cette méthode de connexion n\'est pas configurée',
+      oauthError: 'Échec de la connexion OAuth',
+      networkError: 'Erreur réseau',
+      backendRequired: 'Backend non configuré, mode démo',
+      demoLoginNote: 'Mode démo: pas de vérification réelle',
     },
     statement: {
       title: 'Livre de Comptes',

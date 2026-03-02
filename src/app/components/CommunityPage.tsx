@@ -96,15 +96,43 @@ function CommunityChat() {
     setProxyMode(chatService.mode);
     setProviderName(chatService.providerInfo.name);
 
-    // Auto-register user on IM provider (no-op if already registered)
-    chatUserService.registerOnProvider().then((res) => {
-      if (res.success) {
+    // Determine the target user (merchant) IM ID from config
+    const targetImUserId = config?.chatContact?.imUserId || "";
+    chatService.setTargetUserId(targetImUserId);
+
+    // 聊天室ID来自商家二维码扫码绑定，固定保存在配置中
+    const channelId = config?.chatContact?.channelId || "";
+
+    // 没有 channelId 说明还没扫码绑定商家，不初始化聊天
+    if (!channelId || channelId === "your-channel-id") {
+      console.log("[Community] No channelId bound yet — waiting for QR scan");
+      return;
+    }
+
+    console.log(`[Community] Channel: ${channelId} (me: ${currentUserId} → merchant: ${targetImUserId})`);
+
+    // Initialize: register user → join channel → start polling (in correct order)
+    const init = async () => {
+      // Step 1: Register user on IM provider
+      const regResult = await chatUserService.registerOnProvider();
+      if (regResult.success) {
         console.log(`[Community] User ${currentUserId} registered on ${chatService.provider}`);
       } else {
-        console.warn(`[Community] User registration issue: ${res.error}`);
+        console.warn(`[Community] User registration issue: ${regResult.error}`);
       }
+
+      // Step 2: Join channel (uses channelId from QR code, obtains IM token)
+      try {
+        await chatService.joinChannel(channelId);
+        console.log(`[Community] Joined channel: ${channelId}`);
+      } catch (err) {
+        console.warn(`[Community] joinChannel failed (will poll with channel name anyway):`, err);
+      }
+
+      // Step 3: Start polling for incoming messages
       chatService.startPolling();
-    });
+    };
+    init();
 
     // Mark initial demo messages as "seen" to prevent duplicates from polling
     chatService.markSeen(["m1", "m2", "m3", "m4"]);
@@ -119,7 +147,7 @@ function CommunityChat() {
       chatService.stopPolling();
       unsubscribe();
     };
-  }, [currentUserId]);
+  }, [currentUserId, config?.chatContact?.channelId, config?.chatContact?.imUserId]);
   
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -428,16 +456,17 @@ function CommunityChat() {
           avatar: params.get("avatar") || "",
           subtitle: params.get("subtitle") || "",
           imUserId: params.get("imUserId") || "",
+          channelId: params.get("channelId") || "",
           imProvider: params.get("imProvider") || "aliyun-im",
           phone: params.get("phone") || "",
           storeId: params.get("storeId") || "",
         };
 
-        if (!merchantData.name || !merchantData.imUserId) {
+        if (!merchantData.name || !merchantData.imUserId || !merchantData.channelId) {
           setScanResult({
             status: "rejected",
             sourceDomain,
-            rejectReason: "二维码缺少必要信息（商家名称或IM用户ID） / Missing required fields",
+            rejectReason: "二维码缺少必要信息（商家名称、IM用户ID或聊天室ID） / Missing required fields (name, imUserId, or channelId)",
           });
           return;
         }
@@ -586,6 +615,7 @@ function CommunityChat() {
                     </div>
                   </div>
                   <div className="bg-gray-50 rounded-xl p-3 space-y-1.5 text-xs">
+                    <div className="flex justify-between"><span className="text-gray-500">Channel ID</span><span className="text-gray-800 font-mono">{scanResult.merchantData.channelId}</span></div>
                     <div className="flex justify-between"><span className="text-gray-500">IM User ID</span><span className="text-gray-800 font-mono">{scanResult.merchantData.imUserId}</span></div>
                     <div className="flex justify-between"><span className="text-gray-500">IM Provider</span><span className="text-gray-800">{scanResult.merchantData.imProvider}</span></div>
                     {scanResult.merchantData.phone && <div className="flex justify-between"><span className="text-gray-500">电话 Phone</span><span className="text-gray-800">{scanResult.merchantData.phone}</span></div>}

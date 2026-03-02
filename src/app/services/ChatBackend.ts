@@ -446,6 +446,177 @@ serve(async (req: Request) => {
       );
     }
 
+    // ---- POST /chat-proxy/send-code ----
+    // Send OTP verification code via SMS or email using Supabase Auth.
+    //
+    // Request: { method: "phone"|"email", credential: "+1234567890" | "user@email.com" }
+    // Response: { success: true } or { success: false, error: "..." }
+    //
+    // Supabase Auth automatically handles:
+    //   - Phone: sends SMS via configured provider (Twilio, MessageBird, Vonage)
+    //   - Email: sends magic link or OTP via configured email provider
+    //
+    // Setup required in Supabase Dashboard:
+    //   1. Authentication → Providers → Enable Phone / Email
+    //   2. Authentication → SMS Provider → Configure Twilio/MessageBird
+    //   3. Authentication → Email Templates → Customize OTP template
+    if (path === "send-code" && req.method === "POST") {
+      const { method, credential } = await req.json();
+
+      if (!credential) {
+        return new Response(
+          JSON.stringify({ success: false, error: "credential is required" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // ---- Supabase Auth OTP ----
+      // import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+      // const supabaseAdmin = createClient(
+      //   Deno.env.get("SUPABASE_URL")!,
+      //   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+      // );
+      //
+      // if (method === "phone") {
+      //   const { error } = await supabaseAdmin.auth.signInWithOtp({ phone: credential });
+      //   if (error) {
+      //     return new Response(
+      //       JSON.stringify({ success: false, error: error.message }),
+      //       { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      //     );
+      //   }
+      // } else {
+      //   const { error } = await supabaseAdmin.auth.signInWithOtp({ email: credential });
+      //   if (error) {
+      //     return new Response(
+      //       JSON.stringify({ success: false, error: error.message }),
+      //       { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      //     );
+      //   }
+      // }
+      //
+      // return new Response(
+      //   JSON.stringify({ success: true }),
+      //   { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      // );
+
+      // Placeholder (uncomment above for production)
+      return new Response(
+        JSON.stringify({ success: false, error: "send-code endpoint not configured" }),
+        { status: 501, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ---- POST /chat-proxy/oauth-exchange ----
+    // Exchange OAuth authorization code for user identity.
+    //
+    // Request: { provider: "google"|"facebook"|..., code: "auth_code", redirectUri: "..." }
+    // Response: { userId: "uuid-..." } or { error: "..." }
+    //
+    // Flow:
+    //   1. Frontend redirects user to provider's authorize URL
+    //   2. Provider redirects back with ?code=xxx
+    //   3. Frontend POSTs the code here
+    //   4. Edge Function exchanges code for access token with provider
+    //   5. Gets user profile, creates/finds Supabase Auth user
+    //   6. Returns server-assigned userId
+    //
+    // Provider OAuth endpoints:
+    //   Google:   POST https://oauth2.googleapis.com/token
+    //   Facebook: GET  https://graph.facebook.com/v19.0/oauth/access_token
+    //   Apple:    POST https://appleid.apple.com/auth/token
+    //   WeChat:   GET  https://api.weixin.qq.com/sns/oauth2/access_token
+    //   Alipay:   POST https://openapi.alipay.com/gateway.do (method=alipay.system.oauth.token)
+    //   Twitter:  POST https://api.twitter.com/2/oauth2/token
+    //   LINE:     POST https://api.line.me/oauth2/v2.1/token
+    if (path === "oauth-exchange" && req.method === "POST") {
+      const { provider, code, redirectUri } = await req.json();
+
+      if (!provider || !code) {
+        return new Response(
+          JSON.stringify({ error: "provider and code are required" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // ---- Token exchange implementation ----
+      // const OAUTH_SECRETS: Record<string, { clientId: string; clientSecret: string }> = {
+      //   google: {
+      //     clientId: Deno.env.get("GOOGLE_CLIENT_ID")!,
+      //     clientSecret: Deno.env.get("GOOGLE_CLIENT_SECRET")!,
+      //   },
+      //   facebook: {
+      //     clientId: Deno.env.get("FACEBOOK_APP_ID")!,
+      //     clientSecret: Deno.env.get("FACEBOOK_APP_SECRET")!,
+      //   },
+      //   // ... add other providers
+      // };
+      //
+      // const secrets = OAUTH_SECRETS[provider];
+      // if (!secrets) {
+      //   return new Response(
+      //     JSON.stringify({ error: `Provider ${provider} not configured` }),
+      //     { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      //   );
+      // }
+      //
+      // // Example: Google token exchange
+      // if (provider === "google") {
+      //   const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+      //     method: "POST",
+      //     headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      //     body: new URLSearchParams({
+      //       code,
+      //       client_id: secrets.clientId,
+      //       client_secret: secrets.clientSecret,
+      //       redirect_uri: redirectUri,
+      //       grant_type: "authorization_code",
+      //     }),
+      //   });
+      //   const tokenData = await tokenRes.json();
+      //   if (tokenData.error) {
+      //     return new Response(
+      //       JSON.stringify({ error: tokenData.error_description || tokenData.error }),
+      //       { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      //     );
+      //   }
+      //
+      //   // Get user info
+      //   const userRes = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
+      //     headers: { Authorization: `Bearer ${tokenData.access_token}` },
+      //   });
+      //   const userInfo = await userRes.json();
+      //
+      //   // Create or find Supabase Auth user
+      //   // Option A: Use Supabase Admin to create user with provider info
+      //   const { data, error } = await supabaseAdmin.auth.admin.createUser({
+      //     email: userInfo.email,
+      //     email_confirm: true,
+      //     user_metadata: {
+      //       full_name: userInfo.name,
+      //       avatar_url: userInfo.picture,
+      //       provider: "google",
+      //       provider_id: userInfo.id,
+      //     },
+      //   });
+      //   // If user already exists, find them
+      //   if (error?.message?.includes("already")) {
+      //     const { data: existing } = await supabaseAdmin.auth.admin.listUsers();
+      //     const user = existing.users.find(u => u.email === userInfo.email);
+      //     if (user) return respond({ userId: user.id });
+      //   }
+      //   if (data?.user) {
+      //     return respond({ userId: data.user.id });
+      //   }
+      // }
+
+      // Placeholder (uncomment above for production)
+      return new Response(
+        JSON.stringify({ error: "oauth-exchange endpoint not configured" }),
+        { status: 501, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     return new Response(
       JSON.stringify({ error: "Not found" }),
       { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }

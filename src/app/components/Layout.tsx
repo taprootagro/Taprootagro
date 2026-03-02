@@ -123,10 +123,15 @@ export function Layout() {
           const isActive = activeTab === key;
           const isMounted = mountedTabs.has(key);
           if (!isMounted) return null;
+          // community 页面有自己的内部滚动，外层用 overflow-hidden
+          // 防止 iOS 聚焦 input 时滚动外层容器导致页面跳顶
+          const overflowClass = key === "community"
+            ? "absolute inset-0 overflow-hidden"
+            : "absolute inset-0 overflow-y-auto overflow-x-hidden";
           return (
             <div
               key={key}
-              className="absolute inset-0 overflow-y-auto overflow-x-hidden"
+              className={overflowClass}
               style={{
                 display: isActive ? "block" : "none",
                 animation: isActive && fadeKey > 0 ? `tab-fade-in 180ms ease-out` : undefined,

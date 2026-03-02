@@ -134,7 +134,7 @@ export const CHAT_PROVIDER_INFO: Record<ChatProvider, { name: string; nameZh: st
 // ---- Mock data store ----
 const mockMessageStore: ChatMessage[] = [];
 
-class ChatProxyService {
+export class ChatProxyService {
   private currentUserId: string = "me";
   private currentChannel: string = "default-channel";
   private _mode: "backend" | "mock" = "mock";
@@ -144,6 +144,7 @@ class ChatProxyService {
   private _pollInterval: number = 3000; // 3s default, auto-adjusts
   private _seenMessageIds: Set<string> = new Set();
   private _isPolling: boolean = false;
+  private _targetUserId: string = ""; // 当前聊天对象的IM用户ID
 
   constructor() {
     this.refreshMode();
@@ -192,6 +193,25 @@ class ChatProxyService {
 
   setUserId(userId: string) {
     this.currentUserId = userId;
+  }
+
+  /** Set the target user ID for the current chat session */
+  setTargetUserId(targetUserId: string) {
+    this._targetUserId = targetUserId;
+  }
+
+  /** Get the current target user ID */
+  get targetUserId(): string {
+    return this._targetUserId;
+  }
+
+  /**
+   * Generate a deterministic 1-to-1 channel name from two user IDs.
+   * Sorts alphabetically so both sides get the same channel name.
+   */
+  static generateChannelName(userId1: string, userId2: string): string {
+    const sorted = [userId1, userId2].sort();
+    return `dm_${sorted[0]}_${sorted[1]}`;
   }
 
   // ========================================================================
@@ -454,7 +474,58 @@ class ChatProxyService {
     await this.simulateLatency(200);
     newMessage.status = "sent";
     mockMessageStore.push(newMessage);
+
+    // Mock auto-reply: simulate a response from the contact after 1-2s
+    if (this._targetUserId) {
+      this._scheduleMockReply(newMessage);
+    }
+
     return newMessage;
+  }
+
+  /**
+   * Schedule a mock auto-reply in mock mode.
+   * Simulates the contact responding to the user's message.
+   */
+  private _scheduleMockReply(userMsg: ChatMessage): void {
+    const delay = 1000 + Math.random() * 2000; // 1-3s delay
+    const mockReplies: Record<string, string[]> = {
+      text: [
+        "好的，收到了！",
+        "没问题，我马上处理",
+        "这个产品目前有货，需要我帮你预留吗？",
+        "价格方面可以再商量",
+        "OK, received!",
+        "I'll check and get back to you",
+        "Yes, this product is available",
+      ],
+      image: [
+        "图片收到了，我看看",
+        "Product photo received, let me check",
+      ],
+      voice: [
+        "语音已收听",
+        "Voice message received",
+      ],
+    };
+
+    const replies = mockReplies[userMsg.type] || mockReplies.text;
+    const replyContent = replies[Math.floor(Math.random() * replies.length)];
+
+    setTimeout(() => {
+      const replyMsg: ChatMessage = {
+        id: `mock_reply_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+        channelName: this.currentChannel,
+        senderId: this._targetUserId,
+        content: replyContent,
+        type: "text",
+        timestamp: Date.now(),
+        status: "sent",
+        read: false,
+      };
+      this.notifyListeners(replyMsg);
+      console.log(`[ChatProxy][MOCK] Auto-reply from ${this._targetUserId}: "${replyContent}"`);
+    }, delay);
   }
 
   // ========================================================================

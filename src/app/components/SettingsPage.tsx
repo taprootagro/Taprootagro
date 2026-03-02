@@ -6,6 +6,7 @@ import { BackgroundSync } from "./BackgroundSync";
 import { useLanguage, languages, Language } from "../hooks/useLanguage";
 import { SecondaryView } from "./SecondaryView";
 import { useHomeConfig } from "../hooks/useHomeConfig";
+import { isUserLoggedIn, setUserLoggedIn } from "../utils/auth";
 
 export function SettingsPage() {
   const navigate = useNavigate();
@@ -16,6 +17,7 @@ export function SettingsPage() {
   const [showLanguageSelector, setShowLanguageSelector] = useState(false);
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
   const [showTermsOfService, setShowTermsOfService] = useState(false);
+  const loggedIn = isUserLoggedIn();
 
   // 进入动画
   const [animPhase, setAnimPhase] = useState<'entering' | 'visible'>('entering');
@@ -178,6 +180,21 @@ export function SettingsPage() {
           </div>
         ))}
       </div>
+
+      {/* 退出登录按钮 */}
+      {loggedIn && (
+        <div className="px-4 mt-4 pb-8">
+          <button
+            onClick={() => {
+              setUserLoggedIn(false);
+              navigate("/home/profile", { replace: true });
+            }}
+            className="w-full bg-white text-gray-400 py-3 rounded-2xl active:bg-gray-50 transition-colors duration-150 text-sm shadow-sm"
+          >
+            {t.profile.logout}
+          </button>
+        </div>
+      )}
       </div>
 
       {/* 语言选择器 - 浮现弹出 */}

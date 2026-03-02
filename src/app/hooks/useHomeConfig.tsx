@@ -119,6 +119,7 @@ export interface ChatContactConfig {
   subtitle: string;       // 副标题（如：TaprootAgro授权店）
   imUserId: string;       // IM服务商分配给商家的唯一识别代码
   imProvider: string;     // 商家注册的IM服务商标识 (aliyun-im / sendbird / cometchat)
+  channelId: string;      // 聊天室ID — 商家二维码中携带，扫码后固定保存
   phone: string;          // 商家联系电话
   storeId: string;        // 门店编号/商家编号
   verifiedDomains: string[]; // 域名白名单，扫码绑定时校验来源域名
@@ -232,7 +233,7 @@ export interface HomePageConfig {
   desktopIcon: DesktopIconConfig; // 桌面图标配置
   pushConfig: PushConfig; // 推送通知配置
   aiModelConfig: AIModelConfig; // AI模型配置
-  cloudAIConfig: CloudAIConfig; // 云端AI深度分析配置
+  cloudAIConfig: CloudAIConfig; // 云端AI��度分析配置
   backendProxyConfig: BackendProxyConfig; // 后端代理配置
   loginConfig: LoginConfig; // 登录页面配置
 }
@@ -650,7 +651,7 @@ const defaultConfig: HomePageConfig = {
   },
   privacyPolicy: {
     title: "隐私政策",
-    content: "我们尊重并保护所有使用我们服务的用户的隐私。本隐私政策解释了我们如何收集、使用、披露和保护您的个人信息。\n\n1. 信息收集：我们可能会收集您的姓名、电子邮件地址、电话号码等个人信息。\n\n2. 信息使用：我们使用收集的信息来提供和改进我们的服务，包括但不限于发送营销信息、处理订单和提供技术支持。\n\n3. 信息共享：我们不会将您的个人信息出售或出租给第三方，除非得到您的明确同意或法律要求。\n\n4. 信息保护：我们采取合理的安全措施来保护您的个人信息，防止未经授权的访问、使用或披。\n\n5. 的权利：您有权访问、更正或删除您的个人信息。如果您有任何关于隐私的问题或疑虑，请联系我们。"
+    content: "我们尊重并保护所有使用我们服务的用户的隐私。本隐私政策解释了我们如何收集、使用、披露和保护您的个人信息。\n\n1. 信息收集：我们可能会收集您的姓名、电子邮件地址、电话号��等个人信息。\n\n2. 信息使用：我们使用收集的信息来提供和改进我们的服务，包括但不限于发送营销信息、处理订单和提供技术支持。\n\n3. 信息共享：我们不会将您的个人信息出售或出租给第三方，除非得到您的明确同意或法律要求。\n\n4. 信息保护：我们采取合理的安全措施来保护您的个人信息，防止未经授权的访问、使用或披。\n\n5. 的权利：您有权访问、更正或删除您的个人信息。如果您有任何关于隐私的问题或疑虑，请联系我们。"
   },
   termsOfService: {
     title: "用户协议",
@@ -676,6 +677,7 @@ const defaultConfig: HomePageConfig = {
     subtitle: "TaprootAgro授权店",
     imUserId: "your-im-user-id",
     imProvider: "aliyun-im",
+    channelId: "your-channel-id",
     phone: "123-456-7890",
     storeId: "store123",
     verifiedDomains: ["taprootagro.com", "agrostore.com"],

@@ -162,7 +162,7 @@ export default function ConfigManagerPage() {
       case "appBranding":
         return { logoUrl: "", appName: "", slogan: "" };
       case "chatContact":
-        return { name: "", avatar: "", subtitle: "", imUserId: "", imProvider: "aliyun-im", phone: "", storeId: "", verifiedDomains: [] };
+        return { name: "", avatar: "", subtitle: "", imUserId: "", channelId: "", imProvider: "aliyun-im", phone: "", storeId: "", verifiedDomains: [] };
       case "userProfile":
         return { name: "", avatar: "" };
       case "desktopIcon":
@@ -356,7 +356,7 @@ export default function ConfigManagerPage() {
         newConfig.appBranding = { logoUrl: "", appName: "", slogan: "" };
         break;
       case "chatContact":
-        newConfig.chatContact = { name: "", avatar: "", subtitle: "", imUserId: "", imProvider: "aliyun-im", phone: "", storeId: "", verifiedDomains: [] };
+        newConfig.chatContact = { name: "", avatar: "", subtitle: "", imUserId: "", channelId: "", imProvider: "aliyun-im", phone: "", storeId: "", verifiedDomains: [] };
         break;
       case "userProfile":
         newConfig.userProfile = { name: "", avatar: "" };
@@ -454,7 +454,7 @@ export default function ConfigManagerPage() {
       case "appBranding":
         return [ct("Logo图标", "Logo Icon"), ct("应用名称", "App Name"), ct("口号", "Slogan")];
       case "chatContact":
-        return [ct("姓名", "Name"), ct("头像", "Avatar"), ct("副标题", "Subtitle"), ct("IM用户ID", "IM User ID"), ct("IM服务商", "IM Provider"), ct("电话", "Phone"), ct("门店编号", "Store ID"), ct("验证域名", "Verified Domains")];
+        return [ct("姓名", "Name"), ct("头像", "Avatar"), ct("副标题", "Subtitle"), ct("IM用户ID", "IM User ID"), ct("聊天室ID", "Channel ID"), ct("IM服务商", "IM Provider"), ct("电话", "Phone"), ct("门店编号", "Store ID"), ct("验证域名", "Verified Domains")];
       case "userProfile":
         return [ct("姓名", "Name"), ct("头像", "Avatar")];
       case "desktopIcon":
@@ -577,6 +577,7 @@ export default function ConfigManagerPage() {
             <td className="px-3 py-2 text-xs max-w-xs truncate" title={item.avatar}>{item.avatar}</td>
             <td className="px-3 py-2 text-xs max-w-xs truncate" title={item.subtitle}>{item.subtitle}</td>
             <td className="px-3 py-2 text-xs font-mono">{item.imUserId || "-"}</td>
+            <td className="px-3 py-2 text-xs font-mono">{item.channelId || "-"}</td>
             <td className="px-3 py-2 text-xs">{item.imProvider || "-"}</td>
             <td className="px-3 py-2 text-xs">{item.phone || "-"}</td>
             <td className="px-3 py-2 text-xs">{item.storeId || "-"}</td>
@@ -894,6 +895,7 @@ export default function ConfigManagerPage() {
             <div className="mt-2 mb-2 p-3 bg-blue-50 rounded-xl border border-blue-200">
               <p className="text-xs font-semibold text-blue-700 mb-2">{ct("IM 服务商对接", "IM Provider Integration")}</p>
               <InputField label={ct("IM用户ID（服务商分配给商家的唯一标识）", "IM User ID (Unique ID assigned by IM provider)")} value={editingItem.imUserId || ""} onChange={(v: string) => setEditingItem({ ...editingItem, imUserId: v })} />
+              <InputField label={ct("聊天室ID（商家二维码中携带，扫码后自动填入）", "Channel ID (From merchant QR code, auto-filled after scan)")} value={editingItem.channelId || ""} onChange={(v: string) => setEditingItem({ ...editingItem, channelId: v })} />
               <div className="mb-3">
                 <label className="block text-sm font-medium text-gray-700 mb-1">{ct("IM服务商", "IM Provider")}</label>
                 <select

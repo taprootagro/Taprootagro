@@ -1,0 +1,152 @@
+import { useEffect, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router";
+import { Loader2, AlertTriangle, CheckCircle } from "lucide-react";
+import { setUserLoggedIn, setServerUserId } from "../utils/auth";
+import { useLanguage } from "../hooks/useLanguage";
+
+// ============================================================================
+// OAuthCallback — Handles OAuth provider redirects
+// ============================================================================
+// Flow:
+//   1. Provider redirects to /auth/callback?provider=xxx&code=yyy
+//   2. We send the code to Supabase Edge Function for token exchange
+//   3. Edge Function creates/finds user, returns userId
+//   4. We store userId and navigate to /home/profile
+// ============================================================================
+
+const CONFIG_STORAGE_KEY = "agri_home_config";
+
+type Status = "exchanging" | "success" | "error";
+
+export function OAuthCallback() {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const { t } = useLanguage();
+  const [status, setStatus] = useState<Status>("exchanging");
+  const [errorMsg, setErrorMsg] = useState("");
+
+  useEffect(() => {
+    const provider = searchParams.get("provider") || "";
+    const code = searchParams.get("code") || "";
+    const error = searchParams.get("error");
+    const state = searchParams.get("state") || "";
+
+    // Some providers return error in URL (e.g., user denied)
+    if (error) {
+      setStatus("error");
+      setErrorMsg(searchParams.get("error_description") || error);
+      return;
+    }
+
+    if (!code) {
+      setStatus("error");
+      setErrorMsg("No authorization code received");
+      return;
+    }
+
+    // Verify state parameter to prevent CSRF
+    const savedState = sessionStorage.getItem("oauth_state");
+    if (savedState && state !== savedState) {
+      setStatus("error");
+      setErrorMsg("Invalid state parameter (CSRF protection)");
+      return;
+    }
+    sessionStorage.removeItem("oauth_state");
+
+    exchangeCode(provider, code);
+  }, []);
+
+  async function exchangeCode(provider: string, code: string) {
+    try {
+      const saved = localStorage.getItem(CONFIG_STORAGE_KEY);
+      if (!saved) {
+        throw new Error("No configuration found");
+      }
+
+      const parsed = JSON.parse(saved);
+      const bpc = parsed.backendProxyConfig;
+
+      if (!bpc?.enabled || !bpc?.supabaseUrl) {
+        throw new Error("Backend not configured");
+      }
+
+      const redirectUri = `${window.location.origin}/auth/callback?provider=${provider}`;
+      const endpoint = `${bpc.supabaseUrl}/functions/v1/${bpc.edgeFunctionName || "chat-proxy"}/oauth-exchange`;
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        ...(bpc.supabaseAnonKey ? { Authorization: `Bearer ${bpc.supabaseAnonKey}` } : {}),
+        ...(bpc.supabaseAnonKey ? { apikey: bpc.supabaseAnonKey } : {}),
+      };
+
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          provider,
+          code,
+          redirectUri,
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+        throw new Error(err.error || err.message || `Server error ${res.status}`);
+      }
+
+      const data = await res.json();
+      if (data.userId) {
+        setServerUserId(data.userId);
+        setUserLoggedIn(true);
+        setStatus("success");
+
+        // Brief delay for visual feedback, then navigate
+        setTimeout(() => {
+          navigate("/home/profile", { replace: true });
+        }, 600);
+      } else {
+        throw new Error(data.error || "No userId returned from server");
+      }
+    } catch (err: any) {
+      console.error("[OAuthCallback] Exchange failed:", err);
+      setStatus("error");
+      setErrorMsg(err?.message || "Unknown error");
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-white flex items-center justify-center px-8">
+      <div className="text-center max-w-xs">
+        {status === "exchanging" && (
+          <>
+            <Loader2 className="w-12 h-12 text-emerald-600 animate-spin mx-auto mb-4" />
+            <p className="text-gray-700 font-medium">{t.login.redirecting}</p>
+            <p className="text-xs text-gray-400 mt-2">Verifying your identity...</p>
+          </>
+        )}
+
+        {status === "success" && (
+          <>
+            <CheckCircle className="w-12 h-12 text-emerald-600 mx-auto mb-4" />
+            <p className="text-gray-700 font-medium">{t.login.redirecting}</p>
+          </>
+        )}
+
+        {status === "error" && (
+          <>
+            <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+            <p className="text-gray-700 font-medium">{t.login.oauthError}</p>
+            <p className="text-xs text-red-400 mt-2 break-words">{errorMsg}</p>
+            <button
+              onClick={() => navigate("/login", { replace: true })}
+              className="mt-6 bg-emerald-600 text-white px-6 py-2.5 rounded-xl active:bg-emerald-700 transition-colors font-medium text-sm"
+            >
+              {t.login.loginButton}
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default OAuthCallback;

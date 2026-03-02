@@ -1,10 +1,10 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
-import { MapPin, Edit, Settings, FileText, Package, CreditCard, Calendar, Info, Scan, QrCode, LogOut, ChevronRight, LogIn } from "lucide-react";
+import { MapPin, Edit, Settings, FileText, Package, CreditCard, Calendar, Info, Scan, QrCode, ChevronRight, LogIn } from "lucide-react";
 import { useLanguage } from "../hooks/useLanguage";
 import { useHomeConfig } from "../hooks/useHomeConfig";
 import { CameraCapture } from "./CameraCapture";
-import { isUserLoggedIn, setUserLoggedIn } from "../utils/auth";
+import { isUserLoggedIn } from "../utils/auth";
 import { PickupAddressEdit } from "./PickupAddressEdit";
 import { AllOrdersPage } from "./AllOrdersPage";
 import { PendingReceiptPage } from "./PendingReceiptPage";
@@ -255,21 +255,6 @@ export function ProfilePage() {
             })}
           </div>
         ))}
-      </div>
-
-      {/* 登出按钮 */}
-      <div className="px-4">
-        <button
-          onClick={() => {
-            // 清除登录状态
-            setUserLoggedIn(false);
-            // 刷新当前页面以显示未登录界面
-            setIsLoggedIn(false);
-          }}
-          className="w-full mt-6 mb-6 bg-white text-gray-400 py-3 rounded-2xl active:bg-gray-50 transition-colors duration-150 text-sm"
-        >
-          {t.profile.logout}
-        </button>
       </div>
     </div>
   );
