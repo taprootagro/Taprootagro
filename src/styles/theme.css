@@ -206,28 +206,28 @@
   }
 
   .safe-bottom {
-    padding-bottom: 12px; /* 基础间距减少，避免"大白条" */
-    padding-bottom: max(env(safe-area-inset-bottom, 0px), 12px);
+    padding-bottom: 4px; /* 极小基础间距，与 X/Twitter 一致 */
+    padding-bottom: max(env(safe-area-inset-bottom, 0px), 4px);
   }
 
-  /* iOS PWA 模式下的底部安全区处理 - 移除过大的强制 24px */
-  @supports (padding-bottom: max(env(safe-area-inset-bottom), 12px)) {
+  /* iOS PWA 模式下的底部安全区处理 */
+  @supports (padding-bottom: max(env(safe-area-inset-bottom), 4px)) {
     .safe-bottom {
-      padding-bottom: max(env(safe-area-inset-bottom, 0px), 12px);
+      padding-bottom: max(env(safe-area-inset-bottom, 0px), 4px);
     }
   }
 
   /* 主内容区底部padding，为导航栏留出空间
-   * 计算：nav content (52px) + safe-bottom
+   * 计算：nav content (44px = 10+28+6) + safe-bottom
    */
   .pb-safe-nav {
-    padding-bottom: 64px; /* 52px + 12px */
-    padding-bottom: calc(52px + max(env(safe-area-inset-bottom, 0px), 12px));
+    padding-bottom: 48px; /* 44px + 4px */
+    padding-bottom: calc(44px + max(env(safe-area-inset-bottom, 0px), 4px));
   }
 
-  @supports (padding-bottom: calc(52px + max(env(safe-area-inset-bottom), 12px))) {
+  @supports (padding-bottom: calc(44px + max(env(safe-area-inset-bottom), 4px))) {
     .pb-safe-nav {
-      padding-bottom: calc(52px + max(env(safe-area-inset-bottom, 0px), 12px));
+      padding-bottom: calc(44px + max(env(safe-area-inset-bottom, 0px), 4px));
     }
   }
 
