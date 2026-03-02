@@ -118,7 +118,8 @@ export function Layout() {
       className="fixed top-0 left-0 right-0 flex flex-col overflow-hidden"
       style={{
         backgroundColor: 'var(--app-bg)',
-        height: 'var(--app-height, 100vh)',
+        /* 三层回退：JS精确值 → 100dvh(动态视口，排除工具栏) → 100vh(兜底) */
+        height: 'var(--app-height, 100dvh)',
       }}
     >
       {/* 状态栏占位 — standalone 模式下用 safe-area-inset-top 撇开 */}

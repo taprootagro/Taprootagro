@@ -166,7 +166,7 @@
 
   body {
     /* 使用 JS 设置的 --app-height 变量（最准确），回退到 100dvh → 100% */
-    height: var(--app-height, 100%);
+    height: var(--app-height, 100dvh);
     /* 禁止 body 滚动，防 iOS 上容溢出 */
     overflow: hidden;
     /* 移动端优化 */
