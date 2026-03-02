@@ -2,7 +2,7 @@ import { Link, useLocation } from "react-router";
 import { useNetworkQuality } from "../hooks/useNetworkQuality";
 import { useDynamicManifest } from "../hooks/useDynamicManifest";
 import { useKeyboardVisible } from "../hooks/useKeyboardVisible";
-import { Home, BookOpen, MessageCircle, User } from "lucide-react";
+import { Home, NotebookText, MessageCircle, User } from "lucide-react";
 import { useLanguage } from "../hooks/useLanguage";
 import { useState, useEffect, lazy, Suspense, useRef } from "react";
 import {
@@ -87,7 +87,7 @@ export function Layout() {
 
   const navItems = [
     { path: "/home", icon: Home, label: t.common.home },
-    { path: "/home/market", icon: BookOpen, label: t.common.market },
+    { path: "/home/market", icon: NotebookText, label: t.common.market },
     { path: "/home/community", icon: MessageCircle, label: t.common.community, showBadge: showUnreadBadge },
     { path: "/home/profile", icon: User, label: t.common.profile },
   ];

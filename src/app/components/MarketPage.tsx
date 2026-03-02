@@ -1,5 +1,5 @@
-import { Search, ScanLine } from "lucide-react";
-import { useState, useMemo, useEffect, useRef } from "react";
+import { Search, ScanLine, X } from "lucide-react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useLanguage } from "../hooks/useLanguage";
 import { useHomeConfig } from "../hooks/useHomeConfig";
 import { CameraCapture } from "./CameraCapture";
@@ -15,6 +15,12 @@ export function MarketPage() {
   const networkQuality = useNetworkQuality();
   const [showCamera, setShowCamera] = useState(false);
   
+  // 搜索状态
+  const [marketSearchQuery, setMarketSearchQuery] = useState("");
+  const [marketSearchFocused, setMarketSearchFocused] = useState(false);
+  const marketSearchRef = useRef<HTMLInputElement>(null);
+  const productScrollRef = useRef<HTMLDivElement>(null);
+
   // 二级界面状态管理
   type ViewType = 
     | { type: "market" }
@@ -71,6 +77,27 @@ export function MarketPage() {
     return groups;
   }, [products, selectedCategory, currentSubCategories]);
 
+  // 商城搜索结果 — 跨所有类别搜索
+  const marketIsSearching = marketSearchQuery.trim().length > 0;
+  const marketSearchResults = useMemo(() => {
+    const q = marketSearchQuery.trim().toLowerCase();
+    if (!q) return [];
+    const keywords = q.split(/\s+/).filter(Boolean);
+    return products.filter((p: any) =>
+      keywords.every(kw =>
+        p.name?.toLowerCase().includes(kw) ||
+        p.category?.toLowerCase().includes(kw) ||
+        p.subCategory?.toLowerCase().includes(kw)
+      )
+    ).slice(0, 20);
+  }, [marketSearchQuery, products]);
+
+  const clearMarketSearch = useCallback(() => {
+    setMarketSearchQuery("");
+    setMarketSearchFocused(false);
+    marketSearchRef.current?.blur();
+  }, []);
+
   return (
     <div className="h-full flex flex-col overflow-hidden">
       {/* 二级界面路由 */}
@@ -106,20 +133,44 @@ export function MarketPage() {
                   type="text"
                   placeholder={t.market.searchProducts}
                   className="flex-1 min-w-0 outline-none text-xs"
+                  value={marketSearchQuery}
+                  onChange={(e) => setMarketSearchQuery(e.target.value)}
+                  onFocus={() => setMarketSearchFocused(true)}
+                  ref={marketSearchRef}
                 />
+                {marketSearchQuery && (
+                  <button
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => setMarketSearchQuery("")}
+                    className="flex-shrink-0 p-0.5"
+                  >
+                    <X className="w-3.5 h-3.5 text-gray-400" />
+                  </button>
+                )}
               </div>
-              <button 
-                onClick={() => setShowCamera(true)}
-                className="bg-white w-10 h-10 rounded-full active:scale-95 transition-transform flex items-center justify-center flex-shrink-0"
-              >
-                <ScanLine className="w-4 h-4 text-gray-600" />
-              </button>
+              {marketIsSearching || marketSearchFocused ? (
+                <button
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={clearMarketSearch}
+                  className="text-white text-xs flex-shrink-0 active:opacity-70 whitespace-nowrap px-1"
+                >
+                  {t.common.cancel || "Cancel"}
+                </button>
+              ) : (
+                <button 
+                  onClick={() => setShowCamera(true)}
+                  className="bg-white w-10 h-10 rounded-full active:scale-95 transition-transform flex items-center justify-center flex-shrink-0"
+                >
+                  <ScanLine className="w-4 h-4 text-gray-600" />
+                </button>
+              )}
             </div>
           </div>
 
           {/* 主内容区域：左侧一级类别 + 右侧产品（按二级类别分组） */}
           <div className="flex gap-0 flex-1 overflow-hidden">
-            {/* 左侧一级类别栏 - 独立滚动容器 */}
+            {/* 左侧一级类别栏 - 搜索时隐藏，独立滚动容器 */}
+            {!marketIsSearching && (
             <div 
               className="w-20 flex-shrink-0 overflow-y-auto z-[5]"
               style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y', backgroundColor: 'var(--app-bg)' }}
@@ -144,14 +195,16 @@ export function MarketPage() {
                 </button>
               ))}
             </div>
+            )}
 
             {/* 右侧产品区域 - 按二级类别分组显示 */}
             <div 
               className="flex-1 min-w-0 overflow-y-auto bg-white" 
               style={{ WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
+              ref={productScrollRef}
             >
-              {/* 顶部广告轮播 — 图片网络感知优化 */}
-              {advertisements.length > 0 && (
+              {/* 顶部广告轮播 — 搜索时隐藏，图片网络感知优化 */}
+              {advertisements.length > 0 && !marketIsSearching && (
                 <div className="mx-3 mt-3">
                   <div
                     className="relative overflow-hidden rounded-lg cursor-pointer active:scale-95 transition-transform"
@@ -190,9 +243,44 @@ export function MarketPage() {
 
               {/* 按二级类别分组显示产品 */}
               <div className="pb-4">
-                {currentSubCategories.length === 0 ? (
-                  <div className="text-center py-12 text-gray-500">
-                    <p className="text-sm">该类别暂无产品</p>
+                {marketIsSearching ? (
+                  <div className="px-3 py-2">
+                    {marketSearchResults.length > 0 ? (
+                      <>
+                        <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
+                          <span className="w-1 h-4 bg-emerald-600 rounded-full"></span>
+                          {t.common.search || "Search"} ({marketSearchResults.length})
+                        </h3>
+                        <div className="grid grid-cols-2 gap-3 mt-2">
+                          {marketSearchResults.map((product) => (
+                            <div
+                              key={product.id}
+                              className="bg-white rounded-xl overflow-hidden active:scale-95 transition-transform shadow-md border border-gray-100"
+                              onClick={() => setCurrentView({ type: "product", data: product })}
+                            >
+                              <LazyImage
+                                src={optimizeImageUrl(product.image, networkQuality)}
+                                alt={product.name}
+                                className="w-full aspect-square object-cover"
+                              />
+                              <div className="p-2">
+                                <p className="text-xs text-gray-800 font-medium line-clamp-2 break-words min-h-[2rem]">
+                                  {product.name}
+                                </p>
+                                <div className="mt-0.5">
+                                  <span className="text-sm font-semibold text-emerald-600">{product.price}</span>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    ) : (
+                      <div className="text-center py-12">
+                        <Search className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+                        <p className="text-sm text-gray-400">{t.common.noResults || "No results found"}</p>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   currentSubCategories.map((subCat) => {

@@ -1,14 +1,15 @@
-import { Search, ScanLine, Bot, Calculator } from "lucide-react";
+import { Search, ScanLine, Bot, Calculator, X } from "lucide-react";
 import { BannerCarousel } from "./BannerCarousel";
 import { usePerformanceMonitor } from "../hooks/usePerformanceMonitor";
 import { useLanguage } from "../hooks/useLanguage";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { CameraCapture } from "./CameraCapture";
 import { BannerDetailPage } from "./BannerDetailPage";
 import { AIAssistantPage } from "./AIAssistantPage";
 import { StatementPage } from "./StatementPage";
 import { LiveDetailPage } from "./LiveDetailPage";
 import { ArticleDetailPage } from "./ArticleDetailPage";
+import { ProductDetailPage } from "./ProductDetailPage";
 import { VideoFeedPage } from "./VideoFeedPage";
 import { LazyImage } from "./LazyImage";
 import { preloadMainPages } from "../routes";
@@ -23,6 +24,11 @@ export function HomePage() {
   const networkQuality = useNetworkQuality();
   const [showCamera, setShowCamera] = useState(false);
   const [imagesLoaded, setImagesLoaded] = useState(false);
+
+  // 搜索状态
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchFocused, setSearchFocused] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   
   // 预加载其他主要页面，提升底部导航切换速度
   useEffect(() => {
@@ -38,11 +44,43 @@ export function HomePage() {
     | { type: "live" }
     | { type: "videoFeed"; startIndex?: number }
     | { type: "article"; data: any }
+    | { type: "product"; data: any }
   >({ type: "home" });
 
   // 从配置读取数据
   const articles = config?.articles || [];
   const bannerImages = config?.banners || [];
+  const allProducts = config?.marketPage?.products || [];
+
+  // 搜索结果 — 模糊匹配产品名和文章标题
+  const searchResults = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return { products: [], articles: [] };
+    const keywords = q.split(/\s+/).filter(Boolean);
+    const matchProducts = allProducts.filter((p: any) => 
+      keywords.every(kw => 
+        p.name?.toLowerCase().includes(kw) || 
+        p.category?.toLowerCase().includes(kw) ||
+        p.subCategory?.toLowerCase().includes(kw)
+      )
+    ).slice(0, 12);
+    const matchArticles = articles.filter((a: any) =>
+      keywords.every(kw => 
+        a.title?.toLowerCase().includes(kw)
+      )
+    ).slice(0, 6);
+    return { products: matchProducts, articles: matchArticles };
+  }, [searchQuery, allProducts, articles]);
+
+  const hasResults = searchResults.products.length > 0 || searchResults.articles.length > 0;
+  const isSearching = searchQuery.trim().length > 0;
+
+  // 点击搜索结果后清空搜索并关闭
+  const clearSearch = useCallback(() => {
+    setSearchQuery("");
+    setSearchFocused(false);
+    searchInputRef.current?.blur();
+  }, []);
 
   // 轮播配置 — 弱网下禁用自动播放
   const sliderSettings = useMemo(() => ({
@@ -119,6 +157,12 @@ export function HomePage() {
           article={currentView.data}
         />
       )}
+      {currentView.type === "product" && (
+        <ProductDetailPage
+          onClose={() => setCurrentView({ type: "home" })}
+          product={currentView.data}
+        />
+      )}
 
       {/* 首页内容 */}
       {currentView.type === "home" && (
@@ -142,19 +186,135 @@ export function HomePage() {
                   type="text"
                   placeholder={t.home.searchPlaceholder}
                   className="flex-1 min-w-0 outline-none text-xs placeholder:text-gray-400"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onFocus={() => setSearchFocused(true)}
+                  ref={searchInputRef}
                 />
+                {/* 清空按钮 */}
+                {searchQuery && (
+                  <button
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => setSearchQuery("")}
+                    className="flex-shrink-0 p-0.5"
+                  >
+                    <X className="w-3.5 h-3.5 text-gray-400" />
+                  </button>
+                )}
               </div>
-              <button 
-                onClick={() => setShowCamera(true)}
-                className="bg-white w-10 h-10 rounded-full active:scale-95 transition-all duration-200 flex items-center justify-center flex-shrink-0 shadow-sm"
-              >
-                <ScanLine className="w-4 h-4 text-gray-600" />
-              </button>
+              {/* 搜索时显示取消按钮，否则显示扫码 */}
+              {isSearching || searchFocused ? (
+                <button
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={clearSearch}
+                  className="text-white text-xs flex-shrink-0 active:opacity-70 whitespace-nowrap px-1"
+                >
+                  {t.common.cancel || "Cancel"}
+                </button>
+              ) : (
+                <button 
+                  onClick={() => setShowCamera(true)}
+                  className="bg-white w-10 h-10 rounded-full active:scale-95 transition-all duration-200 flex items-center justify-center flex-shrink-0 shadow-sm"
+                >
+                  <ScanLine className="w-4 h-4 text-gray-600" />
+                </button>
+              )}
             </div>
           </div>
 
-          {/* 主内容区域 - 增加底部内边距避免被底部导航遮挡 */}
-          <div className="px-3 space-y-3 max-w-screen-xl mx-auto pb-safe-nav">
+          {/* 搜索结果面板 — 覆盖主内容 */}
+          {isSearching && (
+            <div className="px-3 pb-safe-nav max-w-screen-xl mx-auto">
+              {!hasResults ? (
+                <div className="text-center py-16">
+                  <Search className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+                  <p className="text-sm text-gray-400">{t.common.noResults || "No results found"}</p>
+                </div>
+              ) : (
+                <div className="space-y-4 pt-3">
+                  {/* 商品搜索结果 */}
+                  {searchResults.products.length > 0 && (
+                    <div>
+                      <div className="flex items-center gap-2 mb-2 px-1">
+                        <span className="w-1 h-4 bg-emerald-600 rounded-full"></span>
+                        <h3 className="text-sm text-gray-700 font-medium">
+                          {t.market?.searchProducts || "Products"} ({searchResults.products.length})
+                        </h3>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        {searchResults.products.map((product: any) => (
+                          <button
+                            key={product.id}
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => {
+                              clearSearch();
+                              setCurrentView({ type: "product", data: product });
+                            }}
+                            className="bg-white rounded-xl overflow-hidden active:scale-95 transition-transform shadow-sm border border-gray-100 text-left"
+                          >
+                            <LazyImage
+                              src={optimizeImageUrl(product.image, networkQuality)}
+                              alt={product.name}
+                              className="w-full aspect-square object-cover"
+                            />
+                            <div className="p-1.5">
+                              <p className="text-[11px] text-gray-800 line-clamp-2 break-words min-h-[2em]">
+                                {product.name}
+                              </p>
+                              <span className="text-xs text-emerald-600 font-medium">{product.price}</span>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 文章搜索结果 */}
+                  {searchResults.articles.length > 0 && (
+                    <div>
+                      <div className="flex items-center gap-2 mb-2 px-1">
+                        <span className="w-1 h-4 bg-emerald-600 rounded-full"></span>
+                        <h3 className="text-sm text-gray-700 font-medium">
+                          {t.home?.news || "Articles"} ({searchResults.articles.length})
+                        </h3>
+                      </div>
+                      <div className="bg-white rounded-xl overflow-hidden shadow-sm border border-gray-100">
+                        <div className="divide-y divide-gray-100">
+                          {searchResults.articles.map((article: any) => (
+                            <button
+                              key={article.id}
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() => {
+                                clearSearch();
+                                setCurrentView({ type: "article", data: article });
+                              }}
+                              className="w-full px-3 py-2.5 text-left active:bg-emerald-50 transition-colors"
+                            >
+                              <div className="flex items-center gap-3">
+                                {article.thumbnail && (
+                                  <LazyImage
+                                    src={optimizeImageUrl(article.thumbnail, networkQuality)}
+                                    alt={article.title}
+                                    className="w-12 h-12 bg-gray-100 rounded-lg flex-shrink-0 object-cover"
+                                  />
+                                )}
+                                <h4 className="flex-1 text-sm text-gray-800 line-clamp-2 min-w-0">
+                                  {article.title}
+                                </h4>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 主内容区域 - 搜索时隐藏，增加底部内边距避免被底部导航遮挡 */}
+          <div className="px-3 space-y-3 max-w-screen-xl mx-auto pb-safe-nav" style={{ display: isSearching ? 'none' : undefined }}>
             {/* 轮播图 — 使用网络感知优化后的图片 URL */}
             <div 
               className="mt-3 rounded-2xl overflow-hidden bg-gray-100 relative active:scale-95 transition-transform cursor-pointer aspect-[2/1] shadow-lg"

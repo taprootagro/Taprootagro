@@ -209,11 +209,11 @@ export function VideoFeedPage({ onClose, startIndex = 0 }: VideoFeedPageProps) {
       onTransitionEnd={handleTransitionEnd}
       className="fixed inset-0 z-50 bg-black overflow-hidden flex flex-col"
       style={{
-        transform: animPhase === 'visible' ? 'none' : 'scale(0.96)',
+        transform: animPhase === 'visible' ? 'none' : 'scale(0.97)',
         opacity: animPhase === 'visible' ? 1 : 0,
         transition: animPhase === 'leaving'
-          ? 'transform 150ms ease-in, opacity 150ms ease-in'
-          : 'transform 200ms ease-out, opacity 200ms ease-out',
+          ? 'transform 160ms ease-in, opacity 120ms ease-in'
+          : 'transform 280ms cubic-bezier(0.16, 1, 0.3, 1), opacity 220ms ease-out',
         willChange: animPhase === 'visible' ? 'auto' : 'transform, opacity',
       }}
     >

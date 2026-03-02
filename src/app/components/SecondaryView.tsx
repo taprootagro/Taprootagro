@@ -38,11 +38,15 @@ export function SecondaryView({ children, onClose, title, showTitle = true }: Se
     <div
       className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-white"
       style={{
-        transform: off ? 'scale(0.92) translateY(18px)' : 'scale(1) translateY(0)',
+        transform: phase === 'entering'
+          ? 'scale(0.94) translateY(12px)'   // 进入：从略小+偏下浮上来
+          : phase === 'leaving'
+            ? 'scale(0.97)'                  // 退出：纯缩小，不位移，干净利落
+            : 'none',
         opacity: off ? 0 : 1,
         transition: phase === 'leaving'
-          ? 'transform 320ms cubic-bezier(0.4, 0, 1, 1), opacity 260ms ease-in'
-          : 'transform 480ms cubic-bezier(0.16, 1, 0.3, 1), opacity 400ms cubic-bezier(0.16, 1, 0.3, 1)',
+          ? 'transform 160ms ease-in, opacity 120ms ease-in'
+          : 'transform 380ms cubic-bezier(0.16, 1, 0.3, 1), opacity 280ms cubic-bezier(0.16, 1, 0.3, 1)',
         willChange: off ? 'transform, opacity' : 'auto',
       }}
       onTransitionEnd={handleTransitionEnd}
