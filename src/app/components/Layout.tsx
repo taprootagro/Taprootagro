@@ -3,7 +3,7 @@ import { useNetworkQuality } from "../hooks/useNetworkQuality";
 import { useDynamicManifest } from "../hooks/useDynamicManifest";
 import { Home, BookOpen, MessageCircle, User } from "lucide-react";
 import { useLanguage } from "../hooks/useLanguage";
-import { useState, useEffect, lazy, Suspense, useMemo, useRef } from "react";
+import { useState, useEffect, lazy, Suspense, useRef } from "react";
 import {
   HomePageSkeleton,
   MarketPageSkeleton,
@@ -25,7 +25,7 @@ const preloadMap: Record<string, () => Promise<any>> = {
   "/home/profile": () => import("./ProfilePage"),
 };
 
-// Tab key 到 index 的映射（用于胶囊滑动动画 translateX 计算）
+// Tab key 到 index 的映射
 const TAB_KEYS = ["home", "market", "community", "profile"] as const;
 
 export function Layout() {
@@ -44,7 +44,6 @@ export function Layout() {
   });
 
   const activeTab = getTabKey(location.pathname);
-  const activeIndex = TAB_KEYS.indexOf(activeTab as typeof TAB_KEYS[number]);
 
   // Tab 切换淡入动画：追踪切换计数，用 CSS animation 触发
   const switchCountRef = useRef(0);
@@ -99,15 +98,6 @@ export function Layout() {
     { key: "profile", Component: ProfilePage, Skeleton: ProfilePageSkeleton },
   ] as const;
 
-  // 胶囊滑动样式 — 纯 CSS transition 替代 motion layoutId，省 ~30KB
-  const pillStyle = useMemo(() => ({
-    transform: `translateX(${activeIndex * 100}%)`,
-    width: `${100 / TAB_KEYS.length}%`,
-    transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-  }), [activeIndex]);
-
-
-
   // 根据网络质量决定是否用 backdrop-blur
   const navBgClass = networkQuality.disableBlur
     ? "bg-white border-t border-gray-100"
@@ -154,14 +144,6 @@ export function Layout() {
         style={{ boxShadow: '0 -1px 12px rgba(0,0,0,0.06)' }}
       >
         <div className="relative">
-          {/* 滑动胶囊背景 — 纯 CSS transition 替代 motion/react layoutId */}
-          <div
-            className="absolute top-0 bottom-0 pointer-events-none"
-            style={pillStyle}
-          >
-            <div className="mx-1.5 h-full bg-emerald-50 rounded-2xl" />
-          </div>
-
           <div className="flex items-center px-1 relative">
             {navItems.map((item) => {
               const isActive = location.pathname === item.path;

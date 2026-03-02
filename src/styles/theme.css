@@ -207,7 +207,7 @@
 
   /* 底部安全区：浏览器模式下只用极小间距（浏览器工具栏已处理安全区）
    * PWA standalone 模式下削减 safe-area 占用，避免底部空白过大
-   * iPhone 11 env(safe-area-inset-bottom) ≈ 34px，减去 20px 后 ≈ 14px，
+   * iPhone 11 env(safe-area-inset-bottom) ≈ 34px，减去 26px 多余空间，最低保留 4px
    * 加上 dock 内容 44px，总计 ≈ 58px，接近 X/Twitter 的紧凑效果 */
   .safe-bottom {
     padding-bottom: 4px;
@@ -215,8 +215,8 @@
 
   @media (display-mode: standalone) {
     .safe-bottom {
-      /* 削减 safe-area：减掉 20px 多余空间，最低保留 4px */
-      padding-bottom: max(calc(env(safe-area-inset-bottom, 0px) - 20px), 4px);
+      /* 削减 safe-area：减掉 26px，iPhone 11 约剩 8px，刚好避开 home indicator */
+      padding-bottom: max(calc(env(safe-area-inset-bottom, 0px) - 26px), 4px);
     }
   }
 
@@ -227,7 +227,7 @@
 
   @media (display-mode: standalone) {
     .pb-safe-nav {
-      padding-bottom: calc(44px + max(calc(env(safe-area-inset-bottom, 0px) - 20px), 4px));
+      padding-bottom: calc(44px + max(calc(env(safe-area-inset-bottom, 0px) - 26px), 4px));
     }
   }
 
