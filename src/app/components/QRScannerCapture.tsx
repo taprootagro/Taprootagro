@@ -1,6 +1,7 @@
 import { useRef, useState, useEffect, useCallback } from "react";
 import { X, ScanLine, Flashlight, FlashlightOff, AlertTriangle, Camera, ImageIcon, Loader } from "lucide-react";
 import { useLanguage } from "../hooks/useLanguage";
+import { safeInputClick } from "../utils/cameraUtils";
 
 // ── BarcodeDetector polyfill type ──────────────────────────────
 interface BarcodeDetectorResult {
@@ -283,14 +284,14 @@ export function QRScannerCapture({ onScan, onClose }: QRScannerCaptureProps) {
             ) : (
               <div className="flex flex-col gap-3">
                 <button
-                  onClick={() => cameraInputRef.current?.click()}
+                  onClick={() => safeInputClick(cameraInputRef.current)}
                   className="w-full flex items-center justify-center gap-2 bg-emerald-600 text-white py-3.5 rounded-2xl active:scale-[0.97] transition-transform"
                 >
                   <Camera className="w-5 h-5" />
                   <span>{ct("拍照识别", "Take Photo")}</span>
                 </button>
                 <button
-                  onClick={() => albumInputRef.current?.click()}
+                  onClick={() => safeInputClick(albumInputRef.current)}
                   className="w-full flex items-center justify-center gap-2 bg-white/10 text-white py-3.5 rounded-2xl active:scale-[0.97] transition-transform border border-white/20"
                 >
                   <ImageIcon className="w-5 h-5" />
@@ -369,7 +370,7 @@ export function QRScannerCapture({ onScan, onClose }: QRScannerCaptureProps) {
               {/* 相册入口 — 即使相机正常也提供 */}
               <div className="flex justify-center">
                 <button
-                  onClick={() => albumInputRef.current?.click()}
+                  onClick={() => safeInputClick(albumInputRef.current)}
                   className="flex items-center gap-2 bg-white/15 backdrop-blur-sm text-white/90 px-5 py-2.5 rounded-full active:scale-95 transition-transform border border-white/20"
                 >
                   <ImageIcon className="w-4 h-4" />
