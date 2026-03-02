@@ -1,6 +1,7 @@
 import { Link, useLocation } from "react-router";
 import { useNetworkQuality } from "../hooks/useNetworkQuality";
 import { useDynamicManifest } from "../hooks/useDynamicManifest";
+import { useKeyboardVisible } from "../hooks/useKeyboardVisible";
 import { Home, BookOpen, MessageCircle, User } from "lucide-react";
 import { useLanguage } from "../hooks/useLanguage";
 import { useState, useEffect, lazy, Suspense, useRef } from "react";
@@ -33,6 +34,7 @@ export function Layout() {
   const { t } = useLanguage();
   const networkQuality = useNetworkQuality();
   useDynamicManifest();
+  const keyboardVisible = useKeyboardVisible();
   
   // 未读消息红点状态
   const [showUnreadBadge, setShowUnreadBadge] = useState(true);
@@ -138,7 +140,8 @@ export function Layout() {
         })}
       </main>
 
-      {/* 底部导航 — flex 子元素，自然贴底，避免 iOS fixed bottom 视口偏移 */}
+      {/* 底部导航 — 键盘弹出时隐藏，让聊天输入栏紧贴键盘 */}
+      {!keyboardVisible && (
       <nav
         className={`flex-shrink-0 z-40 ${navBgClass} safe-bottom`}
         style={{ boxShadow: '0 -1px 12px rgba(0,0,0,0.06)' }}
@@ -180,6 +183,7 @@ export function Layout() {
 
         </div>
       </nav>
+      )}
     </div>
   );
 }
