@@ -203,9 +203,6 @@ export function VideoFeedPage({ onClose, startIndex = 0 }: VideoFeedPageProps) {
   return (
     <div
       ref={containerRef}
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
       onTransitionEnd={handleTransitionEnd}
       className="fixed inset-0 z-50 bg-black overflow-hidden flex flex-col"
       style={{
@@ -218,7 +215,12 @@ export function VideoFeedPage({ onClose, startIndex = 0 }: VideoFeedPageProps) {
       }}
     >
       {/* 视频容器 */}
-      <div className="relative flex-1 w-full overflow-hidden">
+      <div
+        className="relative flex-1 w-full overflow-hidden"
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
         {videos.map((video, index) => {
           const offset = (index - currentIndex) * 100 + (isDragging ? (dragOffset / window.innerHeight) * 100 : 0);
           const isVisible = Math.abs(index - currentIndex) <= 1;

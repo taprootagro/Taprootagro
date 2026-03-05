@@ -88,6 +88,59 @@ function CommunityChat() {
   const isRecordingRef = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
+  // ---- 防止键盘弹出时页面跳动（PWA核心问题）----
+  // 移动端 input 聚焦时，浏览器会触发原生 scrollIntoView，
+  // 把整个 fixed 布局往上推，导致页面跳出可视区留下大片空白。
+  // 通过锁定 scroll 位置 + 阻止原生滚动来解决。
+  const chatRootRef = useRef<HTMLDivElement>(null);
+  const textInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!showTextInput) return;
+
+    // 锁定所有祖先元素的 scrollTop，防止浏览器原生聚焦滚动
+    const resetScroll = () => {
+      window.scrollTo(0, 0);
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+    };
+
+    // 立即重置 + 延迟重置（覆盖浏览器异步滚动）
+    resetScroll();
+    const raf1 = requestAnimationFrame(resetScroll);
+    const t1 = setTimeout(resetScroll, 50);
+    const t2 = setTimeout(resetScroll, 150);
+    const t3 = setTimeout(resetScroll, 300);
+
+    // 持续监听 scroll 事件，阻止任何页面级滚动
+    const onScroll = () => { resetScroll(); };
+    window.addEventListener('scroll', onScroll, { passive: false });
+    document.addEventListener('scroll', onScroll, { passive: false });
+
+    return () => {
+      cancelAnimationFrame(raf1);
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+      window.removeEventListener('scroll', onScroll);
+      document.removeEventListener('scroll', onScroll);
+    };
+  }, [showTextInput]);
+
+  // 输入框聚焦处理 — 阻止原生 scrollIntoView
+  const handleInputFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+    // 阻止浏览器的默认滚动行为
+    e.preventDefault();
+    // 强制重置滚动位置
+    window.scrollTo(0, 0);
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+    // 延迟再次重置（覆盖某些浏览器的异步滚动）
+    requestAnimationFrame(() => {
+      window.scrollTo(0, 0);
+    });
+  };
+  
   // Backend proxy mode indicator
   const [proxyMode, setProxyMode] = useState<"backend" | "mock">("mock");
   const [providerName, setProviderName] = useState("");
@@ -384,7 +437,7 @@ function CommunityChat() {
 
   // 发送图片消息 — 先压缩再发送，节省流量和存储
   const sendImageMessage = async (imageData: string) => {
-    // 压缩图片（chat 预设：最长边1024，质量0.7，上限200KB）
+    // 压缩图片（chat ���设：最长边1024，质量0.7，上限200KB）
     let compressed = imageData;
     try {
       const { compressImageBase64, COMPRESS_PRESETS } = await import('../utils/imageCompressor');
@@ -749,6 +802,8 @@ function CommunityChat() {
                 placeholder={t.community.typeMessage || "输入消息..."}
                 className="flex-1 min-w-0 bg-gray-100 rounded-2xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-400 focus:bg-white transition-all shadow-sm"
                 autoFocus
+                ref={textInputRef}
+                onFocus={handleInputFocus}
               />
               <button
                 onClick={sendTextMessage}

@@ -37,6 +37,67 @@ export function Layout() {
   // 未读消息红点状态
   const [showUnreadBadge, setShowUnreadBadge] = useState(true);
 
+  // ---- 禁止左右滑动切换页面（浏览器前进/后退手势）----
+  // 在 PWA 桌面模式下，国产浏览器（小米/OPPO/vivo）和 Chrome 的边缘左右滑动
+  // 会触发浏览器的 history.back()/forward()，导致页面意外切换。
+  // 通过拦截屏幕边缘的横向滑动手势来阻止此行为。
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  
+  useEffect(() => {
+    const handleTouchStartCapture = (e: TouchEvent) => {
+      const touch = e.touches[0];
+      if (touch) {
+        touchStartRef.current = { x: touch.clientX, y: touch.clientY };
+      }
+    };
+
+    const handleTouchMoveCapture = (e: TouchEvent) => {
+      if (!touchStartRef.current || !e.touches[0]) return;
+      const touch = e.touches[0];
+      const deltaX = Math.abs(touch.clientX - touchStartRef.current.x);
+      const deltaY = Math.abs(touch.clientY - touchStartRef.current.y);
+      
+      // 如果是明显的横向滑动（横向位移 > 纵向位移 × 1.5），
+      // 且起始点在屏幕边缘 40px 内（浏览器手势触发区），则阻止
+      const startX = touchStartRef.current.x;
+      const screenW = window.innerWidth;
+      const isEdgeSwipe = startX < 40 || startX > screenW - 40;
+      
+      if (isEdgeSwipe && deltaX > 10 && deltaX > deltaY * 1.5) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+
+    const handleTouchEnd = () => {
+      touchStartRef.current = null;
+    };
+
+    // 使用 capture 阶段拦截，确保在冒泡前就阻止
+    document.addEventListener('touchstart', handleTouchStartCapture, { passive: true, capture: true });
+    document.addEventListener('touchmove', handleTouchMoveCapture, { passive: false, capture: true });
+    document.addEventListener('touchend', handleTouchEnd, { passive: true, capture: true });
+    document.addEventListener('touchcancel', handleTouchEnd, { passive: true, capture: true });
+
+    // ---- 禁止长按弹出上下文菜单（"在新标签页打开"等）----
+    // Android Chrome / 国产浏览器长按链接或按钮会触发 contextmenu 事件，
+    // 弹出"在新标签页中打开"、"复制链接"等系统菜单，严重影响 PWA 体验。
+    const handleContextMenu = (e: MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      return false;
+    };
+    document.addEventListener('contextmenu', handleContextMenu, { capture: true });
+
+    return () => {
+      document.removeEventListener('touchstart', handleTouchStartCapture, true);
+      document.removeEventListener('touchmove', handleTouchMoveCapture, true);
+      document.removeEventListener('touchend', handleTouchEnd, true);
+      document.removeEventListener('touchcancel', handleTouchEnd, true);
+      document.removeEventListener('contextmenu', handleContextMenu, true);
+    };
+  }, []);
+
   // 记录已访问过的 tab，实现「首次访问才懒加载，之后常驻」
   const [mountedTabs, setMountedTabs] = useState<Set<string>>(() => {
     const currentTab = getTabKey(location.pathname);

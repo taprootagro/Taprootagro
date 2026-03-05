@@ -77,7 +77,7 @@ export function MarketPage() {
     return groups;
   }, [products, selectedCategory, currentSubCategories]);
 
-  // 商城搜索结果 — 跨所有类别搜索
+  // 商城搜索结果 — 跨所有类别搜索（扩大范围：名称、描述、分类、价格）
   const marketIsSearching = marketSearchQuery.trim().length > 0;
   const marketSearchResults = useMemo(() => {
     const q = marketSearchQuery.trim().toLowerCase();
@@ -87,7 +87,9 @@ export function MarketPage() {
       keywords.every(kw =>
         p.name?.toLowerCase().includes(kw) ||
         p.category?.toLowerCase().includes(kw) ||
-        p.subCategory?.toLowerCase().includes(kw)
+        p.subCategory?.toLowerCase().includes(kw) ||
+        p.description?.toLowerCase().includes(kw) ||
+        p.price?.toLowerCase().includes(kw)
       )
     ).slice(0, 20);
   }, [marketSearchQuery, products]);

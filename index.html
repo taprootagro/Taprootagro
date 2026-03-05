@@ -133,6 +133,12 @@
         tid = setTimeout(setAppHeight, 50);
       }
 
+      // 键盘场景专用：更快响应（16ms = 一帧），避免键盘弹出时页面跳动
+      function fastSetHeight(){
+        clearTimeout(tid);
+        tid = setTimeout(setAppHeight, 16);
+      }
+
       // 首次测量：等一帧确保浏览器工具栏已定位完毕
       requestAnimationFrame(function(){
         setAppHeight();
@@ -154,9 +160,10 @@
       });
 
       if (window.visualViewport) {
-        window.visualViewport.addEventListener('resize', debouncedSetHeight);
+        // visualViewport resize 由键盘弹出/收起触发，需要快速响应
+        window.visualViewport.addEventListener('resize', fastSetHeight);
         // scroll 事件在 iOS 键盘弹出/收起时触发
-        window.visualViewport.addEventListener('scroll', debouncedSetHeight);
+        window.visualViewport.addEventListener('scroll', fastSetHeight);
       }
     })();
   </script>

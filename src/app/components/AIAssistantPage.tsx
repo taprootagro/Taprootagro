@@ -1,3 +1,5 @@
+import { compressImageFile, compressImageBase64, COMPRESS_PRESETS } from '../utils/imageCompressor';
+import { CameraOverlay } from './CameraOverlay';
 import { SecondaryView } from "./SecondaryView";
 import { useLanguage } from "../hooks/useLanguage";
 import { useState, useRef, useEffect, useCallback } from "react";
@@ -6,7 +8,6 @@ import { TaprootAgroDetector, Detection } from "../utils/taprootAgroDetector";
 import { useHomeConfig } from "../hooks/useHomeConfig";
 import { cloudAIService, type DeepAnalysisResult } from "../services/CloudAIService";
 import { cloudAIGuard } from "../utils/cloudAIGuard";
-import { compressImageFile, COMPRESS_PRESETS } from "../utils/imageCompressor";
 
 interface AIAssistantPageProps {
   onClose: () => void;
@@ -21,6 +22,9 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
 
   // Cloud-only mode: local model disabled, use cloud AI directly
   const cloudOnlyMode = config.aiModelConfig?.enableLocalModel === false;
+
+  // CameraOverlay state
+  const [showCameraOverlay, setShowCameraOverlay] = useState(false);
 
   // ===== 演示数据 =====
   const DEMO_SAMPLES = [
@@ -150,6 +154,21 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
       loadModel();
     }
   }, []);
+
+  // CameraOverlay 拍照回调 — 接收 base64，压缩后设置为图片
+  const onCameraCapture = async (base64: string) => {
+    setShowCameraOverlay(false);
+    try {
+      const compressed = await compressImageBase64(base64, COMPRESS_PRESETS.ai);
+      setImage(compressed);
+      setResults([]);
+      setDone(false);
+    } catch {
+      setImage(base64);
+      setResults([]);
+      setDone(false);
+    }
+  };
 
   // 选图 — 压缩后再 setState，AI 预设保留足够清晰度识别病虫害
   const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -519,7 +538,7 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
                 {!isDemo && (
                   <>
                     <button
-                      onClick={() => cameraRef.current?.click()}
+                      onClick={() => setShowCameraOverlay(true)}
                       className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white py-3.5 rounded-2xl active:scale-[0.97] transition-transform"
                     >
                       <Camera className="w-5 h-5" /><span className="font-medium">{a.takePhoto}</span>
@@ -530,7 +549,6 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
                     >
                       <Upload className="w-5 h-5" /><span className="font-medium">{a.selectAlbum}</span>
                     </button>
-                    <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={onFile} className="hidden" />
                     <input ref={fileRef} type="file" accept="image/*" onChange={onFile} className="hidden" />
                   </>
                 )}
@@ -883,6 +901,7 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
           </div>
         )}
       </div>
+      {showCameraOverlay && <CameraOverlay onClose={() => setShowCameraOverlay(false)} onCapture={onCameraCapture} />}
     </SecondaryView>
   );
 }

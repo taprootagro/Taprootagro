@@ -52,7 +52,7 @@ export function HomePage() {
   const bannerImages = config?.banners || [];
   const allProducts = config?.marketPage?.products || [];
 
-  // 搜索结果 — 模糊匹配产品名和文章标题
+  // 搜索结果 — 模糊匹配产品和文章（扩大搜索范围：名称、描述、分类、作者、正文）
   const searchResults = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return { products: [], articles: [] };
@@ -61,12 +61,17 @@ export function HomePage() {
       keywords.every(kw => 
         p.name?.toLowerCase().includes(kw) || 
         p.category?.toLowerCase().includes(kw) ||
-        p.subCategory?.toLowerCase().includes(kw)
+        p.subCategory?.toLowerCase().includes(kw) ||
+        p.description?.toLowerCase().includes(kw) ||
+        p.price?.toLowerCase().includes(kw)
       )
     ).slice(0, 12);
     const matchArticles = articles.filter((a: any) =>
       keywords.every(kw => 
-        a.title?.toLowerCase().includes(kw)
+        a.title?.toLowerCase().includes(kw) ||
+        a.content?.toLowerCase().includes(kw) ||
+        a.author?.toLowerCase().includes(kw) ||
+        a.category?.toLowerCase().includes(kw)
       )
     ).slice(0, 6);
     return { products: matchProducts, articles: matchArticles };

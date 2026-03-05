@@ -1,7 +1,8 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
 import { Camera, ImageIcon, X } from 'lucide-react';
 import { useLanguage } from '../hooks/useLanguage';
-import { compressImageFile, COMPRESS_PRESETS } from '../utils/imageCompressor';
+import { compressImageFile, compressImageBase64, COMPRESS_PRESETS } from '../utils/imageCompressor';
+import { CameraOverlay } from './CameraOverlay';
 
 interface CameraCaptureProps {
   onCapture?: (imageData: string) => void;
@@ -10,21 +11,20 @@ interface CameraCaptureProps {
 
 /**
  * CameraCapture — PWA 兼容的图片采集组件
- * 
- * 不再使用 getUserMedia（PWA standalone 模式下很多设备不支持），
- * 改为调用 <input type="file"> 触发系统原生的拍照/相册选择器。
- * 
- * 展示为底部 Action Sheet，两个选项：
- * 1. 拍照（capture="environment" 调起后置相机）
- * 2. 从相册选择（纯 file input）
- * 
- * 兼容性：iOS Safari / Android Chrome / 小米浏览器 / Samsung Internet
- * 在 PWA standalone 模式下均可正常工作。
+ *
+ * 方案 C 升级：优先使用 getUserMedia（CameraOverlay 组件）直接打开相机预览，
+ * 绕过国产浏览器 PWA standalone 下 capture="environment" 被拦截的问题。
+ * 底部 Action Sheet 仍保留"从相册选择"入口。
+ *
+ * 流程：
+ * 1. 点击"拍照" → 打开 CameraOverlay（getUserMedia 实时预览 + 拍照）
+ * 2. 点击"从相册选择" → 触发 <input type="file"> 选择图片
  */
 export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
-  const cameraInputRef = useRef<HTMLInputElement>(null);
   const albumInputRef = useRef<HTMLInputElement>(null);
   const { language } = useLanguage();
+
+  const [showCameraOverlay, setShowCameraOverlay] = useState(false);
 
   // 过渡动画
   const [animPhase, setAnimPhase] = useState<'entering' | 'visible' | 'leaving'>('entering');
@@ -43,7 +43,20 @@ export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
     }, 200);
   }, [onClose]);
 
-  // 处理文件选择
+  // 处理 CameraOverlay 拍照结果
+  const handleCameraCapture = useCallback(async (base64: string) => {
+    setShowCameraOverlay(false);
+    try {
+      const compressed = await compressImageBase64(base64, COMPRESS_PRESETS.chat);
+      onCapture?.(compressed);
+      handleClose();
+    } catch {
+      onCapture?.(base64);
+      handleClose();
+    }
+  }, [onCapture, handleClose]);
+
+  // 处理相册文件选择
   const handleFile = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -55,12 +68,10 @@ export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
     }
 
     try {
-      // 压缩图片：农民拍照上传无需原图大小，chat 预设够用
       const compressed = await compressImageFile(file, COMPRESS_PRESETS.chat);
       onCapture?.(compressed);
       handleClose();
     } catch {
-      // 压缩失败则降级读取原图
       const reader = new FileReader();
       reader.onload = (ev) => {
         const result = ev.target?.result as string;
@@ -75,7 +86,6 @@ export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
       reader.readAsDataURL(file);
     }
 
-    // 清空 input 以便同一文件可以再次选择
     e.target.value = '';
   }, [onCapture, handleClose, texts]);
 
@@ -85,6 +95,16 @@ export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
       handleClose();
     }
   }, [handleClose]);
+
+  // 如果正在使用 CameraOverlay，则渲染它
+  if (showCameraOverlay) {
+    return (
+      <CameraOverlay
+        onCapture={handleCameraCapture}
+        onClose={() => setShowCameraOverlay(false)}
+      />
+    );
+  }
 
   return (
     <div
@@ -113,10 +133,10 @@ export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
             <p className="text-gray-400" style={{ fontSize: '13px' }}>{texts.title}</p>
           </div>
 
-          {/* 拍照 */}
+          {/* 拍照 — 使用 getUserMedia CameraOverlay */}
           <button
             className="w-full flex items-center justify-center gap-3 py-4 active:bg-gray-50 transition-colors border-t border-gray-100"
-            onClick={() => cameraInputRef.current?.click()}
+            onClick={() => setShowCameraOverlay(true)}
           >
             <Camera className="w-5 h-5 text-emerald-600" />
             <span className="text-emerald-600" style={{ fontSize: '17px' }}>{texts.takePhoto}</span>
@@ -143,17 +163,7 @@ export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
         </div>
       </div>
 
-      {/* 隐藏的 file inputs */}
-      {/* capture="environment" 直接调起后置相机，绕过 getUserMedia 权限问题 */}
-      <input
-        ref={cameraInputRef}
-        type="file"
-        accept="image/*"
-        capture="environment"
-        onChange={handleFile}
-        className="hidden"
-      />
-      {/* 无 capture 属性：弹出系统相册选择器 */}
+      {/* 隐藏的 file input — 相册选择 */}
       <input
         ref={albumInputRef}
         type="file"
