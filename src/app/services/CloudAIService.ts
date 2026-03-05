@@ -133,10 +133,7 @@ ${detections.map((d, i) => `${i + 1}. **${d.className}**：建议使用对应的
 ### 农事提醒
 - 建议定期巡田，及时发现病虫害。
 - 合理轮作，减少病原菌积累。
-- 注意田间排水，降低湿度以减少病害发生。
-
----
-*本分析由 ${cfg.providerName} (${cfg.modelId}) 提供*`;
+- 注意田间排水，降低湿度以减少病害发生。`;
 
   return {
     provider: cfg.providerName,
@@ -150,6 +147,56 @@ ${detections.map((d, i) => `${i + 1}. **${d.className}**：建议使用对应的
     ],
     timestamp: Date.now(),
   };
+}
+
+// ---- MOCK follow-up reply ----
+function generateMockFollowUp(
+  userMessage: string,
+  previousAnalysis: string,
+): string {
+  // Simulate a contextual AI reply based on user's follow-up question
+  const lowerMsg = userMessage.toLowerCase();
+  if (lowerMsg.includes('药') || lowerMsg.includes('pesticide') || lowerMsg.includes('spray') || lowerMsg.includes('drug')) {
+    return `### 用药建议补充
+
+根据您提供的用药信息，以下是调整后的建议：
+
+1. **避免重复用药**：如果近期已使用过相同成分的药剂，建议更换其他作用机制的药物，以防止抗药性产生。
+2. **交替用药方案**：建议将保护性杀菌剂和治疗性杀菌剂交替使用，间隔7-10天。
+3. **注意安全间隔期**：确保在采收前严格遵守各药剂的安全间隔期。
+4. **施药方式**：建议在傍晚或阴天施药，避免高温时段，提高药效。
+
+如需更具体的药剂推荐，请告诉我作物品种和当前生长阶段。`;
+  }
+  if (lowerMsg.includes('肥') || lowerMsg.includes('fertilizer') || lowerMsg.includes('nutrient')) {
+    return `### 施肥与营养管理建议
+
+结合病害情况，营养管理建议如下：
+
+1. **增强抗病力**：适当增施钾肥和磷肥，提高植株抗病能力。
+2. **避免偏施氮肥**：过多氮肥会导致徒长，增加染病风险。
+3. **叶面补充**：可配合叶面喷施微量元素（如硼、锌），促进恢复。
+4. **有机肥改良**：增施腐熟有机肥改善土壤微生态环境。`;
+  }
+  if (lowerMsg.includes('水') || lowerMsg.includes('浇') || lowerMsg.includes('irrigation') || lowerMsg.includes('water')) {
+    return `### 水分管理建议
+
+针对当前病害状况，水分管理至关重要：
+
+1. **控制田间湿度**：避免大水漫灌，采用滴灌或沟灌方式。
+2. **排水畅通**：确保田间排水系统畅通，降低病原菌繁殖的湿度条件。
+3. **灌溉时间**：建议在早晨灌溉，让叶面在白天尽快干燥。
+4. **适度控水**：发病期间适当控制水量，配合通风降湿。`;
+  }
+  return `### 补充分析
+
+感谢您提供的额外信息。根据您的描述"${userMessage}"，以下是进一步的建议：
+
+1. **综合防治**：建议结合农业防治、物理防治和化学防治多种手段。
+2. **持续观察**：密切关注病害发展趋势，如有扩散应及时加强防治。
+3. **记录档案**：建议记录用药时间、药剂名称和用量，建立田间管理档案。
+
+如果您能提供更多细节（如使用过的农药、施肥情况、灌溉方式等），我可以给出更精准的建议。`;
 }
 
 // ---- Public API ----
@@ -308,6 +355,88 @@ class CloudAIService {
     await cloudAIGuard.cacheResult(compressedImage, JSON.stringify(mockResult));
 
     return mockResult;
+  }
+
+  /**
+   * Generate a follow-up reply based on user's message and previous analysis.
+   *
+   * @param userMessage - User's follow-up question or comment
+   * @param previousAnalysis - Previous analysis result in markdown format
+   * @returns Follow-up reply in markdown format
+   */
+  async followUp(
+    userMessage: string,
+    previousAnalysis: string,
+  ): Promise<string> {
+    const endpoint = getEndpointUrl();
+    const cfg = getCloudAIConfig();
+
+    // ---- Frontend Guard Checks ----
+    const preflight = cloudAIGuard.preflightCheck();
+    if (preflight === 'DAILY_LIMIT') {
+      throw new Error('DAILY_LIMIT_REACHED');
+    }
+    if (preflight === 'COOLDOWN') {
+      const remaining = cloudAIGuard.getCooldownRemaining();
+      throw new Error(`COOLDOWN:${remaining}`);
+    }
+
+    if (endpoint) {
+      // ---- Real Backend Proxy Call ----
+      console.log(`[CloudAI] Follow-up POST ${endpoint}`);
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 60000);
+
+        const res = await fetch(endpoint, {
+          method: "POST",
+          headers: getHeaders(),
+          signal: controller.signal,
+          body: JSON.stringify({
+            followUp: true,
+            userMessage,
+            previousAnalysis,
+            modelId: cfg.modelId,
+            systemPrompt: cfg.systemPrompt,
+            maxTokens: cfg.maxTokens,
+          }),
+        });
+        clearTimeout(timeoutId);
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ error: "Unknown error" }));
+          throw new Error(err.error || err.message || `Server responded with ${res.status}`);
+        }
+
+        const data = await res.json();
+        let replyText = "";
+        if (typeof data === "string") replyText = data;
+        else if (data.analysis) replyText = data.analysis;
+        else if (data.text) replyText = data.text;
+        else if (data.content) replyText = data.content;
+        else if (data.choices?.[0]?.message?.content) replyText = data.choices[0].message.content;
+        else if (data.output?.text) replyText = data.output.text;
+        else replyText = JSON.stringify(data);
+
+        cloudAIGuard.recordCall();
+        return replyText;
+      } catch (error: any) {
+        console.error("[CloudAI] Follow-up call failed:", error);
+        if (error?.name === 'AbortError') {
+          throw new Error('Request timed out (60s). Please try again later.');
+        }
+        if (error?.message?.includes('Failed to fetch') || error?.message?.includes('NetworkError')) {
+          throw new Error('Network error. Please check your internet connection.');
+        }
+        throw error;
+      }
+    }
+
+    // ---- Mock Mode ----
+    console.log("[CloudAI][MOCK] Generating mock follow-up reply");
+    await new Promise((r) => setTimeout(r, 1000 + Math.random() * 1000));
+    cloudAIGuard.recordCall();
+    return generateMockFollowUp(userMessage, previousAnalysis);
   }
 }
 

@@ -3,7 +3,7 @@ import { CameraOverlay } from './CameraOverlay';
 import { SecondaryView } from "./SecondaryView";
 import { useLanguage } from "../hooks/useLanguage";
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Camera, Upload, Loader, X, ScanLine, RefreshCw, AlertTriangle, FolderOpen, Play, Sparkles, Copy, Check, ChevronDown, ChevronUp, Cloud, Shield, Clock } from "lucide-react";
+import { Camera, Upload, Loader, X, ScanLine, RefreshCw, AlertTriangle, FolderOpen, Play, Sparkles, Copy, Check, ChevronDown, ChevronUp, Cloud, Shield, Clock, Send } from "lucide-react";
 import { TaprootAgroDetector, Detection } from "../utils/taprootAgroDetector";
 import { useHomeConfig } from "../hooks/useHomeConfig";
 import { cloudAIService, type DeepAnalysisResult } from "../services/CloudAIService";
@@ -20,8 +20,10 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
   const { config } = useHomeConfig();
   const a = t.ai;
 
-  // Cloud-only mode: local model disabled, use cloud AI directly
-  const cloudOnlyMode = config.aiModelConfig?.enableLocalModel === false;
+  // Cloud-only mode: when cloud AI is enabled AND device is online, skip local model
+  // Default / offline → local inference; cloud AI enabled + online → cloud-only
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const cloudOnlyMode = config.cloudAIConfig?.enabled === true && isOnline;
 
   // CameraOverlay state
   const [showCameraOverlay, setShowCameraOverlay] = useState(false);
@@ -78,6 +80,12 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
   const [cachedHit, setCachedHit] = useState(false);
   const cooldownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Follow-up chat state
+  const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'ai'; text: string }[]>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [chatReplying, setChatReplying] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
   // Refresh guard state
   const refreshGuardState = useCallback(() => {
     setDailyUsage(cloudAIGuard.getDailyUsage());
@@ -101,6 +109,18 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
     refreshGuardState();
     return () => {
       if (cooldownRef.current) clearInterval(cooldownRef.current);
+    };
+  }, []);
+
+  // Listen for online/offline changes
+  useEffect(() => {
+    const goOnline = () => setIsOnline(true);
+    const goOffline = () => setIsOnline(false);
+    window.addEventListener('online', goOnline);
+    window.addEventListener('offline', goOffline);
+    return () => {
+      window.removeEventListener('online', goOnline);
+      window.removeEventListener('offline', goOffline);
     };
   }, []);
 
@@ -292,6 +312,9 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
     setDeepAnalyzing(false);
     setDeepError('');
     setCopied(false);
+    setChatMessages([]);
+    setChatInput('');
+    setChatReplying(false);
     if (fileRef.current) fileRef.current.value = '';
     if (cameraRef.current) cameraRef.current.value = '';
   };
@@ -370,6 +393,40 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
     }
   };
 
+  // Follow-up chat handler
+  const handleChatSend = async () => {
+    const msg = chatInput.trim();
+    if (!msg || !deepAnalysisResult || chatReplying) return;
+
+    const userMsg = { role: 'user' as const, text: msg };
+    setChatMessages(prev => [...prev, userMsg]);
+    setChatInput('');
+    setChatReplying(true);
+
+    try {
+      // Build full conversation context for AI
+      const fullContext = deepAnalysisResult.analysis +
+        chatMessages.map(m => `\n\n[${m.role === 'user' ? 'User' : 'AI'}]: ${m.text}`).join('') +
+        `\n\n[User]: ${msg}`;
+      const reply = await cloudAIService.followUp(msg, fullContext);
+      setChatMessages(prev => [...prev, { role: 'ai', text: reply }]);
+      refreshGuardState();
+    } catch (err: any) {
+      const errMsg = err?.message || a.deepAnalysisError;
+      setChatMessages(prev => [...prev, { role: 'ai', text: `⚠️ ${errMsg}` }]);
+      refreshGuardState();
+    } finally {
+      setChatReplying(false);
+    }
+  };
+
+  // Auto-scroll chat to bottom
+  useEffect(() => {
+    if (chatEndRef.current) {
+      chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [chatMessages, chatReplying]);
+
   // Simple markdown renderer for analysis text
   const renderMarkdown = (text: string) => {
     const lines = text.split('\n');
@@ -408,10 +465,10 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
   // ===== 渲 =====
   return (
     <SecondaryView onClose={onClose} title={a.title} showTitle={true}>
-      <div className="flex flex-col h-full" style={{ backgroundColor: 'var(--app-bg)' }}>
+      <div className="flex flex-col min-h-full" style={{ backgroundColor: 'var(--app-bg)' }}>
 
         {/* 顶部状态 */}
-        <div className="px-4 pt-2 pb-1">
+        <div className="px-4 pt-2 pb-1 flex-shrink-0">
           {status === 'loading' && (
             <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2">
               <div className="flex items-center gap-2 mb-1 min-w-0">
@@ -449,12 +506,11 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
             <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 min-w-0">
               <Cloud className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
               <span className="text-xs text-amber-700 font-medium truncate min-w-0">{a.cloudOnlyMode}</span>
-              <span className="text-[10px] text-amber-500 ml-auto flex-shrink-0 whitespace-nowrap">{a.cloudOnlyDesc}</span>
             </div>
           )}
 
-          {/* Anti-abuse guard status bar */}
-          {dailyUsage.used > 0 && (
+          {/* Anti-abuse guard status bar — only during cloud AI usage */}
+          {dailyUsage.used > 0 && (deepAnalyzing || deepAnalysisResult || deepError || chatReplying) && (
             <div className="flex items-center gap-2 mt-1 min-w-0">
               <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-1.5 min-w-0 flex-1">
                 <Shield className="w-3 h-3 text-gray-400 flex-shrink-0" />
@@ -475,6 +531,12 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
               )}
             </div>
           )}
+
+          {/* 免责声明 — 页面顶部唯一显示 */}
+          <div className="flex items-center gap-1.5 mt-1 px-1">
+            <AlertTriangle className="w-3 h-3 text-amber-500 flex-shrink-0" />
+            <p className="text-[10px] text-amber-600 leading-relaxed">{a.disclaimer}</p>
+          </div>
         </div>
 
         {/* 主区域 */}
@@ -524,7 +586,8 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
             </div>
           </div>
         ) : (
-          <div className="flex-1 overflow-y-auto px-4 pb-24">
+          <>
+          <div className="flex-1 px-4 pb-4">
             {!image ? (
               <div className="mt-5 space-y-3">
                 <div className="text-center py-5">
@@ -582,71 +645,48 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
             ) : (
               /* 检测结果区域 */
               <div className="mt-3 space-y-3">
-                <div className="relative bg-white rounded-2xl overflow-hidden shadow">
-                  {done && results.length > 0 ? (
-                    <canvas ref={canvasRef} className="w-full h-auto block" />
-                  ) : (
-                    <>
-                      <img src={image} alt="" className="w-full h-auto block" />
-                      {detecting && (
-                        <div className="absolute inset-0 bg-black/30 backdrop-blur-[1px] flex flex-col items-center justify-center gap-2">
-                          <div className="w-10 h-10 border-3 border-white/30 border-t-white rounded-full animate-spin" />
-                          <span className="text-white text-xs font-medium">{a.aiAnalyzing}</span>
-                        </div>
-                      )}
-                    </>
-                  )}
-                  <button onClick={reset} className="absolute top-2 right-2 w-7 h-7 bg-black/50 backdrop-blur text-white rounded-full flex items-center justify-center active:scale-90 transition-transform">
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-
-                {/* 识别按钮 */}
-                {!done && !detecting && !isDemo && !cloudOnlyMode && (
-                  <button
-                    onClick={handleDetect}
-                    className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white py-3.5 rounded-2xl active:scale-[0.97] transition-transform"
-                  >
-                    <ScanLine className="w-4 h-4" /><span className="font-medium">{a.startDetect}</span>
-                  </button>
-                )}
-
-                {/* Cloud-only mode: direct cloud analysis button */}
-                {cloudOnlyMode && !done && !deepAnalyzing && !deepAnalysisResult && !deepError && (
-                  <div className="space-y-2">
-                    <button
-                      onClick={handleCloudAnalysis}
-                      disabled={cooldownSec > 0 || dailyUsage.used >= dailyUsage.limit}
-                      className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-violet-500 to-purple-600 text-white py-3.5 rounded-2xl active:scale-[0.97] transition-transform shadow-lg disabled:opacity-50 disabled:active:scale-100"
-                    >
-                      {cooldownSec > 0 ? (
-                        <><Clock className="w-4 h-4" /><span className="font-medium">{guardText(a.cooldownWait, { seconds: cooldownSec })}</span></>
-                      ) : dailyUsage.used >= dailyUsage.limit ? (
-                        <><Shield className="w-4 h-4" /><span className="font-medium">{a.dailyLimitReached}</span></>
-                      ) : (
-                        <><Cloud className="w-4 h-4" /><span className="font-medium">{a.cloudAnalyzeBtn}</span></>
-                      )}
+                {/* 图片预览 — 仅在未开始分析时显示 */}
+                {!detecting && !deepAnalyzing && !done && !deepAnalysisResult && !deepError && (
+                <div className="flex justify-center">
+                  <div className="relative w-44 h-44 rounded-2xl overflow-hidden shadow bg-gray-100 flex-shrink-0">
+                    {done && results.length > 0 ? (
+                      <canvas ref={canvasRef} className="w-full h-full object-cover block" />
+                    ) : (
+                      <>
+                        <img src={image} alt="" className="w-full h-full object-cover block" />
+                        {detecting && (
+                          <div className="absolute inset-0 bg-black/30 backdrop-blur-[1px] flex flex-col items-center justify-center gap-2">
+                            <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          </div>
+                        )}
+                      </>
+                    )}
+                    <button onClick={reset} className="absolute top-1.5 right-1.5 w-6 h-6 bg-black/50 backdrop-blur text-white rounded-full flex items-center justify-center active:scale-90 transition-transform">
+                      <X className="w-3 h-3" />
                     </button>
-                    <p className="text-[10px] text-center text-gray-400">{a.cloudAnalyzeBtnDesc} · {a.poweredBy} {cloudAIService.providerName}</p>
                   </div>
+                </div>
                 )}
+
+                {/* 识别按钮已移至底部固定栏 */}
+
+                {/* Cloud-only 分析按钮已移至底部固定栏 */}
 
                 {/* Cloud-only mode: deep analysis loading/error/result */}
                 {cloudOnlyMode && (deepAnalyzing || deepError || deepAnalysisResult) && (
                   <div className="space-y-2 pt-1">
                     {/* Loading state */}
                     {deepAnalyzing && (
-                      <div className="bg-gradient-to-r from-violet-50 to-purple-50 border border-violet-200 rounded-2xl px-4 py-5">
+                      <div className="bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-5">
                         <div className="flex flex-col items-center gap-3">
-                          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
+                          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center">
                             <Sparkles className="w-6 h-6 text-white animate-pulse" />
                           </div>
                           <div className="text-center">
-                            <p className="text-sm text-violet-700 font-medium">{a.deepAnalyzing}</p>
-                            <p className="text-[10px] text-violet-400 mt-1">{a.poweredBy} {cloudAIService.providerName}</p>
+                            <p className="text-sm text-emerald-700 font-medium">{a.deepAnalyzing}</p>
                           </div>
-                          <div className="w-full bg-violet-200 rounded-full h-1 overflow-hidden">
-                            <div className="bg-violet-600 h-1 rounded-full" style={{ width: '60%', animation: 'loading 2s ease-in-out infinite' }} />
+                          <div className="w-full bg-emerald-200 rounded-full h-1 overflow-hidden">
+                            <div className="bg-emerald-600 h-1 rounded-full" style={{ width: '60%', animation: 'loading 2s ease-in-out infinite' }} />
                           </div>
                         </div>
                       </div>
@@ -671,13 +711,15 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
 
                     {/* Analysis Result */}
                     {deepAnalysisResult && (
-                      <div className="bg-white rounded-2xl shadow-lg border border-violet-100 overflow-hidden">
-                        <div className="bg-gradient-to-r from-violet-500 to-purple-600 px-4 py-3 flex items-center justify-between">
+                      <div className="bg-white rounded-2xl shadow-lg border border-emerald-100 overflow-hidden">
+                        {/* Header */}
+                        <div className="bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-3 flex items-center justify-between">
                           <div className="flex items-center gap-2 min-w-0">
                             <Sparkles className="w-4 h-4 text-white flex-shrink-0" />
                             <span className="text-sm text-white font-medium truncate">{a.deepAnalysisResult}</span>
                           </div>
                           <div className="flex items-center gap-1.5 flex-shrink-0">
+                            {/* Copy button */}
                             <button
                               onClick={handleCopyReport}
                               className="flex items-center gap-1 text-[10px] text-white/80 hover:text-white bg-white/15 px-2 py-1 rounded-lg active:scale-95 transition-all"
@@ -685,6 +727,7 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
                               {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
                               {copied ? a.copied : a.copyReport}
                             </button>
+                            {/* Collapse/Expand */}
                             <button
                               onClick={() => setDeepExpanded(!deepExpanded)}
                               className="text-white/80 hover:text-white p-1 rounded-lg active:scale-95 transition-all"
@@ -693,40 +736,46 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
                             </button>
                           </div>
                         </div>
+
+                        {/* Body */}
                         {deepExpanded && (
                           <div className="px-4 py-3 max-h-[400px] overflow-y-auto">
                             {renderMarkdown(deepAnalysisResult.analysis)}
-                            <div className="mt-3 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 flex items-start gap-2">
-                              <AlertTriangle className="w-3 h-3 text-amber-500 flex-shrink-0 mt-0.5" />
-                              <p className="text-[10px] text-amber-700 leading-relaxed">{a.disclaimer}</p>
-                            </div>
                           </div>
                         )}
-                        <div className="px-4 py-2 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
-                          <span className="text-[10px] text-gray-400">
-                            {a.poweredBy} {deepAnalysisResult.provider} ({deepAnalysisResult.model})
-                          </span>
-                        </div>
-                        <div className="px-4 py-2 border-t border-gray-100">
-                          <button
-                            onClick={handleCloudAnalysis}
-                            className="w-full flex items-center justify-center gap-1.5 text-xs text-violet-600 font-medium py-2 rounded-xl bg-violet-50 active:bg-violet-100 active:scale-[0.98] transition-all"
-                          >
-                            <RefreshCw className="w-3 h-3" />{a.deepAnalysisRetry}
-                          </button>
-                        </div>
+
+                        {/* Follow-up chat messages */}
+                        {chatMessages.length > 0 && (
+                          <div className="px-4 py-2 border-t border-gray-100 space-y-2 max-h-[300px] overflow-y-auto">
+                            {chatMessages.map((msg, idx) => (
+                              <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                                <div className={`max-w-[85%] rounded-2xl px-3 py-2 ${
+                                  msg.role === 'user'
+                                    ? 'bg-emerald-500 text-white rounded-br-md'
+                                    : 'bg-gray-100 text-gray-700 rounded-bl-md'
+                                }`}>
+                                  {msg.role === 'ai' ? (
+                                    <div className="text-xs leading-relaxed">{renderMarkdown(msg.text)}</div>
+                                  ) : (
+                                    <p className="text-xs leading-relaxed">{msg.text}</p>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                            {chatReplying && (
+                              <div className="flex justify-start">
+                                <div className="bg-gray-100 rounded-2xl rounded-bl-md px-3 py-2 flex items-center gap-1.5">
+                                  <Loader className="w-3 h-3 text-emerald-500 animate-spin" />
+                                  <span className="text-[10px] text-gray-400">{a.aiReplying}</span>
+                                </div>
+                              </div>
+                            )}
+                            <div ref={chatEndRef} />
+                          </div>
+                        )}
                       </div>
                     )}
 
-                    {/* Retake photo button — cloud-only mode */}
-                    {(deepAnalysisResult || deepError) && (
-                      <button
-                        onClick={reset}
-                        className="w-full flex items-center justify-center gap-2 bg-white border-2 border-emerald-500 text-emerald-600 py-3 rounded-2xl active:scale-[0.97] transition-transform"
-                      >
-                        <Camera className="w-4 h-4" /><span className="font-medium text-sm">{a.retakePhoto}</span>
-                      </button>
-                    )}
                   </div>
                 )}
 
@@ -759,61 +808,27 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
 
                 {/* 无结果 */}
                 {done && results.length === 0 && !cloudOnlyMode && (
-                  <div className="space-y-3">
-                    <div className="bg-white rounded-2xl p-5 shadow text-center">
-                      <p className="text-sm text-gray-600">{a.noTarget}</p>
-                      <p className="text-xs text-gray-400 mt-1">{a.tryClearer}</p>
-                    </div>
-                    <button onClick={reset} className="w-full flex items-center justify-center gap-2 bg-white border-2 border-emerald-500 text-emerald-600 py-3 rounded-2xl active:scale-[0.97] transition-transform">
-                      <Camera className="w-4 h-4" /><span className="font-medium text-sm">{a.retakePhoto}</span>
-                    </button>
+                  <div className="bg-white rounded-2xl p-5 shadow text-center">
+                    <p className="text-sm text-gray-600">{a.noTarget}</p>
+                    <p className="text-xs text-gray-400 mt-1">{a.tryClearer}</p>
                   </div>
                 )}
 
-                {/* Disclaimer */}
-                {done && results.length > 0 && (
-                  <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5 flex items-start gap-2">
-                    <AlertTriangle className="w-3.5 h-3.5 text-amber-500 flex-shrink-0 mt-0.5" />
-                    <p className="text-[11px] text-amber-700 leading-relaxed">{a.disclaimer}</p>
-                  </div>
-                )}
-
-                {/* Deep Analysis */}
-                {done && results.length > 0 && (
+                {/* Deep Analysis — 按钮已移至底部，此处仅展示 loading/error/result */}
+                {done && results.length > 0 && (deepAnalyzing || deepError || deepAnalysisResult) && (
                   <div className="space-y-2 pt-1">
-                    {/* Deep Analysis Button — only show if not already analyzing/done */}
-                    {!deepAnalysisResult && !deepAnalyzing && !deepError && (
-                      <button
-                        onClick={handleDeepAnalysis}
-                        disabled={cooldownSec > 0 || dailyUsage.used >= dailyUsage.limit}
-                        className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-violet-500 to-purple-600 text-white py-3.5 rounded-2xl active:scale-[0.97] transition-transform shadow-lg disabled:opacity-50 disabled:active:scale-100"
-                      >
-                        {cooldownSec > 0 ? (
-                          <><Clock className="w-4 h-4" /><span className="font-medium">{guardText(a.cooldownWait, { seconds: cooldownSec })}</span></>
-                        ) : dailyUsage.used >= dailyUsage.limit ? (
-                          <><Shield className="w-4 h-4" /><span className="font-medium">{a.dailyLimitReached}</span></>
-                        ) : (
-                          <><Sparkles className="w-4 h-4" /><span className="font-medium">{a.deepAnalysis}</span></>
-                        )}
-                      </button>
-                    )}
-                    {!deepAnalysisResult && !deepAnalyzing && !deepError && (
-                      <p className="text-[10px] text-center text-gray-400">{a.deepAnalysisDesc} · {a.poweredBy} {cloudAIService.providerName}</p>
-                    )}
-
                     {/* Loading state */}
                     {deepAnalyzing && (
-                      <div className="bg-gradient-to-r from-violet-50 to-purple-50 border border-violet-200 rounded-2xl px-4 py-5">
+                      <div className="bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-5">
                         <div className="flex flex-col items-center gap-3">
-                          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
+                          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center">
                             <Sparkles className="w-6 h-6 text-white animate-pulse" />
                           </div>
                           <div className="text-center">
-                            <p className="text-sm text-violet-700 font-medium">{a.deepAnalyzing}</p>
-                            <p className="text-[10px] text-violet-400 mt-1">{a.poweredBy} {cloudAIService.providerName}</p>
+                            <p className="text-sm text-emerald-700 font-medium">{a.deepAnalyzing}</p>
                           </div>
-                          <div className="w-full bg-violet-200 rounded-full h-1 overflow-hidden">
-                            <div className="bg-violet-600 h-1 rounded-full animate-[loading_2s_ease-in-out_infinite]" style={{ width: '60%', animation: 'loading 2s ease-in-out infinite' }} />
+                          <div className="w-full bg-emerald-200 rounded-full h-1 overflow-hidden">
+                            <div className="bg-emerald-600 h-1 rounded-full animate-[loading_2s_ease-in-out_infinite]" style={{ width: '60%', animation: 'loading 2s ease-in-out infinite' }} />
                           </div>
                         </div>
                       </div>
@@ -838,9 +853,9 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
 
                     {/* Analysis Result */}
                     {deepAnalysisResult && (
-                      <div className="bg-white rounded-2xl shadow-lg border border-violet-100 overflow-hidden">
+                      <div className="bg-white rounded-2xl shadow-lg border border-emerald-100 overflow-hidden">
                         {/* Header */}
-                        <div className="bg-gradient-to-r from-violet-500 to-purple-600 px-4 py-3 flex items-center justify-between">
+                        <div className="bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-3 flex items-center justify-between">
                           <div className="flex items-center gap-2 min-w-0">
                             <Sparkles className="w-4 h-4 text-white flex-shrink-0" />
                             <span className="text-sm text-white font-medium truncate">{a.deepAnalysisResult}</span>
@@ -868,30 +883,38 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
                         {deepExpanded && (
                           <div className="px-4 py-3 max-h-[400px] overflow-y-auto">
                             {renderMarkdown(deepAnalysisResult.analysis)}
-                            {/* Disclaimer inside deep analysis */}
-                            <div className="mt-3 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 flex items-start gap-2">
-                              <AlertTriangle className="w-3 h-3 text-amber-500 flex-shrink-0 mt-0.5" />
-                              <p className="text-[10px] text-amber-700 leading-relaxed">{a.disclaimer}</p>
-                            </div>
                           </div>
                         )}
 
-                        {/* Footer */}
-                        <div className="px-4 py-2 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
-                          <span className="text-[10px] text-gray-400">
-                            {a.poweredBy} {deepAnalysisResult.provider} ({deepAnalysisResult.model})
-                          </span>
-                        </div>
-
-                        {/* Re-analyze button */}
-                        <div className="px-4 py-2 border-t border-gray-100">
-                          <button
-                            onClick={handleDeepAnalysis}
-                            className="w-full flex items-center justify-center gap-1.5 text-xs text-violet-600 font-medium py-2 rounded-xl bg-violet-50 active:bg-violet-100 active:scale-[0.98] transition-all"
-                          >
-                            <RefreshCw className="w-3 h-3" />{a.deepAnalysisRetry}
-                          </button>
-                        </div>
+                        {/* Follow-up chat messages */}
+                        {chatMessages.length > 0 && (
+                          <div className="px-4 py-2 border-t border-gray-100 space-y-2 max-h-[300px] overflow-y-auto">
+                            {chatMessages.map((msg, idx) => (
+                              <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                                <div className={`max-w-[85%] rounded-2xl px-3 py-2 ${
+                                  msg.role === 'user'
+                                    ? 'bg-emerald-500 text-white rounded-br-md'
+                                    : 'bg-gray-100 text-gray-700 rounded-bl-md'
+                                }`}>
+                                  {msg.role === 'ai' ? (
+                                    <div className="text-xs leading-relaxed">{renderMarkdown(msg.text)}</div>
+                                  ) : (
+                                    <p className="text-xs leading-relaxed">{msg.text}</p>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                            {chatReplying && (
+                              <div className="flex justify-start">
+                                <div className="bg-gray-100 rounded-2xl rounded-bl-md px-3 py-2 flex items-center gap-1.5">
+                                  <Loader className="w-3 h-3 text-emerald-500 animate-spin" />
+                                  <span className="text-[10px] text-gray-400">{a.aiReplying}</span>
+                                </div>
+                              </div>
+                            )}
+                            <div ref={chatEndRef} />
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -899,6 +922,96 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
               </div>
             )}
           </div>
+
+          {/* ═══════ 固定底部操作栏 ═══════ */}
+          {image && (
+            <div className="sticky bottom-0 z-10 bg-white px-4 pt-3 pb-2 space-y-2 shadow-[0_-4px_16px_rgba(0,0,0,0.08)]">
+              {/* 识别按钮 — 本地模式，未开始 */}
+              {!done && !detecting && !isDemo && !cloudOnlyMode && (
+                <button
+                  onClick={handleDetect}
+                  className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white py-3.5 rounded-2xl active:scale-[0.97] transition-transform"
+                >
+                  <ScanLine className="w-4 h-4" /><span className="font-medium">{a.startDetect}</span>
+                </button>
+              )}
+
+              {/* Cloud-only mode: 云端分析按钮 */}
+              {cloudOnlyMode && !done && !deepAnalyzing && !deepAnalysisResult && !deepError && (
+                <button
+                    onClick={handleCloudAnalysis}
+                    disabled={cooldownSec > 0 || dailyUsage.used >= dailyUsage.limit}
+                    className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white py-3.5 rounded-2xl active:scale-[0.97] transition-transform shadow-lg disabled:opacity-50 disabled:active:scale-100"
+                  >
+                    {cooldownSec > 0 ? (
+                      <><Clock className="w-4 h-4" /><span className="font-medium">{guardText(a.cooldownWait, { seconds: cooldownSec })}</span></>
+                    ) : dailyUsage.used >= dailyUsage.limit ? (
+                      <><Shield className="w-4 h-4" /><span className="font-medium">{a.dailyLimitReached}</span></>
+                    ) : (
+                      <><Cloud className="w-4 h-4" /><span className="font-medium">{a.cloudAnalyzeBtn}</span></>
+                    )}
+                  </button>
+              )}
+
+              {/* 深度分析按钮 — 本地检测完成后 */}
+              {done && results.length > 0 && !deepAnalysisResult && !deepAnalyzing && !deepError && (
+                <button
+                    onClick={handleDeepAnalysis}
+                    disabled={cooldownSec > 0 || dailyUsage.used >= dailyUsage.limit}
+                    className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white py-3.5 rounded-2xl active:scale-[0.97] transition-transform shadow-lg disabled:opacity-50 disabled:active:scale-100"
+                  >
+                    {cooldownSec > 0 ? (
+                      <><Clock className="w-4 h-4" /><span className="font-medium">{guardText(a.cooldownWait, { seconds: cooldownSec })}</span></>
+                    ) : dailyUsage.used >= dailyUsage.limit ? (
+                      <><Shield className="w-4 h-4" /><span className="font-medium">{a.dailyLimitReached}</span></>
+                    ) : (
+                      <><Sparkles className="w-4 h-4" /><span className="font-medium">{a.deepAnalysis}</span></>
+                    )}
+                  </button>
+              )}
+
+              {/* 分析中 — 进度提示 */}
+              {(detecting || deepAnalyzing) && (
+                <div className="flex items-center justify-center gap-2 py-2">
+                  <Loader className="w-4 h-4 text-emerald-500 animate-spin" />
+                  <span className="text-xs text-gray-500">{detecting ? a.aiAnalyzing : a.deepAnalyzing}</span>
+                </div>
+              )}
+
+              {/* 追问聊天输入框 — 深度分析完成后 */}
+              {deepAnalysisResult && (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) handleChatSend(); }}
+                    placeholder={a.chatPlaceholder}
+                    disabled={chatReplying || cooldownSec > 0 || dailyUsage.used >= dailyUsage.limit}
+                    className="flex-1 min-w-0 bg-gray-100 rounded-2xl px-4 py-2.5 text-sm text-gray-700 placeholder-gray-400 outline-none focus:ring-2 focus:ring-emerald-300 disabled:opacity-50 transition-all"
+                  />
+                  <button
+                    onClick={handleChatSend}
+                    disabled={!chatInput.trim() || chatReplying || cooldownSec > 0 || dailyUsage.used >= dailyUsage.limit}
+                    className="w-10 h-10 flex items-center justify-center bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-full active:scale-90 transition-all disabled:opacity-40 disabled:active:scale-100 flex-shrink-0"
+                  >
+                    <Send className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+
+              {/* 重新拍照按钮 — 分析完成后 */}
+              {(done || deepAnalysisResult || deepError) && (
+                <button
+                  onClick={reset}
+                  className="w-full flex items-center justify-center gap-2 bg-white border border-gray-200 text-gray-700 py-3 rounded-2xl active:scale-[0.97] transition-transform shadow-sm"
+                >
+                  <Camera className="w-4 h-4" /><span className="font-medium text-sm">{a.retakePhoto}</span>
+                </button>
+              )}
+            </div>
+          )}
+          </>
         )}
       </div>
       {showCameraOverlay && <CameraOverlay onClose={() => setShowCameraOverlay(false)} onCapture={onCameraCapture} />}

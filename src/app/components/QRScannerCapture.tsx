@@ -1,8 +1,16 @@
+/**
+ * QRScannerCapture — PWA 兼容的二维码扫描组件（统一样式）
+ *
+ * 视觉：全屏相机预览 → 中心对准框(绿色圆角 + 扫描线) → 手电筒 → 关闭
+ * 整个页面无任何文字，纯图标交互，适配低识字率用户。
+ *
+ * 相机可用时自动实时扫描（BarcodeDetector），
+ * 相机不可用时降级为 file input（拍照 / 相册）。
+ */
 import { useRef, useState, useEffect, useCallback } from "react";
-import { X, ScanLine, Flashlight, FlashlightOff, AlertTriangle, Camera, ImageIcon, Loader } from "lucide-react";
-import { useLanguage } from "../hooks/useLanguage";
+import { X, Flashlight, FlashlightOff, Camera, ImageIcon } from "lucide-react";
 
-// ── BarcodeDetector polyfill type ──────────────────────────────
+// ── BarcodeDetector type ────────────────────────────────────────
 interface BarcodeDetectorResult {
   rawValue: string;
   format: string;
@@ -26,16 +34,6 @@ interface QRScannerCaptureProps {
   onClose: () => void;
 }
 
-/**
- * QRScannerCapture — PWA 兼容的二维码扫描组件
- *
- * 双模式策略：
- * 1. 相机模式：getUserMedia + BarcodeDetector 实时扫描（优先）
- * 2. 图片模式：当相机不可用时（PWA standalone 常见），
- *    通过 <input type="file"> 拍照或从相册选择图片，再用 BarcodeDetector 解析
- *
- * 相机可用时底部也显示「从相册识别」按钮，作为补充入口。
- */
 export function QRScannerCapture({ onScan, onClose }: QRScannerCaptureProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -50,8 +48,6 @@ export function QRScannerCapture({ onScan, onClose }: QRScannerCaptureProps) {
   const [scanLineY, setScanLineY] = useState(0);
   const [apiSupported, setApiSupported] = useState(true);
   const [cameraFailed, setCameraFailed] = useState(false);
-  const [scanningImage, setScanningImage] = useState(false);
-  const [imageError, setImageError] = useState("");
 
   // 过渡动画
   const [animPhase, setAnimPhase] = useState<"entering" | "visible" | "leaving">("entering");
@@ -59,10 +55,6 @@ export function QRScannerCapture({ onScan, onClose }: QRScannerCaptureProps) {
     const raf = requestAnimationFrame(() => setAnimPhase("visible"));
     return () => cancelAnimationFrame(raf);
   }, []);
-
-  const { language } = useLanguage();
-  const isChinese = language === "zh";
-  const ct = (zh: string, en: string) => (isChinese ? zh : en);
 
   // ── BarcodeDetector ───────────────────────────────────────────
   const detectorRef = useRef<InstanceType<NonNullable<typeof window.BarcodeDetector>> | null>(null);
@@ -102,8 +94,7 @@ export function QRScannerCapture({ onScan, onClose }: QRScannerCaptureProps) {
 
         if (videoRef.current) videoRef.current.srcObject = mediaStream;
         setStream(mediaStream);
-      } catch (err) {
-        console.error("[QRScanner] Camera error:", err);
+      } catch {
         setCameraFailed(true);
       }
     })();
@@ -164,7 +155,7 @@ export function QRScannerCapture({ onScan, onClose }: QRScannerCaptureProps) {
     let animId = 0;
     const animate = () => {
       frame++;
-      setScanLineY(((Math.sin(frame * 0.03) + 1) / 2) * 100);
+      setScanLineY(((Math.sin(frame * 0.025) + 1) / 2) * 100);
       animId = requestAnimationFrame(animate);
     };
     animId = requestAnimationFrame(animate);
@@ -196,13 +187,7 @@ export function QRScannerCapture({ onScan, onClose }: QRScannerCaptureProps) {
     if (!file) return;
     e.target.value = "";
 
-    if (!detectorRef.current) {
-      setImageError(ct("此浏览器不支持二维码识别", "QR detection not supported in this browser"));
-      return;
-    }
-
-    setScanningImage(true);
-    setImageError("");
+    if (!detectorRef.current) return;
 
     try {
       const bitmap = await createImageBitmap(file);
@@ -213,16 +198,9 @@ export function QRScannerCapture({ onScan, onClose }: QRScannerCaptureProps) {
         if (navigator.vibrate) navigator.vibrate(100);
         stream?.getTracks().forEach((t) => t.stop());
         onScan(barcodes[0].rawValue);
-      } else {
-        setImageError(ct("未检测到二维码，请重试", "No QR code detected. Please try again."));
       }
-    } catch (err) {
-      console.error("[QRScanner] Image scan error:", err);
-      setImageError(ct("识别失败，请重试", "Detection failed. Please try again."));
-    } finally {
-      setScanningImage(false);
-    }
-  }, [stream, onScan, ct]);
+    } catch {}
+  }, [stream, onScan]);
 
   // ── Render ────────────────────────────────────────────────────
   return (
@@ -244,151 +222,93 @@ export function QRScannerCapture({ onScan, onClose }: QRScannerCaptureProps) {
       <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handleFileChange} className="hidden" />
       <input ref={albumInputRef} type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
 
-      {/* Top bar */}
-      <div className="flex justify-between items-center p-4 bg-black/60 backdrop-blur-sm z-10">
-        <h2 className="text-white font-semibold text-lg flex items-center gap-2">
-          <ScanLine className="w-5 h-5 text-emerald-400" />
-          {ct("扫一扫", "Scan QR")}
-        </h2>
-        <div className="flex items-center gap-2">
-          {torchSupported && (
-            <button onClick={toggleTorch} className="text-white p-2 active:scale-95 transition-transform rounded-full hover:bg-white/10">
-              {torchOn ? <Flashlight className="w-5 h-5 text-yellow-400" /> : <FlashlightOff className="w-5 h-5" />}
-            </button>
-          )}
-          <button onClick={handleClose} className="text-white p-2 active:scale-95 transition-transform rounded-full hover:bg-white/10">
-            <X className="w-6 h-6" />
-          </button>
-        </div>
-      </div>
-
-      {/* Main content */}
+      {/* ═══════ 主内容区 ═══════ */}
       <div className="flex-1 relative flex items-center justify-center overflow-hidden">
         {cameraFailed ? (
-          /* ── 相机不可用：fallback UI ── */
-          <div className="text-white text-center p-6 max-w-sm w-full">
-            <div className="w-20 h-20 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
-              <ScanLine className="w-10 h-10 text-emerald-400" />
-            </div>
-            <h3 className="text-xl mb-2">{ct("扫描二维码", "Scan QR Code")}</h3>
-            <p className="text-white/60 text-sm mb-8">
-              {ct("相机暂不可用，请拍照或从相册选择二维码图片", "Camera unavailable. Take a photo or choose a QR code image from album.")}
-            </p>
-
-            {scanningImage ? (
-              <div className="flex items-center justify-center gap-2 py-4">
-                <Loader className="w-5 h-5 text-emerald-400 animate-spin" />
-                <span className="text-white/80">{ct("识别中...", "Scanning...")}</span>
-              </div>
-            ) : (
-              <div className="flex flex-col gap-3">
-                <button
-                  onClick={() => cameraInputRef.current?.click()}
-                  className="w-full flex items-center justify-center gap-2 bg-emerald-600 text-white py-3.5 rounded-2xl active:scale-[0.97] transition-transform"
-                >
-                  <Camera className="w-5 h-5" />
-                  <span>{ct("拍照识别", "Take Photo")}</span>
-                </button>
-                <button
-                  onClick={() => albumInputRef.current?.click()}
-                  className="w-full flex items-center justify-center gap-2 bg-white/10 text-white py-3.5 rounded-2xl active:scale-[0.97] transition-transform border border-white/20"
-                >
-                  <ImageIcon className="w-5 h-5" />
-                  <span>{ct("从相册选择", "Choose from Album")}</span>
-                </button>
-              </div>
-            )}
-
-            {imageError && (
-              <div className="mt-4 bg-red-500/20 rounded-xl px-4 py-3 flex items-start gap-2">
-                <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
-                <p className="text-red-300 text-sm text-left">{imageError}</p>
-              </div>
-            )}
+          /* 相机不可用降级 — 纯图标，无文字 */
+          <div className="flex flex-col items-center gap-6">
+            <button
+              onClick={() => cameraInputRef.current?.click()}
+              className="w-20 h-20 rounded-full bg-emerald-500/20 flex items-center justify-center active:scale-90 transition-transform"
+            >
+              <Camera className="w-10 h-10 text-emerald-400" />
+            </button>
+            <button
+              onClick={() => albumInputRef.current?.click()}
+              className="w-14 h-14 rounded-full bg-white/15 flex items-center justify-center active:scale-90 transition-transform border border-white/20"
+            >
+              <ImageIcon className="w-6 h-6 text-white" />
+            </button>
           </div>
         ) : (
-          /* ── 相机正常：实时扫描 UI ── */
           <>
+            {/* 相机预览 */}
             <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
 
-            {/* Dark overlay with transparent window */}
+            {/* 暗角遮罩 + 透明框 */}
             <div className="absolute inset-0 pointer-events-none">
               <div className="absolute inset-0 bg-black/50" />
               <div
                 className="absolute bg-transparent"
                 style={{
-                  top: "50%", left: "50%", transform: "translate(-50%, -50%)",
+                  top: "50%", left: "50%", transform: "translate(-50%, -55%)",
                   width: "260px", height: "260px",
                   boxShadow: "0 0 0 9999px rgba(0,0,0,0.5)", borderRadius: "20px",
                 }}
               />
             </div>
 
-            {/* Scan frame corners */}
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            {/* 四角标记 + 扫描线 */}
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none" style={{ marginTop: '-5%' }}>
               <div className="w-[260px] h-[260px] relative">
                 <div className="absolute top-0 left-0 w-10 h-10 border-t-4 border-l-4 border-emerald-400 rounded-tl-[20px]" />
                 <div className="absolute top-0 right-0 w-10 h-10 border-t-4 border-r-4 border-emerald-400 rounded-tr-[20px]" />
                 <div className="absolute bottom-0 left-0 w-10 h-10 border-b-4 border-l-4 border-emerald-400 rounded-bl-[20px]" />
                 <div className="absolute bottom-0 right-0 w-10 h-10 border-b-4 border-r-4 border-emerald-400 rounded-br-[20px]" />
+                {/* 绿色扫描线 */}
                 <div
-                  className="absolute left-3 right-3 h-0.5 bg-gradient-to-r from-transparent via-emerald-400 to-transparent transition-none"
-                  style={{ top: `${scanLineY}%` }}
+                  className="absolute left-2 right-2 h-[2px]"
+                  style={{
+                    top: `${scanLineY}%`,
+                    background: 'linear-gradient(90deg, transparent 0%, #34d399 20%, #10b981 50%, #34d399 80%, transparent 100%)',
+                    boxShadow: '0 0 8px 2px rgba(16,185,129,0.4)',
+                  }}
                 />
               </div>
             </div>
-
-            {/* API not supported warning */}
-            {!apiSupported && (
-              <div className="absolute top-20 left-4 right-4 z-20">
-                <div className="bg-amber-500/90 backdrop-blur-sm rounded-2xl p-4 flex items-start gap-3">
-                  <AlertTriangle className="w-5 h-5 text-white flex-shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-white text-sm font-medium">
-                      {ct("此浏览器不支持二维码扫描", "QR scanning not supported in this browser")}
-                    </p>
-                    <p className="text-white/80 text-xs mt-1">
-                      {ct(
-                        "请使用 Chrome、Edge 或 Samsung Internet 浏览器",
-                        "Please use Chrome, Edge, or Samsung Internet."
-                      )}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Bottom: hint + album button */}
-            <div className="absolute bottom-0 left-0 right-0 pb-6 pt-4 bg-gradient-to-t from-black/80 to-transparent z-10">
-              <p className="text-white/90 text-center text-sm">
-                {ct("将二维码放入框内，自动识别", "Place QR code inside the frame to scan")}
-              </p>
-              <p className="text-white/50 text-center text-xs mt-1 mb-4">
-                {ct("支持商家绑定码、链接码", "Supports merchant binding & URL codes")}
-              </p>
-              {/* 相册入口 — 即使相机正常也提供 */}
-              <div className="flex justify-center">
-                <button
-                  onClick={() => albumInputRef.current?.click()}
-                  className="flex items-center gap-2 bg-white/15 backdrop-blur-sm text-white/90 px-5 py-2.5 rounded-full active:scale-95 transition-transform border border-white/20"
-                >
-                  <ImageIcon className="w-4 h-4" />
-                  <span className="text-sm">{ct("从相册识别", "Scan from Album")}</span>
-                </button>
-              </div>
-              {/* 图片扫描状态 */}
-              {scanningImage && (
-                <div className="flex items-center justify-center gap-2 mt-3">
-                  <Loader className="w-4 h-4 text-emerald-400 animate-spin" />
-                  <span className="text-white/70 text-sm">{ct("识别中...", "Scanning...")}</span>
-                </div>
-              )}
-              {imageError && (
-                <p className="text-red-300 text-center text-xs mt-2">{imageError}</p>
-              )}
-            </div>
           </>
         )}
+      </div>
+
+      {/* ═══════ 底部控制区 ═══════ */}
+      <div className="flex-shrink-0 bg-black/80 backdrop-blur-sm flex flex-col items-center gap-5 pt-5 pb-4">
+        {/* 手电筒 */}
+        {!cameraFailed && (
+          <button
+            onClick={toggleTorch}
+            disabled={!torchSupported}
+            className={`w-12 h-12 rounded-full flex items-center justify-center active:scale-90 transition-all ${
+              torchOn
+                ? 'bg-yellow-400/20 ring-2 ring-yellow-400/50'
+                : torchSupported
+                  ? 'bg-white/10 active:bg-white/20'
+                  : 'bg-white/5 opacity-30'
+            }`}
+          >
+            {torchOn
+              ? <Flashlight className="w-5 h-5 text-yellow-400" />
+              : <FlashlightOff className="w-5 h-5 text-white/70" />
+            }
+          </button>
+        )}
+
+        {/* 关闭按钮 */}
+        <button
+          onClick={handleClose}
+          className="w-11 h-11 rounded-full bg-white/10 flex items-center justify-center active:scale-90 transition-transform border border-white/20 mb-2"
+        >
+          <X className="w-6 h-6 text-white/90" />
+        </button>
       </div>
     </div>
   );

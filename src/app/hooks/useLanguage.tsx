@@ -344,6 +344,10 @@ export interface Translations {
     cooldownWait: string;
     cachedResult: string;
     compressingImage: string;
+    // Follow-up chat
+    chatPlaceholder: string;
+    chatSend: string;
+    aiReplying: string;
   };
 
   video?: {
@@ -756,6 +760,9 @@ const translationsData: Record<Language, Translations> = {
       cooldownWait: 'Please wait {seconds}s',
       cachedResult: 'Same image detected, showing cached result',
       compressingImage: 'Compressing image...',
+      chatPlaceholder: 'e.g. I used carbendazim last week...',
+      chatSend: 'Send',
+      aiReplying: 'AI replying...',
     },
     video: {
       liveAndVideo: 'Live & Video',
@@ -1131,6 +1138,9 @@ const translationsData: Record<Language, Translations> = {
       cooldownWait: '请等待 {seconds} 秒',
       cachedResult: '检测到相同图片，显示缓存结果',
       compressingImage: '正在压缩图片...',
+      chatPlaceholder: '例如：上周用过多菌灵...',
+      chatSend: '发送',
+      aiReplying: 'AI回复中...',
     },
     video: {
       liveAndVideo: '直播与视频',
@@ -3282,7 +3292,7 @@ const translationsData: Record<Language, Translations> = {
       redetect: 'পুনরায় শনাক্ত',
       demoNote: 'ডেমো ডেটা · প্রকৃত ফলাফলের জন্য আসল মডেল সংযুক্ত করুন',
       noTarget: 'কোন লক্ষ্য শনাক্ত হয়নি',
-      tryClearer: 'আরো পরিষ্কার ক্লোজ-আপ ছবি তোলার চেষ্টা করুন',
+      tryClearer: 'আরো পরিষ্���ার ক্লোজ-আপ ছবি তোলার চেষ্টা করুন',
       retakePhoto: 'পুনরায় ছবি তুলুন',
       tomatoLeaf: 'টমেটো পাতা',
       cornField: 'ভুট্টা ক্ষেত',
@@ -5145,7 +5155,7 @@ const translationsData: Record<Language, Translations> = {
       permissionFailed: '許可のリクエストに失敗しました。再試行してください',
       subscribeFailed: '購読に失敗しました。再試行してください',
       unsubscribeFailed: '購読解除に失敗しました。再試行してください',
-      tip: '有効にすると、農業ニュース、天気警報、注文リマインダーなどの重要な通知を受け取ります',
+      tip: '有効にすると、農業ニュース、天気警報、���文リマインダーなどの重要な通知を受け取ります',
       testTitle: 'TaprootAgro テスト',
       testBody: 'これはテストプッシュ通知です 🌱',
       needPermission: '先にプッシュ通知を有効にしてください',

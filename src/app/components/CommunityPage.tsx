@@ -1,6 +1,6 @@
 import { CameraCapture } from "./CameraCapture";
 import { useState, useEffect, useRef } from "react";
-import { Send, Plus, X, WifiOff, Play, Check, Camera, Phone, Video, Volume2, Mic, ScanLine, MessageSquare, AlertCircle, ShieldCheck, ShieldX, LogIn } from "lucide-react";
+import { Send, Plus, X, WifiOff, Play, Check, Camera, Phone, Video, Volume2, Mic, ScanLine, MessageSquare, AlertCircle, ShieldCheck, ShieldX, LogIn, ImageIcon, Loader } from "lucide-react";
 import { useNavigate } from "react-router";
 import { useLanguage } from "../hooks/useLanguage";
 import { useHomeConfig } from "../hooks/useHomeConfig";
@@ -74,6 +74,7 @@ function CommunityChat() {
   const [textMessage, setTextMessage] = useState("");
   const [showCamera, setShowCamera] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
+  const [showScanActionSheet, setShowScanActionSheet] = useState(false); // 扫码选择面板
   const [scanResult, setScanResult] = useState<{
     status: "verifying" | "verified" | "rejected";
     merchantData?: any;
@@ -87,6 +88,7 @@ function CommunityChat() {
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isRecordingRef = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scanAlbumInputRef = useRef<HTMLInputElement>(null); // 扫码-从相册选择
   
   // ---- 防止键盘弹出时页面跳动（PWA核心问题）----
   // 移动端 input 聚焦时，浏览器会触发原生 scrollIntoView，
@@ -437,7 +439,7 @@ function CommunityChat() {
 
   // 发送图片消息 — 先压缩再发送，节省流量和存储
   const sendImageMessage = async (imageData: string) => {
-    // 压缩图片（chat ���设：最长边1024，质量0.7，上限200KB）
+    // 压缩图片（chat 设：最长边1024，质量0.7，上限200KB）
     let compressed = imageData;
     try {
       const { compressImageBase64, COMPRESS_PRESETS } = await import('../utils/imageCompressor');
@@ -484,6 +486,62 @@ function CommunityChat() {
   const handleQRScanResult = (qrText: string) => {
     setShowScanner(false);
     processScanResult(qrText);
+  };
+
+  // 扫码 Action Sheet — 从相册选择后用 BarcodeDetector 识别二维码
+  const [scanAlbumScanning, setScanAlbumScanning] = useState(false);
+  const [scanAlbumError, setScanAlbumError] = useState("");
+  const scanActionSheetAnimRef = useRef<'entering' | 'visible' | 'leaving'>('entering');
+  
+  // Action Sheet 动画控制
+  const [scanSheetAnim, setScanSheetAnim] = useState<'entering' | 'visible' | 'leaving'>('entering');
+  useEffect(() => {
+    if (showScanActionSheet) {
+      setScanSheetAnim('entering');
+      requestAnimationFrame(() => setScanSheetAnim('visible'));
+    }
+  }, [showScanActionSheet]);
+
+  const closeScanActionSheet = () => {
+    setScanSheetAnim('leaving');
+    setTimeout(() => {
+      setShowScanActionSheet(false);
+      setScanAlbumError("");
+    }, 200);
+  };
+
+  // 从相册选择图片 → BarcodeDetector 识别二维码
+  const handleScanAlbumFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+
+    if (!window.BarcodeDetector) {
+      setScanAlbumError(t.community.qrNotSupported || "QR detection not supported in this browser");
+      return;
+    }
+
+    setScanAlbumScanning(true);
+    setScanAlbumError("");
+
+    try {
+      const detector = new window.BarcodeDetector({ formats: ["qr_code"] });
+      const bitmap = await createImageBitmap(file);
+      const barcodes = await detector.detect(bitmap);
+
+      if (barcodes.length > 0 && barcodes[0].rawValue) {
+        if (navigator.vibrate) navigator.vibrate(100);
+        closeScanActionSheet();
+        processScanResult(barcodes[0].rawValue);
+      } else {
+        setScanAlbumError(t.community.noQrDetected || "No QR code detected. Please try again.");
+      }
+    } catch (err) {
+      console.error("[Scan] Album scan error:", err);
+      setScanAlbumError(t.community.scanFailed || "Detection failed. Please try again.");
+    } finally {
+      setScanAlbumScanning(false);
+    }
   };
 
   const processScanResult = (qrText: string) => {
@@ -762,7 +820,7 @@ function CommunityChat() {
             </div>
           </div>
           <div className="flex-shrink-0">
-            <button className="w-10 h-10 flex items-center justify-center active:scale-95 transition-all rounded-xl active:bg-white/20" onClick={() => setShowScanner(true)}>
+            <button className="w-10 h-10 flex items-center justify-center active:scale-95 transition-all rounded-xl active:bg-white/20" onClick={() => setShowScanActionSheet(true)}>
               <ScanLine className="w-5 h-5 text-white" strokeWidth={2.5} />
             </button>
           </div>
@@ -872,6 +930,108 @@ function CommunityChat() {
           )}
         </div>
       </div>
+
+      {/* ============ 扫码 Action Sheet — 与 CameraCapture 保持一致 ============ */}
+      {showScanActionSheet && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center"
+          onClick={(e) => { if (e.target === e.currentTarget) closeScanActionSheet(); }}
+          style={{
+            backgroundColor: scanSheetAnim === 'visible' ? 'rgba(0,0,0,0.5)' : 'rgba(0,0,0,0)',
+            transition: 'background-color 200ms ease-out',
+          }}
+        >
+          <div
+            className="w-full max-w-lg mx-2 mb-2 safe-bottom"
+            style={{
+              transform: scanSheetAnim === 'visible' ? 'translateY(0)' : 'translateY(100%)',
+              opacity: scanSheetAnim === 'leaving' ? 0 : 1,
+              transition: scanSheetAnim === 'leaving'
+                ? 'transform 200ms ease-in, opacity 150ms ease-in'
+                : 'transform 300ms cubic-bezier(0.16, 1, 0.3, 1), opacity 200ms ease-out',
+            }}
+          >
+            {/* 选项组 */}
+            <div className="bg-white rounded-2xl overflow-hidden shadow-xl">
+              {/* 标题 */}
+              <div className="px-4 pt-4 pb-2 text-center">
+                <p className="text-gray-400" style={{ fontSize: '13px' }}>
+                  {t.camera?.chooseSource || "Choose image source"}
+                </p>
+              </div>
+
+              {/* 扫码（相机） — 打开 QRScannerCapture */}
+              <button
+                className="w-full flex items-center justify-center gap-3 py-4 active:bg-gray-50 transition-colors border-t border-gray-100"
+                onClick={() => {
+                  closeScanActionSheet();
+                  // 延迟打开扫码器，等 action sheet 关闭动画完成
+                  setTimeout(() => setShowScanner(true), 220);
+                }}
+              >
+                <ScanLine className="w-5 h-5 text-emerald-600" />
+                <span className="text-emerald-600" style={{ fontSize: '17px' }}>
+                  {t.camera?.takePhoto || "Take Photo"}
+                </span>
+              </button>
+
+              {/* 从相册选择 — 用 BarcodeDetector 识别 */}
+              <button
+                className="w-full flex items-center justify-center gap-3 py-4 active:bg-gray-50 transition-colors border-t border-gray-100"
+                onClick={() => scanAlbumInputRef.current?.click()}
+                disabled={scanAlbumScanning}
+              >
+                {scanAlbumScanning ? (
+                  <>
+                    <Loader className="w-5 h-5 text-emerald-600 animate-spin" />
+                    <span className="text-emerald-600" style={{ fontSize: '17px' }}>
+                      {t.community.scanning || "Scanning..."}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <ImageIcon className="w-5 h-5 text-emerald-600" />
+                    <span className="text-emerald-600" style={{ fontSize: '17px' }}>
+                      {t.camera?.chooseFromAlbum || "Choose from Album"}
+                    </span>
+                  </>
+                )}
+              </button>
+
+              {/* 相册识别错误提示 */}
+              {scanAlbumError && (
+                <div className="px-4 pb-3">
+                  <div className="bg-red-50 rounded-xl px-3 py-2 flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
+                    <p className="text-red-500 text-xs">{scanAlbumError}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* 取消按钮 */}
+            <div className="bg-white rounded-2xl overflow-hidden shadow-xl mt-2">
+              <button
+                className="w-full py-4 active:bg-gray-50 transition-colors"
+                onClick={closeScanActionSheet}
+              >
+                <span className="text-gray-600 font-medium" style={{ fontSize: '17px' }}>
+                  {t.common?.cancel || "Cancel"}
+                </span>
+              </button>
+            </div>
+          </div>
+
+          {/* 隐藏的 file input — 从相册选择二维码图片 */}
+          <input
+            ref={scanAlbumInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleScanAlbumFile}
+            className="hidden"
+          />
+        </div>
+      )}
     </div>
   );
 }

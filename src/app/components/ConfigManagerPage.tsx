@@ -1362,59 +1362,30 @@ export default function ConfigManagerPage() {
             <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-4">
               <h3 className="text-base text-gray-800 mb-2">{ct("AI 病虫害识别模型配置", "AI Pest & Disease Detection Model Config")}</h3>
               <p className="text-xs text-gray-500 -mt-2">{ct(
-                "配置端侧ONNX推理模型和云端AI深度分析。可以选择只使用云端AI（关闭本地模型），或两者结合使用。",
-                "Configure on-device ONNX inference and cloud AI deep analysis. You can use cloud AI only (disable local model), or combine both."
+                "配置端侧ONNX推理模型和云端AI分析。开启云端AI后，联网时自动使用云端分析；离线或未开启时回退到本地ONNX模型推理。",
+                "Configure on-device ONNX inference and cloud AI analysis. When cloud AI is enabled and online, cloud analysis is used; when offline or disabled, falls back to local ONNX model."
               )}</p>
 
-              {/* Enable Local Model Toggle */}
-              <div className="flex items-center justify-between py-2 border-b border-gray-100 pb-4">
-                <div>
-                  <label className="block text-sm text-gray-700">{ct("启用本地推理模型", "Enable Local Inference Model")}</label>
-                  <p className="text-[11px] text-gray-400">{ct(
-                    "开启：加载ONNX模型到设备端进行实时识别；关闭：仅使用云端AI分析，无需下载模型文件",
-                    "On: load ONNX model on-device for real-time detection. Off: use cloud AI only, no model download needed"
-                  )}</p>
-                </div>
-                <button
-                  onClick={() => {
-                    const newConfig = JSON.parse(JSON.stringify(workingConfig));
-                    if (!newConfig.aiModelConfig) newConfig.aiModelConfig = { modelUrl: "", labelsUrl: "", enableLocalModel: true };
-                    newConfig.aiModelConfig.enableLocalModel = !newConfig.aiModelConfig.enableLocalModel;
-                    setWorkingConfig(newConfig);
-                    setHasChanges(true);
-                  }}
-                  className={`relative w-12 h-6 rounded-full transition-colors ${
-                    workingConfig.aiModelConfig?.enableLocalModel ? "bg-emerald-500" : "bg-gray-300"
-                  }`}
-                >
-                  <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
-                    workingConfig.aiModelConfig?.enableLocalModel ? "translate-x-6" : "translate-x-0.5"
-                  }`} />
-                </button>
-              </div>
-
-              {/* Mode indicator */}
+              {/* Mode indicator — based on cloud AI enabled state */}
               <div className="flex items-center gap-2 bg-gray-50 rounded-lg p-3">
                 <div className={`w-2 h-2 rounded-full ${
-                  workingConfig.aiModelConfig?.enableLocalModel ? "bg-emerald-500" : "bg-violet-500"
+                  workingConfig.cloudAIConfig?.enabled ? "bg-emerald-500" : "bg-gray-400"
                 }`} />
                 <span className="text-xs text-gray-600">
-                  {workingConfig.aiModelConfig?.enableLocalModel
+                  {workingConfig.cloudAIConfig?.enabled
                     ? ct(
-                        "当前模式：端侧检测 + 云端深度分析（两级分析）",
-                        "Current mode: On-device detection + Cloud deep analysis (two-tier)"
+                        "当前模式：联网时使用云端AI分析，离线时自动回退本地推理",
+                        "Current mode: Cloud AI when online, auto-fallback to local inference when offline"
                       )
                     : ct(
-                        "当前模式：仅云端AI（拍照直接发送云端分析，省流量、免下载模型）",
-                        "Current mode: Cloud AI only (photos sent directly for cloud analysis, saves bandwidth)"
+                        "当前模式：仅本地ONNX模型推理（需配置模型文件）",
+                        "Current mode: Local ONNX model inference only (model files required)"
                       )
                   }
                 </span>
               </div>
 
-              {/* Local model config - only show when local model is enabled */}
-              {workingConfig.aiModelConfig?.enableLocalModel && (
-              <>
+              {/* Local model config — always show, as it's the offline fallback */}
 
               {/* Model URL */}
               <div>
@@ -1500,23 +1471,21 @@ export default function ConfigManagerPage() {
                 </ol>
               </div>
 
-              </>
-              )}
             </div>
 
             {/* Cloud AI Deep Analysis Config Section */}
             <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-4">
-              <h3 className="text-base text-gray-800 mb-2">{ct("云端AI深度分析配置（后端代理模式）", "Cloud AI Deep Analysis Config (Backend Proxy)")}</h3>
+              <h3 className="text-base text-gray-800 mb-2">{ct("云端AI分析配置（后端代理模式）", "Cloud AI Analysis Config (Backend Proxy)")}</h3>
               <p className="text-xs text-gray-500 -mt-2">{ct(
-                "配置云端大模型（如通义千问、Gemini、GPT-4o），用户在AI助手完成端侧检测后可点击\"深度分析\"按钮，调用云端大模型进行详细的病虫害分析。前端永远不接触API密钥——所有密钥保存在Supabase Edge Function的服务端环境变量中。",
-                "Configure a cloud vision model (Qwen, Gemini, GPT-4o, etc.) for deep analysis. After on-device detection, users can click 'Deep Analysis' to get detailed insights from the cloud model. Frontend never touches API keys — all secrets are server-side Supabase Edge Function env vars."
+                "配置云端大模型（如通义千问、Gemini、GPT-4o）。开启后联网时自动使用云端AI分析照片，离线时自动回退本地推理。前端永远不接触API密钥——所有密钥保存在Supabase Edge Function的服务端环境变量中。",
+                "Configure a cloud vision model (Qwen, Gemini, GPT-4o, etc.). When enabled and online, cloud AI analyzes photos automatically; offline auto-fallback to local inference. Frontend never touches API keys — all secrets are server-side Supabase Edge Function env vars."
               )}</p>
 
               {/* Enabled Toggle */}
               <div className="flex items-center justify-between py-2">
                 <div>
-                  <label className="block text-sm text-gray-700">{ct("启用深度分析", "Enable Deep Analysis")}</label>
-                  <p className="text-[11px] text-gray-400">{ct("关闭时隐藏深度分析按钮，开启时允许用户调用云端AI", "When off: hides the button. When on: users can call cloud AI")}</p>
+                  <label className="block text-sm text-gray-700">{ct("启用云端AI分析", "Enable Cloud AI Analysis")}</label>
+                  <p className="text-[11px] text-gray-400">{ct("开启：联网时直接使用云端AI；关闭：仅使用本地模型推理", "On: use cloud AI when online. Off: local model inference only")}</p>
                 </div>
                 <button
                   onClick={() => {
@@ -1527,7 +1496,7 @@ export default function ConfigManagerPage() {
                     setHasChanges(true);
                   }}
                   className={`relative w-12 h-6 rounded-full transition-colors ${
-                    workingConfig.cloudAIConfig?.enabled ? "bg-violet-500" : "bg-gray-300"
+                    workingConfig.cloudAIConfig?.enabled ? "bg-emerald-500" : "bg-gray-300"
                   }`}
                 >
                   <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
@@ -1550,7 +1519,7 @@ export default function ConfigManagerPage() {
                     setHasChanges(true);
                   }}
                   placeholder={ct("例如：通义千问、Gemini、GPT-4o", "e.g. Qwen, Gemini, GPT-4o")}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500 text-sm"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm"
                 />
                 <p className="mt-1 text-[11px] text-gray-400">{ct("用于UI显示，让用户知道使用的是哪个AI模型", "Shown in UI so users know which AI model is used")}</p>
               </div>
@@ -1569,7 +1538,7 @@ export default function ConfigManagerPage() {
                     setHasChanges(true);
                   }}
                   placeholder="ai-vision-proxy"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500 font-mono text-xs"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 font-mono text-xs"
                 />
                 <p className="mt-1 text-[11px] text-gray-400">{ct(
                   "Supabase Edge Function 名称，对应 supabase/functions/ai-vision-proxy/index.ts",
@@ -1591,7 +1560,7 @@ export default function ConfigManagerPage() {
                     setHasChanges(true);
                   }}
                   placeholder={ct("例如：qwen-vl-plus, gemini-2.0-flash, gpt-4o", "e.g. qwen-vl-plus, gemini-2.0-flash, gpt-4o")}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500 font-mono text-xs"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 font-mono text-xs"
                 />
                 <p className="mt-1 text-[11px] text-gray-400">{ct(
                   "传给 Edge Function 的模型标识，由 Edge Function 路由到对应的 API",
@@ -1616,7 +1585,7 @@ export default function ConfigManagerPage() {
                     "你是一个农业病虫害专家。请分析图片中的作物病虫害情况，给出详细的诊断、严重程度评估和防治建议...",
                     "You are an agricultural pest & disease expert. Analyze the crop image, provide detailed diagnosis, severity assessment, and treatment recommendations..."
                   )}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500 text-xs"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-xs"
                 />
                 <p className="mt-1 text-[11px] text-gray-400">{ct(
                   "自定义系统提示词，可针对特定作物或地区调整分析侧重点。留空则使用Edge Function默认提示词",
@@ -1639,7 +1608,7 @@ export default function ConfigManagerPage() {
                   }}
                   min={128}
                   max={4096}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500 text-sm"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm"
                 />
                 <p className="mt-1 text-[11px] text-gray-400">{ct(
                   "控制AI生成的分析报告长度，建议 512-2048",

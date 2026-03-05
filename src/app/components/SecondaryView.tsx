@@ -72,7 +72,7 @@ export function SecondaryView({ children, onClose, title, showTitle = true }: Se
             </h2>
           </div>
         )}
-        <div className="bg-white h-full">
+        <div className="bg-white min-h-full">
           {children}
         </div>
       </div>
