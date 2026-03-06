@@ -3,10 +3,15 @@
  *
  * 视觉：全屏相机预览 → 中心对准框(绿色圆角 + 扫描线) → 手电筒 → 快门 → 关闭
  * 整个页面无任何文字，纯图标交互，适配低识字率用户。
+ *
+ * 使用全局 CameraManager：
+ * - 分级约束降级（1920→1280→640→bare），兼容 iPhone 8 Plus 等低端设备
+ * - 用完即释放，不在后台占用摄像头硬件
  */
 import { useRef, useState, useEffect, useCallback } from 'react';
 import { X, RefreshCw, Flashlight, FlashlightOff } from 'lucide-react';
 import { canvasToBase64 } from '../utils/imageUtils';
+import { cameraManager, type FacingMode } from '../utils/cameraManager';
 
 interface CameraOverlayProps {
   onCapture: (base64: string) => void;
@@ -23,9 +28,8 @@ export function CameraOverlay({
 }: CameraOverlayProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
 
-  const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
+  const [facingMode, setFacingMode] = useState<FacingMode>('environment');
   const [torchOn, setTorchOn] = useState(false);
   const [torchSupported, setTorchSupported] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
@@ -53,35 +57,27 @@ export function CameraOverlay({
     return () => cancelAnimationFrame(animId);
   }, []);
 
-  // ── 启动相机 ──────────────────────────────────────────────
-  const startCamera = useCallback(async (facing: 'environment' | 'user') => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(t => t.stop());
-      streamRef.current = null;
-    }
+  // ── 启动相机（通过全局 CameraManager）──────────────────────
+  const startCamera = useCallback(async (facing: FacingMode) => {
     setCameraReady(false);
     setCameraFailed(false);
     setTorchOn(false);
     setTorchSupported(false);
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: facing, width: { ideal: 1920 }, height: { ideal: 1080 } },
-        audio: false,
-      });
-
-      streamRef.current = stream;
-      const videoTrack = stream.getVideoTracks()[0];
-      const caps = videoTrack?.getCapabilities?.() as any;
-      if (caps?.torch) setTorchSupported(true);
+      const managed = await cameraManager.acquire(facing);
+      setTorchSupported(managed.torchSupported);
 
       if (videoRef.current) {
-        videoRef.current.srcObject = stream;
+        videoRef.current.srcObject = managed.stream;
         videoRef.current.onloadedmetadata = () => {
-          videoRef.current?.play().then(() => setCameraReady(true)).catch(() => setCameraReady(true));
+          videoRef.current?.play()
+            .then(() => setCameraReady(true))
+            .catch(() => setCameraReady(true));
         };
       }
-    } catch {
+    } catch (err) {
+      console.error('[CameraOverlay] startCamera failed:', err);
       setCameraFailed(true);
     }
   }, []);
@@ -89,28 +85,23 @@ export function CameraOverlay({
   useEffect(() => {
     startCamera(facingMode);
     return () => {
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(t => t.stop());
-        streamRef.current = null;
-      }
+      // 用完即释放 — 立即停止摄像头，不保活
+      cameraManager.release();
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── 切换前后摄像头 ────────────────────────────────────────
   const handleFlip = useCallback(() => {
-    const next = facingMode === 'environment' ? 'user' : 'environment';
+    const next: FacingMode = facingMode === 'environment' ? 'user' : 'environment';
     setFacingMode(next);
+    // acquire() 内部会先 release 旧 stream，再创建新的
     startCamera(next);
   }, [facingMode, startCamera]);
 
   // ── 手电筒 ────────────────────────────────────────────────
   const toggleTorch = useCallback(async () => {
-    if (!streamRef.current) return;
-    try {
-      const track = streamRef.current.getVideoTracks()[0];
-      await (track as any).applyConstraints({ advanced: [{ torch: !torchOn } as any] });
-      setTorchOn(!torchOn);
-    } catch {}
+    const success = await cameraManager.toggleTorch(!torchOn);
+    if (success) setTorchOn(!torchOn);
   }, [torchOn]);
 
   // ── 拍照 ──────────────────────────────────────────────────
@@ -133,8 +124,9 @@ export function CameraOverlay({
     ctx.drawImage(video, 0, 0, w, h);
 
     const base64 = canvasToBase64(canvas, quality);
-    streamRef.current?.getTracks().forEach(t => t.stop());
-    streamRef.current = null;
+
+    // 拍照完成，立即释放摄像头
+    cameraManager.release();
 
     setTimeout(() => {
       if (navigator.vibrate) navigator.vibrate(50);
@@ -145,8 +137,7 @@ export function CameraOverlay({
   // ── 关闭 ──────────────────────────────────────────────────
   const handleClose = useCallback(() => {
     setAnimPhase('leaving');
-    streamRef.current?.getTracks().forEach(t => t.stop());
-    streamRef.current = null;
+    cameraManager.release();
     setTimeout(() => onClose(), 150);
   }, [onClose]);
 

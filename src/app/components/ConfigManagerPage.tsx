@@ -22,7 +22,7 @@ export default function ConfigManagerPage() {
   const [gatePassword, setGatePassword] = useState("");
   const [gateError, setGateError] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<"banners" | "live" | "articles" | "marketCategories" | "marketProducts" | "marketAd" | "filing" | "aboutUs" | "privacy" | "terms" | "appBranding" | "homeIcons" | "chatContact" | "userProfile" | "desktopIcon" | "aiModel" | "backendProxy" | "loginConfig">("banners");
+  const [activeTab, setActiveTab] = useState<"banners" | "live" | "articles" | "marketCategories" | "marketProducts" | "marketAd" | "filing" | "aboutUs" | "privacy" | "terms" | "appBranding" | "homeIcons" | "chatContact" | "userProfile" | "desktopIcon" | "aiModel" | "backendProxy" | "loginConfig" | "pushProviders">("banners");
   const [editingItem, setEditingItem] = useState<any>(null);
   const [hasChanges, setHasChanges] = useState(false);
   // 本地工作副本：所有编辑操作只修改此副本，不立即持久化
@@ -1017,6 +1017,7 @@ export default function ConfigManagerPage() {
       case "desktopIcon": return ct("桌面图标", "Desktop Icon");
       case "aiModel": return ct("AI模型", "AI Model");
       case "backendProxy": return ct("后端代理", "Backend Proxy");
+      case "pushProviders": return ct("推送服务", "Push Services");
       default: return "";
     }
   };
@@ -1073,7 +1074,8 @@ export default function ConfigManagerPage() {
             { key: "desktopIcon", label: ct("桌面图标", "Desktop Icon") },
             { key: "aiModel", label: ct("AI模型", "AI Model") },
             { key: "backendProxy", label: ct("后端代理", "Backend Proxy") },
-            { key: "loginConfig", label: ct("登录配置", "Login") }
+            { key: "loginConfig", label: ct("登录配置", "Login") },
+            { key: "pushProviders", label: ct("推送服务", "Push Services") }
           ].map((tab) => (
             <button
               key={tab.key}
@@ -1711,7 +1713,7 @@ export default function ConfigManagerPage() {
                 <button
                   onClick={() => {
                     const newConfig = JSON.parse(JSON.stringify(workingConfig));
-                    if (!newConfig.backendProxyConfig) newConfig.backendProxyConfig = { supabaseUrl: "", supabaseAnonKey: "", edgeFunctionName: "chat-proxy", enabled: false, chatProvider: "aliyun-im", aliyunAppId: "", sendbirdAppId: "", cometchatAppId: "", cometchatRegion: "us" };
+                    if (!newConfig.backendProxyConfig) newConfig.backendProxyConfig = { supabaseUrl: "", supabaseAnonKey: "", edgeFunctionName: "chat-proxy", enabled: false, chatProvider: "aliyun-im", imMode: "edge-function-proxy", aliyunAppId: "", sendbirdAppId: "", cometchatAppId: "", cometchatRegion: "us" };
                     newConfig.backendProxyConfig.enabled = !newConfig.backendProxyConfig.enabled;
                     setWorkingConfig(newConfig);
                     setHasChanges(true);
@@ -1726,7 +1728,87 @@ export default function ConfigManagerPage() {
                 </button>
               </div>
 
-              {/* IM Provider Selection - Card Style */}
+              {/* IM Channel Mode Selector */}
+              <div>
+                <label className="block text-sm text-gray-700 mb-2">{ct("IM 通道模式", "IM Channel Mode")}</label>
+                <p className="text-[11px] text-gray-400 mb-2">{ct(
+                  "选择消息收发的底层通道。Supabase Realtime 走 WebSocket 最简单；IM直连走服务商SDK延迟最低；Edge Function代理是默认方案。",
+                  "Choose the underlying channel for sending/receiving messages. Supabase Realtime uses WebSocket (simplest); IM Direct uses provider SDK (lowest latency); Edge Function Proxy is the default."
+                )}</p>
+                <div className="grid grid-cols-1 gap-2">
+                  {([
+                    {
+                      key: 'supabase-realtime' as const,
+                      label: ct('Supabase Realtime', 'Supabase Realtime'),
+                      icon: '🟢',
+                      color: 'border-emerald-400 bg-emerald-50',
+                      activeColor: 'ring-emerald-400',
+                      desc: ct(
+                        '消息存 Supabase DB，通过 Realtime WebSocket 推送。简单，无需IM SDK，但并发受限（Pro版500连接）',
+                        'Messages stored in Supabase DB, pushed via Realtime WebSocket. Simple, no IM SDK needed, but concurrent connections limited (500 on Pro)'
+                      ),
+                      badge: ct('简单', 'Simple'),
+                    },
+                    {
+                      key: 'im-provider-direct' as const,
+                      label: ct('IM服务商直连', 'IM Provider Direct'),
+                      icon: '🔗',
+                      color: 'border-violet-400 bg-violet-50',
+                      activeColor: 'ring-violet-400',
+                      desc: ct(
+                        '加载服务商客户端SDK（Sendbird/CometChat），消息走WebSocket直连。延迟最低，Realtime不经过Supabase',
+                        'Load provider client SDK (Sendbird/CometChat), messages via direct WebSocket. Lowest latency, Realtime bypasses Supabase'
+                      ),
+                      badge: ct('推荐', 'Recommended'),
+                    },
+                    {
+                      key: 'edge-function-proxy' as const,
+                      label: ct('Edge Function代理', 'Edge Function Proxy'),
+                      icon: '🔄',
+                      color: 'border-amber-400 bg-amber-50',
+                      activeColor: 'ring-amber-400',
+                      desc: ct(
+                        '所有消息经 Edge Function 中转，前端轮询(3-10s)接收新消息。无需SDK，部署最简，延迟较高',
+                        'All messages relayed via Edge Function, frontend polls (3-10s) for new messages. No SDK needed, simplest deployment, higher latency'
+                      ),
+                      badge: ct('默认', 'Default'),
+                    },
+                  ] as const).map((modeOption) => {
+                    const currentMode = workingConfig.backendProxyConfig?.imMode || 'edge-function-proxy';
+                    const isActive = currentMode === modeOption.key;
+                    return (
+                      <button
+                        key={modeOption.key}
+                        onClick={() => {
+                          const newConfig = JSON.parse(JSON.stringify(workingConfig));
+                          if (!newConfig.backendProxyConfig) newConfig.backendProxyConfig = { supabaseUrl: "", supabaseAnonKey: "", edgeFunctionName: "chat-proxy", enabled: false, chatProvider: "aliyun-im", imMode: "edge-function-proxy", aliyunAppId: "", sendbirdAppId: "", cometchatAppId: "", cometchatRegion: "us" };
+                          newConfig.backendProxyConfig.imMode = modeOption.key;
+                          setWorkingConfig(newConfig);
+                          setHasChanges(true);
+                        }}
+                        className={`w-full text-left px-3 py-3 rounded-xl border-2 transition-all ${
+                          isActive
+                            ? `${modeOption.color} ${modeOption.activeColor} ring-2`
+                            : 'border-gray-200 bg-white hover:bg-gray-50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg">{modeOption.icon}</span>
+                          <span className={`text-sm ${isActive ? 'text-gray-900' : 'text-gray-700'}`}>{modeOption.label}</span>
+                          <span className={`ml-auto text-[10px] px-2 py-0.5 rounded-full ${
+                            isActive
+                              ? 'bg-emerald-100 text-emerald-700'
+                              : 'bg-gray-100 text-gray-500'
+                          }`}>{isActive ? ct("已选", "Active") : modeOption.badge}</span>
+                        </div>
+                        <p className="text-[11px] text-gray-500 mt-1 ml-7">{modeOption.desc}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* IM Provider Selection - Card Style (only for im-provider-direct and edge-function-proxy) */}
               <div>
                 <label className="block text-sm text-gray-700 mb-2">{ct("IM 服务商", "IM Provider")}</label>
                 <div className="grid grid-cols-1 gap-2">
@@ -1741,7 +1823,7 @@ export default function ConfigManagerPage() {
                         key={provider.key}
                         onClick={() => {
                           const newConfig = JSON.parse(JSON.stringify(workingConfig));
-                          if (!newConfig.backendProxyConfig) newConfig.backendProxyConfig = { supabaseUrl: "", supabaseAnonKey: "", edgeFunctionName: "chat-proxy", enabled: false, chatProvider: "aliyun-im", aliyunAppId: "", sendbirdAppId: "", cometchatAppId: "", cometchatRegion: "us" };
+                          if (!newConfig.backendProxyConfig) newConfig.backendProxyConfig = { supabaseUrl: "", supabaseAnonKey: "", edgeFunctionName: "chat-proxy", enabled: false, chatProvider: "aliyun-im", imMode: "edge-function-proxy", aliyunAppId: "", sendbirdAppId: "", cometchatAppId: "", cometchatRegion: "us" };
                           newConfig.backendProxyConfig.chatProvider = provider.key;
                           setWorkingConfig(newConfig);
                           setHasChanges(true);
@@ -1778,7 +1860,7 @@ export default function ConfigManagerPage() {
                     value={workingConfig.backendProxyConfig?.aliyunAppId || ""}
                     onChange={(e) => {
                       const newConfig = JSON.parse(JSON.stringify(workingConfig));
-                      if (!newConfig.backendProxyConfig) newConfig.backendProxyConfig = { supabaseUrl: "", supabaseAnonKey: "", edgeFunctionName: "chat-proxy", enabled: false, chatProvider: "aliyun-im", aliyunAppId: "", sendbirdAppId: "", cometchatAppId: "", cometchatRegion: "us" };
+                      if (!newConfig.backendProxyConfig) newConfig.backendProxyConfig = { supabaseUrl: "", supabaseAnonKey: "", edgeFunctionName: "chat-proxy", enabled: false, chatProvider: "aliyun-im", imMode: "edge-function-proxy", aliyunAppId: "", sendbirdAppId: "", cometchatAppId: "", cometchatRegion: "us" };
                       newConfig.backendProxyConfig.aliyunAppId = e.target.value;
                       setWorkingConfig(newConfig);
                       setHasChanges(true);
@@ -1800,7 +1882,7 @@ export default function ConfigManagerPage() {
                     value={workingConfig.backendProxyConfig?.sendbirdAppId || ""}
                     onChange={(e) => {
                       const newConfig = JSON.parse(JSON.stringify(workingConfig));
-                      if (!newConfig.backendProxyConfig) newConfig.backendProxyConfig = { supabaseUrl: "", supabaseAnonKey: "", edgeFunctionName: "chat-proxy", enabled: false, chatProvider: "aliyun-im", aliyunAppId: "", sendbirdAppId: "", cometchatAppId: "", cometchatRegion: "us" };
+                      if (!newConfig.backendProxyConfig) newConfig.backendProxyConfig = { supabaseUrl: "", supabaseAnonKey: "", edgeFunctionName: "chat-proxy", enabled: false, chatProvider: "aliyun-im", imMode: "edge-function-proxy", aliyunAppId: "", sendbirdAppId: "", cometchatAppId: "", cometchatRegion: "us" };
                       newConfig.backendProxyConfig.sendbirdAppId = e.target.value;
                       setWorkingConfig(newConfig);
                       setHasChanges(true);
@@ -1823,7 +1905,7 @@ export default function ConfigManagerPage() {
                       value={workingConfig.backendProxyConfig?.cometchatAppId || ""}
                       onChange={(e) => {
                         const newConfig = JSON.parse(JSON.stringify(workingConfig));
-                        if (!newConfig.backendProxyConfig) newConfig.backendProxyConfig = { supabaseUrl: "", supabaseAnonKey: "", edgeFunctionName: "chat-proxy", enabled: false, chatProvider: "aliyun-im", aliyunAppId: "", sendbirdAppId: "", cometchatAppId: "", cometchatRegion: "us" };
+                        if (!newConfig.backendProxyConfig) newConfig.backendProxyConfig = { supabaseUrl: "", supabaseAnonKey: "", edgeFunctionName: "chat-proxy", enabled: false, chatProvider: "aliyun-im", imMode: "edge-function-proxy", aliyunAppId: "", sendbirdAppId: "", cometchatAppId: "", cometchatRegion: "us" };
                         newConfig.backendProxyConfig.cometchatAppId = e.target.value;
                         setWorkingConfig(newConfig);
                         setHasChanges(true);
@@ -1838,7 +1920,7 @@ export default function ConfigManagerPage() {
                       value={workingConfig.backendProxyConfig?.cometchatRegion || "us"}
                       onChange={(e) => {
                         const newConfig = JSON.parse(JSON.stringify(workingConfig));
-                        if (!newConfig.backendProxyConfig) newConfig.backendProxyConfig = { supabaseUrl: "", supabaseAnonKey: "", edgeFunctionName: "chat-proxy", enabled: false, chatProvider: "aliyun-im", aliyunAppId: "", sendbirdAppId: "", cometchatAppId: "", cometchatRegion: "us" };
+                        if (!newConfig.backendProxyConfig) newConfig.backendProxyConfig = { supabaseUrl: "", supabaseAnonKey: "", edgeFunctionName: "chat-proxy", enabled: false, chatProvider: "aliyun-im", imMode: "edge-function-proxy", aliyunAppId: "", sendbirdAppId: "", cometchatAppId: "", cometchatRegion: "us" };
                         newConfig.backendProxyConfig.cometchatRegion = e.target.value;
                         setWorkingConfig(newConfig);
                         setHasChanges(true);
@@ -2310,6 +2392,438 @@ export default function ConfigManagerPage() {
                     "Enable only login methods common in your target market (e.g. China: WeChat+Phone; International: Google+Apple+Email)"
                   )}</li>
                 </ul>
+              </div>
+            </div>
+          </div>
+        ) : activeTab === "pushProviders" ? (
+          <div className="space-y-4">
+            <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-4">
+              <h3 className="text-base text-gray-800 mb-2">{ct("推送服务商配置", "Push Notification Provider Config")}</h3>
+              <p className="text-xs text-gray-500 -mt-2">{ct(
+                "选择并配置推送通知服务商。公钥/App ID 放在前端安全使用，私钥/Master Secret 必须存放在后端（Edge Function Secrets）。同一时间只激活一个服务商。",
+                "Select and configure push notification providers. Public keys/App IDs are safe for frontend. Private keys/Master Secrets must be stored server-side (Edge Function Secrets). Only one provider is active at a time."
+              )}</p>
+
+              {/* Provider Cards */}
+              <div className="space-y-3">
+                {([
+                  {
+                    key: 'webpush' as const,
+                    name: 'Web Push (VAPID)',
+                    icon: '🌐',
+                    color: 'border-blue-400 bg-blue-50',
+                    activeColor: 'ring-blue-400',
+                    desc: ct('W3C标准，无需第三方SDK，浏览器原生支持', 'W3C standard, no third-party SDK, native browser support'),
+                    region: ct('全球', 'Global'),
+                  },
+                  {
+                    key: 'fcm' as const,
+                    name: 'Firebase Cloud Messaging',
+                    icon: '🔥',
+                    color: 'border-orange-400 bg-orange-50',
+                    activeColor: 'ring-orange-400',
+                    desc: ct('Google推送服务，免费无限量，支持Web/iOS/Android', 'Google push service, free unlimited, supports Web/iOS/Android'),
+                    region: ct('全球（中国大陆不可用）', 'Global (not available in mainland China)'),
+                  },
+                  {
+                    key: 'onesignal' as const,
+                    name: 'OneSignal',
+                    icon: '📡',
+                    color: 'border-purple-400 bg-purple-50',
+                    activeColor: 'ring-purple-400',
+                    desc: ct('专业推送平台，免费额度大，自动分段推送', 'Professional push platform, generous free tier, auto-segmentation'),
+                    region: ct('全球', 'Global'),
+                  },
+                  {
+                    key: 'jpush' as const,
+                    name: ct('极光推送 JPush', 'JPush'),
+                    icon: '⚡',
+                    color: 'border-yellow-400 bg-yellow-50',
+                    activeColor: 'ring-yellow-400',
+                    desc: ct('国内主流推送，支持厂商通道（华为/小米/OPPO/vivo），送达率高', 'China mainstream push, supports vendor channels (Huawei/Xiaomi/OPPO/vivo), high delivery rate'),
+                    region: ct('中国', 'China'),
+                  },
+                  {
+                    key: 'getui' as const,
+                    name: ct('个推 GeTui / UniPush', 'GeTui / UniPush'),
+                    icon: '📱',
+                    color: 'border-green-400 bg-green-50',
+                    activeColor: 'ring-green-400',
+                    desc: ct('国内TOP3推送服务商，日均推送百亿级，支持统一推送联盟', 'China TOP3 push provider, billions of daily pushes, supports Unified Push Alliance'),
+                    region: ct('中国', 'China'),
+                  },
+                ] as const).map((provider) => {
+                  const pc = workingConfig.pushProvidersConfig || {};
+                  const isActive = (pc.activeProvider || 'webpush') === provider.key;
+                  const providerConfig = pc[provider.key] || {};
+                  const isEnabled = providerConfig.enabled === true;
+
+                  return (
+                    <div key={provider.key} className={`border-2 rounded-xl overflow-hidden transition-all ${
+                      isActive ? `${provider.color} ${provider.activeColor} ring-2` : 'border-gray-200 bg-white'
+                    }`}>
+                      {/* Header */}
+                      <div className="flex items-center justify-between px-4 py-3">
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <span className="text-xl">{provider.icon}</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-sm text-gray-800">{provider.name}</span>
+                              <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">{provider.region}</span>
+                              {isActive && (
+                                <span className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">{ct("已激活", "Active")}</span>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-gray-500 mt-0.5">{provider.desc}</p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => {
+                            const newConfig = JSON.parse(JSON.stringify(workingConfig));
+                            if (!newConfig.pushProvidersConfig) newConfig.pushProvidersConfig = {};
+                            newConfig.pushProvidersConfig.activeProvider = provider.key;
+                            if (!newConfig.pushProvidersConfig[provider.key]) newConfig.pushProvidersConfig[provider.key] = {};
+                            newConfig.pushProvidersConfig[provider.key].enabled = true;
+                            setWorkingConfig(newConfig);
+                            setHasChanges(true);
+                          }}
+                          className={`px-3 py-1.5 rounded-lg text-xs transition-colors flex-shrink-0 ${
+                            isActive
+                              ? "bg-emerald-600 text-white"
+                              : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                          }`}
+                        >
+                          {isActive ? ct("当前使用", "In Use") : ct("激活", "Activate")}
+                        </button>
+                      </div>
+
+                      {/* Config Fields — only show when active */}
+                      {isActive && (
+                        <div className="px-4 py-3 bg-white/80 border-t border-gray-100 space-y-3">
+                          {/* Web Push */}
+                          {provider.key === 'webpush' && (
+                            <>
+                              <div>
+                                <label className="block text-xs text-gray-600 mb-1">VAPID Public Key</label>
+                                <input
+                                  type="text"
+                                  value={pc.webpush?.vapidPublicKey || ""}
+                                  onChange={(e) => {
+                                    const newConfig = JSON.parse(JSON.stringify(workingConfig));
+                                    if (!newConfig.pushProvidersConfig) newConfig.pushProvidersConfig = {};
+                                    if (!newConfig.pushProvidersConfig.webpush) newConfig.pushProvidersConfig.webpush = { enabled: true };
+                                    newConfig.pushProvidersConfig.webpush.vapidPublicKey = e.target.value;
+                                    setWorkingConfig(newConfig);
+                                    setHasChanges(true);
+                                  }}
+                                  placeholder="BEl62iUYgUivxIk..."
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 font-mono text-xs"
+                                />
+                                <p className="mt-1 text-[11px] text-gray-400">{ct("用 web-push generate-vapid-keys 生成，公钥放这里", "Generate with web-push generate-vapid-keys, put public key here")}</p>
+                              </div>
+                              <div>
+                                <label className="block text-xs text-gray-600 mb-1">{ct("推送后端API地址", "Push API Base URL")}</label>
+                                <input
+                                  type="text"
+                                  value={pc.webpush?.pushApiBase || ""}
+                                  onChange={(e) => {
+                                    const newConfig = JSON.parse(JSON.stringify(workingConfig));
+                                    if (!newConfig.pushProvidersConfig) newConfig.pushProvidersConfig = {};
+                                    if (!newConfig.pushProvidersConfig.webpush) newConfig.pushProvidersConfig.webpush = { enabled: true };
+                                    newConfig.pushProvidersConfig.webpush.pushApiBase = e.target.value;
+                                    setWorkingConfig(newConfig);
+                                    setHasChanges(true);
+                                  }}
+                                  placeholder="https://api.example.com"
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 font-mono text-xs"
+                                />
+                              </div>
+                            </>
+                          )}
+
+                          {/* FCM */}
+                          {provider.key === 'fcm' && (
+                            <>
+                              {[
+                                { field: 'apiKey', label: 'Firebase Web API Key', placeholder: 'AIzaSy...', hint: ct('Firebase Console → 项目设置 → Web API Key（公开）', 'Firebase Console → Project Settings → Web API Key (public)') },
+                                { field: 'projectId', label: 'Firebase Project ID', placeholder: 'my-project-123', hint: '' },
+                                { field: 'appId', label: 'Firebase App ID', placeholder: '1:123456789:web:abcdef', hint: '' },
+                                { field: 'messagingSenderId', label: 'FCM Sender ID', placeholder: '123456789', hint: ct('Firebase Console → 云消息传递 → 发件人ID', 'Firebase Console → Cloud Messaging → Sender ID') },
+                                { field: 'vapidKey', label: 'FCM Web Push VAPID Key', placeholder: 'BEl62iUY...', hint: ct('Firebase Console → 云消息传递 → Web Push 证书 → 密钥对', 'Firebase Console → Cloud Messaging → Web Push certificate → Key Pair') },
+                              ].map(({ field, label, placeholder, hint }) => (
+                                <div key={field}>
+                                  <label className="block text-xs text-gray-600 mb-1">{label}</label>
+                                  <input
+                                    type="text"
+                                    value={(pc.fcm as any)?.[field] || ""}
+                                    onChange={(e) => {
+                                      const newConfig = JSON.parse(JSON.stringify(workingConfig));
+                                      if (!newConfig.pushProvidersConfig) newConfig.pushProvidersConfig = {};
+                                      if (!newConfig.pushProvidersConfig.fcm) newConfig.pushProvidersConfig.fcm = { enabled: true };
+                                      newConfig.pushProvidersConfig.fcm[field] = e.target.value;
+                                      setWorkingConfig(newConfig);
+                                      setHasChanges(true);
+                                    }}
+                                    placeholder={placeholder}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 font-mono text-xs"
+                                  />
+                                  {hint && <p className="mt-1 text-[11px] text-gray-400">{hint}</p>}
+                                </div>
+                              ))}
+                              <div className="bg-amber-50 rounded-lg p-2">
+                                <p className="text-[11px] text-amber-700">{ct(
+                                  "FCM Server Key 必须存放在后端（Supabase Edge Function Secrets），不要放在前端",
+                                  "FCM Server Key must be stored server-side (Supabase Edge Function Secrets), never in frontend"
+                                )}</p>
+                              </div>
+                            </>
+                          )}
+
+                          {/* OneSignal */}
+                          {provider.key === 'onesignal' && (
+                            <>
+                              <div>
+                                <label className="block text-xs text-gray-600 mb-1">OneSignal App ID</label>
+                                <input
+                                  type="text"
+                                  value={pc.onesignal?.appId || ""}
+                                  onChange={(e) => {
+                                    const newConfig = JSON.parse(JSON.stringify(workingConfig));
+                                    if (!newConfig.pushProvidersConfig) newConfig.pushProvidersConfig = {};
+                                    if (!newConfig.pushProvidersConfig.onesignal) newConfig.pushProvidersConfig.onesignal = { enabled: true };
+                                    newConfig.pushProvidersConfig.onesignal.appId = e.target.value;
+                                    setWorkingConfig(newConfig);
+                                    setHasChanges(true);
+                                  }}
+                                  placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 font-mono text-xs"
+                                />
+                                <p className="mt-1 text-[11px] text-gray-400">{ct("OneSignal Dashboard → Settings → Keys & IDs → OneSignal App ID（公开）", "OneSignal Dashboard → Settings → Keys & IDs → OneSignal App ID (public)")}</p>
+                              </div>
+                              <div>
+                                <label className="block text-xs text-gray-600 mb-1">Safari Web Push ID {ct("（可选）", "(optional)")}</label>
+                                <input
+                                  type="text"
+                                  value={pc.onesignal?.safariWebId || ""}
+                                  onChange={(e) => {
+                                    const newConfig = JSON.parse(JSON.stringify(workingConfig));
+                                    if (!newConfig.pushProvidersConfig) newConfig.pushProvidersConfig = {};
+                                    if (!newConfig.pushProvidersConfig.onesignal) newConfig.pushProvidersConfig.onesignal = { enabled: true };
+                                    newConfig.pushProvidersConfig.onesignal.safariWebId = e.target.value;
+                                    setWorkingConfig(newConfig);
+                                    setHasChanges(true);
+                                  }}
+                                  placeholder="web.onesignal.auto.xxxxxx"
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 font-mono text-xs"
+                                />
+                              </div>
+                              <div className="bg-amber-50 rounded-lg p-2">
+                                <p className="text-[11px] text-amber-700">{ct(
+                                  "OneSignal REST API Key 必须存放在后端（Edge Function Secrets），前端只放 App ID",
+                                  "OneSignal REST API Key must be stored server-side (Edge Function Secrets). Only App ID goes in frontend."
+                                )}</p>
+                              </div>
+                            </>
+                          )}
+
+                          {/* JPush 极光推送 */}
+                          {provider.key === 'jpush' && (
+                            <>
+                              <div>
+                                <label className="block text-xs text-gray-600 mb-1">App Key {ct("（公开）", "(public)")}</label>
+                                <input
+                                  type="text"
+                                  value={pc.jpush?.appKey || ""}
+                                  onChange={(e) => {
+                                    const newConfig = JSON.parse(JSON.stringify(workingConfig));
+                                    if (!newConfig.pushProvidersConfig) newConfig.pushProvidersConfig = {};
+                                    if (!newConfig.pushProvidersConfig.jpush) newConfig.pushProvidersConfig.jpush = { enabled: true };
+                                    newConfig.pushProvidersConfig.jpush.appKey = e.target.value;
+                                    setWorkingConfig(newConfig);
+                                    setHasChanges(true);
+                                  }}
+                                  placeholder="your-jpush-app-key"
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 font-mono text-xs"
+                                />
+                                <p className="mt-1 text-[11px] text-gray-400">{ct("极光控制台 → 应用设置 → App Key", "JPush Console → App Settings → App Key")}</p>
+                              </div>
+                              <div>
+                                <label className="block text-xs text-gray-600 mb-1">{ct("渠道标识", "Channel")}</label>
+                                <input
+                                  type="text"
+                                  value={pc.jpush?.channel || ""}
+                                  onChange={(e) => {
+                                    const newConfig = JSON.parse(JSON.stringify(workingConfig));
+                                    if (!newConfig.pushProvidersConfig) newConfig.pushProvidersConfig = {};
+                                    if (!newConfig.pushProvidersConfig.jpush) newConfig.pushProvidersConfig.jpush = { enabled: true };
+                                    newConfig.pushProvidersConfig.jpush.channel = e.target.value;
+                                    setWorkingConfig(newConfig);
+                                    setHasChanges(true);
+                                  }}
+                                  placeholder="default"
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-xs"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs text-gray-600 mb-1">{ct("推送API代理地址", "Push API Proxy URL")}</label>
+                                <input
+                                  type="text"
+                                  value={pc.jpush?.pushApiBase || ""}
+                                  onChange={(e) => {
+                                    const newConfig = JSON.parse(JSON.stringify(workingConfig));
+                                    if (!newConfig.pushProvidersConfig) newConfig.pushProvidersConfig = {};
+                                    if (!newConfig.pushProvidersConfig.jpush) newConfig.pushProvidersConfig.jpush = { enabled: true };
+                                    newConfig.pushProvidersConfig.jpush.pushApiBase = e.target.value;
+                                    setWorkingConfig(newConfig);
+                                    setHasChanges(true);
+                                  }}
+                                  placeholder="https://your-supabase.co/functions/v1/jpush-proxy"
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 font-mono text-xs"
+                                />
+                                <p className="mt-1 text-[11px] text-gray-400">{ct("通过Supabase Edge Function代理极光REST API", "Proxy JPush REST API via Supabase Edge Function")}</p>
+                              </div>
+                              <div className="bg-amber-50 rounded-lg p-2">
+                                <p className="text-[11px] text-amber-700">{ct(
+                                  "Master Secret 必须存放在后端 Edge Function Secrets 中（环境变量 JPUSH_MASTER_SECRET）",
+                                  "Master Secret must be stored in Edge Function Secrets (env var JPUSH_MASTER_SECRET)"
+                                )}</p>
+                              </div>
+                            </>
+                          )}
+
+                          {/* GeTui 个推 */}
+                          {provider.key === 'getui' && (
+                            <>
+                              <div>
+                                <label className="block text-xs text-gray-600 mb-1">App ID {ct("（公开）", "(public)")}</label>
+                                <input
+                                  type="text"
+                                  value={pc.getui?.appId || ""}
+                                  onChange={(e) => {
+                                    const newConfig = JSON.parse(JSON.stringify(workingConfig));
+                                    if (!newConfig.pushProvidersConfig) newConfig.pushProvidersConfig = {};
+                                    if (!newConfig.pushProvidersConfig.getui) newConfig.pushProvidersConfig.getui = { enabled: true };
+                                    newConfig.pushProvidersConfig.getui.appId = e.target.value;
+                                    setWorkingConfig(newConfig);
+                                    setHasChanges(true);
+                                  }}
+                                  placeholder="your-getui-app-id"
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 font-mono text-xs"
+                                />
+                                <p className="mt-1 text-[11px] text-gray-400">{ct("个推开发者中心 → 应用配置 → App ID", "GeTui Developer Center → App Config → App ID")}</p>
+                              </div>
+                              <div>
+                                <label className="block text-xs text-gray-600 mb-1">App Key {ct("（公开）", "(public)")}</label>
+                                <input
+                                  type="text"
+                                  value={pc.getui?.appKey || ""}
+                                  onChange={(e) => {
+                                    const newConfig = JSON.parse(JSON.stringify(workingConfig));
+                                    if (!newConfig.pushProvidersConfig) newConfig.pushProvidersConfig = {};
+                                    if (!newConfig.pushProvidersConfig.getui) newConfig.pushProvidersConfig.getui = { enabled: true };
+                                    newConfig.pushProvidersConfig.getui.appKey = e.target.value;
+                                    setWorkingConfig(newConfig);
+                                    setHasChanges(true);
+                                  }}
+                                  placeholder="your-getui-app-key"
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 font-mono text-xs"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs text-gray-600 mb-1">{ct("推送API代理地址", "Push API Proxy URL")}</label>
+                                <input
+                                  type="text"
+                                  value={pc.getui?.pushApiBase || ""}
+                                  onChange={(e) => {
+                                    const newConfig = JSON.parse(JSON.stringify(workingConfig));
+                                    if (!newConfig.pushProvidersConfig) newConfig.pushProvidersConfig = {};
+                                    if (!newConfig.pushProvidersConfig.getui) newConfig.pushProvidersConfig.getui = { enabled: true };
+                                    newConfig.pushProvidersConfig.getui.pushApiBase = e.target.value;
+                                    setWorkingConfig(newConfig);
+                                    setHasChanges(true);
+                                  }}
+                                  placeholder="https://your-supabase.co/functions/v1/getui-proxy"
+                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 font-mono text-xs"
+                                />
+                                <p className="mt-1 text-[11px] text-gray-400">{ct("通过Supabase Edge Function代理个推REST API", "Proxy GeTui REST API via Supabase Edge Function")}</p>
+                              </div>
+                              <div className="bg-amber-50 rounded-lg p-2">
+                                <p className="text-[11px] text-amber-700">{ct(
+                                  "Master Secret 必须存放在后端 Edge Function Secrets 中（环境变量 GETUI_MASTER_SECRET）",
+                                  "Master Secret must be stored in Edge Function Secrets (env var GETUI_MASTER_SECRET)"
+                                )}</p>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Architecture Diagram */}
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 mt-3">
+                <p className="text-xs text-gray-700 mb-2">{ct("推送架构：", "Push Architecture:")}</p>
+                <div className="font-mono text-[10px] text-gray-600 space-y-1 bg-white rounded-lg p-3 border border-gray-100">
+                  <p>{ct("前端：公钥/App ID → 订阅用户", "Frontend: Public Key/App ID → Subscribe user")}</p>
+                  <p className="text-gray-400">{"  ↓ subscription"}</p>
+                  <p>{ct("存入 Supabase Database（push_subscriptions 表）", "Save to Supabase Database (push_subscriptions table)")}</p>
+                  <p className="text-gray-400">{"  ↓ trigger / cron"}</p>
+                  <p className="text-emerald-600">{ct("Edge Function（使用私钥/Master Secret）", "Edge Function (uses Private Key/Master Secret)")}</p>
+                  <p className="text-gray-400">{"  ↓ API call"}</p>
+                  <p className="text-blue-600">{(() => {
+                    const ap = workingConfig.pushProvidersConfig?.activeProvider || 'webpush';
+                    const names: Record<string, string> = { webpush: 'Web Push API', fcm: 'FCM HTTP v1 API', onesignal: 'OneSignal REST API', jpush: ct('极光 REST API v3', 'JPush REST API v3'), getui: ct('个推 REST API', 'GeTui REST API') };
+                    return names[ap] || 'Push API';
+                  })()}</p>
+                </div>
+              </div>
+
+              {/* Security Notice */}
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mt-3">
+                <p className="text-xs text-amber-800 mb-2">{ct("安全规范：", "Security Guidelines:")}</p>
+                <ul className="text-[11px] text-amber-700 space-y-1 list-disc list-inside">
+                  <li>{ct(
+                    "此页面只配置公开标识（公钥、App ID、App Key），这些可以安全地暴露在前端代码中",
+                    "This page only configures public identifiers (Public Key, App ID, App Key) which are safe to expose in frontend code"
+                  )}</li>
+                  <li>{ct(
+                    "所有私密凭证（VAPID Private Key、FCM Server Key、OneSignal REST API Key、极光 Master Secret、个推 Master Secret）必须存放在 Supabase Edge Function 的 Secrets 环境变量中",
+                    "All secrets (VAPID Private Key, FCM Server Key, OneSignal REST API Key, JPush Master Secret, GeTui Master Secret) must be stored in Supabase Edge Function Secrets"
+                  )}</li>
+                  <li>{ct(
+                    "推送发送请求由 Edge Function 发起，前端永远不接触私钥",
+                    "Push send requests are made by Edge Functions — frontend never touches private keys"
+                  )}</li>
+                </ul>
+              </div>
+
+              {/* Deployment Guide */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-3">
+                <p className="text-xs text-blue-800 mb-2">{ct("部署步骤：", "Deployment Steps:")}</p>
+                <ol className="text-[11px] text-blue-700 space-y-1 list-decimal list-inside">
+                  <li>{ct(
+                    "在上方选择推送服务商并填写公钥/App ID",
+                    "Select a push provider above and fill in public key/App ID"
+                  )}</li>
+                  <li>{ct(
+                    "在 Supabase Edge Function Secrets 中配置对应的私钥/Master Secret",
+                    "Configure the corresponding private key/Master Secret in Supabase Edge Function Secrets"
+                  )}</li>
+                  <li>{ct(
+                    "部署 Edge Function：supabase functions deploy push-proxy",
+                    "Deploy Edge Function: supabase functions deploy push-proxy"
+                  )}</li>
+                  <li>{ct(
+                    "在 Supabase Database 中创建 push_subscriptions 表存储用户订阅信息",
+                    "Create push_subscriptions table in Supabase Database to store user subscriptions"
+                  )}</li>
+                  <li>{ct(
+                    "保存配置，用户端会自动请求推送权限并订阅",
+                    "Save config — user-facing app will auto-request push permission and subscribe"
+                  )}</li>
+                </ol>
               </div>
             </div>
           </div>

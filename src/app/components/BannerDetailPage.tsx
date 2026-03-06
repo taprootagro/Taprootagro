@@ -1,6 +1,7 @@
 import { SecondaryView } from "./SecondaryView";
-import { Shield } from "lucide-react";
+import { FileText } from "lucide-react";
 import { useHomeConfig } from "../hooks/useHomeConfig";
+import { useLanguage } from "../hooks/useLanguage";
 import type { BannerConfig } from "../hooks/useHomeConfig";
 
 interface BannerDetailPageProps {
@@ -10,40 +11,40 @@ interface BannerDetailPageProps {
 }
 
 export function BannerDetailPage({ onClose, bannerIndex, bannerData }: BannerDetailPageProps) {
-  // 从配置中读取最新的数据，确保编辑后能实时显示
   const { config } = useHomeConfig();
+  const { t } = useLanguage();
   const latestBanner = bannerData?.id 
     ? config.banners.find(b => b.id === bannerData.id) || bannerData 
     : bannerData;
 
+  const title = latestBanner?.title || `${t.market.viewDetails} ${bannerIndex + 1}`;
+
   return (
     <SecondaryView 
       onClose={onClose} 
-      title={latestBanner?.title || `安全守护 ${bannerIndex + 1}`}
+      title={title}
       showTitle={true}
     >
       <div className="flex flex-col h-full" style={{ backgroundColor: 'var(--app-bg)' }}>
-        {/* 顶部大图 */}
+        {/* 顶部大图 — 圆角矩形卡片 */}
         {latestBanner?.url && (
-          <div className="w-full">
-            <img 
-              src={latestBanner.url} 
-              alt={latestBanner.alt || latestBanner.title || "安全守护"} 
-              className="w-full aspect-[2/1] object-cover"
-            />
+          <div className="px-4 pt-4">
+            <div className="rounded-2xl overflow-hidden shadow">
+              <img 
+                src={latestBanner.url} 
+                alt={latestBanner.alt || title} 
+                className="w-full aspect-[2/1] object-cover"
+              />
+            </div>
           </div>
         )}
 
         {/* 内容区 */}
-        <div className="px-4 py-4 space-y-4">
+        <div className="px-4 py-4 space-y-3">
           {/* 标题卡片 */}
           <div className="bg-white rounded-2xl p-4 shadow">
-            <div className="flex items-center gap-2 mb-2">
-              <Shield className="w-4 h-4 text-emerald-600" />
-              <span className="text-xs text-emerald-600 font-medium">安全守护</span>
-            </div>
             <h2 className="text-gray-800 text-lg">
-              {latestBanner?.title || `安全守护详情 ${bannerIndex + 1}`}
+              {title}
             </h2>
             {latestBanner?.alt && (
               <p className="text-gray-500 text-xs mt-1">{latestBanner.alt}</p>
@@ -60,9 +61,8 @@ export function BannerDetailPage({ onClose, bannerIndex, bannerData }: BannerDet
           {/* 无内容提示 */}
           {!latestBanner?.content && (
             <div className="bg-white rounded-2xl p-6 shadow text-center">
-              <Shield className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-              <p className="text-gray-400 text-sm">暂无详细内容</p>
-              <p className="text-gray-300 text-xs mt-1">可在内容管理 → 安全守护中编辑</p>
+              <FileText className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+              <p className="text-gray-400 text-sm">{t.common.loading}</p>
             </div>
           )}
         </div>

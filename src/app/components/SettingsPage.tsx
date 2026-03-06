@@ -161,7 +161,7 @@ export function SettingsPage() {
                     <div className={`overflow-hidden transition-all duration-300 ease-in-out ${
                       item.expanded ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
                     }`}>
-                      <div className="px-4 pb-4 bg-gray-50 border-t border-gray-100">
+                      <div className="px-4 pb-4 bg-gray-50">
                         <div className="pt-3">
                           {item.label === t.settings.pushNotifications && <PushNotifications />}
                           {item.label === t.settings.backgroundSync && <BackgroundSync />}
@@ -171,7 +171,7 @@ export function SettingsPage() {
 
                     {/* 分隔线 */}
                     {itemIndex < section.items.length - 1 && !item.expanded && (
-                      <div className="border-t border-gray-100 mx-4"></div>
+                      <div className="mx-4" style={{ height: '1px', background: 'linear-gradient(to right, transparent, rgba(0,0,0,0.06), transparent)' }}></div>
                     )}
                   </div>
                 );
@@ -253,7 +253,7 @@ export function SettingsPage() {
         </SecondaryView>
       )}
 
-      {/* 服务条款 - 浮现弹出 */}
+      {/* 服务���款 - 浮现弹出 */}
       {showTermsOfService && (
         <SecondaryView 
           title={config?.termsOfService?.title || t.settings.termsOfService} 

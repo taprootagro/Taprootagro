@@ -169,6 +169,7 @@ function mergeConfig(defaults: HomePageConfig, parsed: Partial<HomePageConfig>):
       ...(parsed.desktopIcon || {}),
     },
     pushConfig: parsed.pushConfig || defaults.pushConfig,
+    pushProvidersConfig: parsed.pushProvidersConfig || defaults.pushProvidersConfig,
     aiModelConfig: parsed.aiModelConfig || defaults.aiModelConfig,
     cloudAIConfig: parsed.cloudAIConfig || defaults.cloudAIConfig,
     backendProxyConfig: parsed.backendProxyConfig || defaults.backendProxyConfig,

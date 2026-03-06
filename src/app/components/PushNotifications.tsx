@@ -8,10 +8,11 @@ import { useHomeConfig } from "../hooks/useHomeConfig";
  * 
  * Features:
  * 1. Request push permission
- * 2. Subscribe to push service (using VAPID key from config)
+ * 2. Subscribe to push service (using VAPID key from config or multi-provider config)
  * 3. Show notification status
  * 4. Unsubscribe
  * 5. Graceful degradation when backend is not configured
+ * 6. Multi-provider support: Web Push / FCM / OneSignal / JPush / GeTui
  */
 
 interface PushNotificationsProps {

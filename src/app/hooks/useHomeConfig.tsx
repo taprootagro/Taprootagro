@@ -146,6 +146,56 @@ export interface PushConfig {
   enabled: boolean;          // 是否启用推送功能
 }
 
+// 推送服务商类型
+export type PushProvider = 'webpush' | 'fcm' | 'onesignal' | 'jpush' | 'getui';
+
+// 多平台推送配置接口
+export interface PushProvidersConfig {
+  activeProvider: PushProvider;   // 当前激活的推送服务商
+
+  // Web Push (VAPID) — 原生浏览器推送
+  webpush: {
+    enabled: boolean;
+    vapidPublicKey: string;       // VAPID 公钥
+    pushApiBase: string;          // 推送后端API基础路径
+  };
+
+  // Firebase Cloud Messaging
+  fcm: {
+    enabled: boolean;
+    apiKey: string;               // Firebase Web API Key（公开）
+    projectId: string;            // Firebase Project ID
+    appId: string;                // Firebase App ID
+    messagingSenderId: string;    // FCM Sender ID
+    vapidKey: string;             // FCM Web Push VAPID Key
+  };
+
+  // OneSignal
+  onesignal: {
+    enabled: boolean;
+    appId: string;                // OneSignal App ID（公开）
+    safariWebId: string;          // Safari Web Push ID（可选）
+  };
+
+  // 极��送 JPush
+  jpush: {
+    enabled: boolean;
+    appKey: string;               // JPush App Key（公开）
+    masterSecret: string;         // 仅展示标记，实际存后端
+    channel: string;              // 推送渠道标识
+    pushApiBase: string;          // JPush REST API 代理地址
+  };
+
+  // 个推 GeTui / UniPush
+  getui: {
+    enabled: boolean;
+    appId: string;                // GeTui App ID（公开）
+    appKey: string;               // GeTui App Key（公开）
+    masterSecret: string;         // 仅展示标记，实际存后端
+    pushApiBase: string;          // GeTui REST API 代理地址
+  };
+}
+
 // AI模型配置接口
 export interface AIModelConfig {
   modelUrl: string;          // ONNX 模型文件URL
@@ -165,6 +215,7 @@ export interface CloudAIConfig {
 
 // 后端代理配置接口（IM通讯 + Supabase）
 export type ChatProvider = 'aliyun-im' | 'sendbird' | 'cometchat';
+export type IMMode = 'supabase-realtime' | 'im-provider-direct' | 'edge-function-proxy';
 
 export interface BackendProxyConfig {
   supabaseUrl: string;            // Supabase 项目 URL
@@ -172,6 +223,7 @@ export interface BackendProxyConfig {
   edgeFunctionName: string;       // Edge Function 名称（默认 chat-proxy）
   enabled: boolean;               // 是否启用后端代理模式
   chatProvider: ChatProvider;     // IM服务商选择
+  imMode: IMMode;                 // IM通道模式：supabase-realtime | im-provider-direct | edge-function-proxy
   // Alibaba Cloud IM (互动消息)
   aliyunAppId: string;
   // Sendbird
@@ -232,8 +284,9 @@ export interface HomePageConfig {
   userProfile: UserProfileConfig; // 个人资料
   desktopIcon: DesktopIconConfig; // 桌面图标配置
   pushConfig: PushConfig; // 推送通知配置
+  pushProvidersConfig: PushProvidersConfig; // 多平台推送服务商配置
   aiModelConfig: AIModelConfig; // AI模型配置
-  cloudAIConfig: CloudAIConfig; // 云端AI��度分析配置
+  cloudAIConfig: CloudAIConfig; // 云端AI度分析配置
   backendProxyConfig: BackendProxyConfig; // 后端代理配置
   loginConfig: LoginConfig; // 登录页面配置
 }
@@ -651,7 +704,7 @@ const defaultConfig: HomePageConfig = {
   },
   privacyPolicy: {
     title: "隐私政策",
-    content: "我们尊重并保护所有使用我们服务的用户的隐私。本隐私政策解释了我们如何收集、使用、披露和保护您的个人信息。\n\n1. 信息收集：我们可能会收集您的姓名、电子邮件地址、电话号��等个人信息。\n\n2. 信息使用：我们使用收集的信息来提供和改进我们的服务，包括但不限于发送营销信息、处理订单和提供技术支持。\n\n3. 信息共享：我们不会将您的个人信息出售或出租给第三方，除非得到您的明确同意或法律要求。\n\n4. 信息保护：我们采取合理的安全措施来保护您的个人信息，防止未经授权的访问、使用或披。\n\n5. 的权利：您有权访问、更正或删除您的个人信息。如果您有任何关于隐私的问题或疑虑，请联系我们。"
+    content: "我们尊重并保护所有使用我们服务的用户的隐私。本隐私政策解释了我们如何收集、使用、披露和保护您的个人信息。\n\n1. 信息收集：我们可能会收集您的姓名、电子邮件地址、电话号等个人信息。\n\n2. 信息使用：我们使用收集的信息来提供和改进我们的服务，包括但不限于发送营销信息、处理订单和提供技术支持。\n\n3. 信息共享：我们不会将您的个人信息出售或出租给第三方，除非得到您的明确同意或法律要求。\n\n4. 信息保护：我们采取合理的安全措施来保护您的个人信息，防止未经授权的访问、使用或披。\n\n5. 的权利：您有权访问、更正或删除您的个人信息。如果您有任何关于隐私的问题或疑虑，请联系我们。"
   },
   termsOfService: {
     title: "用户协议",
@@ -698,6 +751,51 @@ const defaultConfig: HomePageConfig = {
     pushApiBase: "https://api.example.com",
     enabled: true
   },
+  pushProvidersConfig: {
+    activeProvider: 'webpush',
+
+    // Web Push (VAPID) — 原生浏览器推送
+    webpush: {
+      enabled: true,
+      vapidPublicKey: "YOUR_VAPID_PUBLIC_KEY",       // VAPID 公钥
+      pushApiBase: "https://api.example.com",          // 推送后端API基础路径
+    },
+
+    // Firebase Cloud Messaging
+    fcm: {
+      enabled: false,
+      apiKey: "",               // Firebase Web API Key（公开）
+      projectId: "",            // Firebase Project ID
+      appId: "",                // Firebase App ID
+      messagingSenderId: "",    // FCM Sender ID
+      vapidKey: "",             // FCM Web Push VAPID Key
+    },
+
+    // OneSignal
+    onesignal: {
+      enabled: false,
+      appId: "",                // OneSignal App ID（公开）
+      safariWebId: "",          // Safari Web Push ID（可选）
+    },
+
+    // 极光推送 JPush
+    jpush: {
+      enabled: false,
+      appKey: "",               // JPush App Key（公开）
+      masterSecret: "",         // 仅展示标记，实际存后端
+      channel: "",              // 推送渠道标识
+      pushApiBase: "",          // JPush REST API 代理地址
+    },
+
+    // 个推 GeTui / UniPush
+    getui: {
+      enabled: false,
+      appId: "",                // GeTui App ID（公开）
+      appKey: "",               // GeTui App Key（公开）
+      masterSecret: "",         // 仅展示标记，实际存后端
+      pushApiBase: "",          // GeTui REST API 代理地址
+    },
+  },
   aiModelConfig: {
     modelUrl: "",
     labelsUrl: "",
@@ -717,6 +815,7 @@ const defaultConfig: HomePageConfig = {
     edgeFunctionName: "chat-proxy",
     enabled: false,
     chatProvider: 'aliyun-im',
+    imMode: 'edge-function-proxy',
     aliyunAppId: 'your-aliyun-app-id',
     sendbirdAppId: 'your-sendbird-app-id',
     cometchatAppId: 'your-cometchat-app-id',
@@ -788,6 +887,7 @@ export function useHomeConfig() {
             ...(parsedConfig.desktopIcon || {}),
           },
           pushConfig: parsedConfig.pushConfig || defaultConfig.pushConfig,
+          pushProvidersConfig: parsedConfig.pushProvidersConfig || defaultConfig.pushProvidersConfig,
           aiModelConfig: parsedConfig.aiModelConfig || defaultConfig.aiModelConfig,
           cloudAIConfig: parsedConfig.cloudAIConfig || defaultConfig.cloudAIConfig,
           backendProxyConfig: parsedConfig.backendProxyConfig || defaultConfig.backendProxyConfig,

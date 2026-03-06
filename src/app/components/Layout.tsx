@@ -177,10 +177,8 @@ export function Layout() {
     { key: "profile", Component: ProfilePage },
   ] as const;
 
-  // 根据网络质量决定是否用 backdrop-blur
-  const navBgClass = networkQuality.disableBlur
-    ? "bg-white border-t border-gray-100"
-    : "bg-white/95 backdrop-blur-md border-t border-gray-100";
+  // 底部导航栏：白色背景 + 阴影凸显，对低端设备友好
+  const navBgClass = "bg-white";
 
   return (
     <div
@@ -194,7 +192,7 @@ export function Layout() {
       {/* 状态栏占位 — standalone 模式下用 safe-area-inset-top 撇开 */}
       <div className="bg-emerald-600 safe-top flex-shrink-0" />
 
-      {/* 主内容 — Keep-alive: 所有已访问 tab 同时存在 DOM 中，用 display 切换 */}
+      {/* 主内容 — Keep-alive: 所有已访问 tab 同存在 DOM 中，用 display 切�� */}
       <main className="flex-1 overflow-hidden relative">
         {tabPages.map(({ key, Component }) => {
           const isActive = activeTab === key;

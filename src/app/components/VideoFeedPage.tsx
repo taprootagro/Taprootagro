@@ -275,7 +275,7 @@ export function VideoFeedPage({ onClose, startIndex = 0 }: VideoFeedPageProps) {
                   {/* 错误提示 */}
                   {hasError && isCurrent && (
                     <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
-                      <div className="flex flex-col items-center gap-3 bg-black/60 backdrop-blur-sm px-6 py-4 rounded-2xl">
+                      <div className="flex flex-col items-center gap-3 bg-black/70 px-6 py-4 rounded-2xl">
                         <Play className="w-10 h-10 text-white/60" />
                         <span className="text-white/80 text-sm">{v?.loadFailed || '视频加载失败'}</span>
                         <span className="text-white/50 text-xs">{v?.checkVideoUrl || '请检查视频URL是否有效'}</span>
@@ -311,7 +311,7 @@ export function VideoFeedPage({ onClose, startIndex = 0 }: VideoFeedPageProps) {
                           onClick={() => toggleLike(video.id)}
                           className="flex flex-col items-center gap-0.5 active:scale-95 transition-transform"
                         >
-                          <div className="w-11 h-11 bg-white/25 backdrop-blur-md rounded-full flex items-center justify-center border border-white/20">
+                          <div className="w-11 h-11 bg-white/30 rounded-full flex items-center justify-center border border-white/20">
                             <Heart
                               className={`w-5 h-5 transition-all ${
                                 likedVideos.has(video.id)
@@ -323,13 +323,13 @@ export function VideoFeedPage({ onClose, startIndex = 0 }: VideoFeedPageProps) {
                         </button>
 
                         <button className="flex flex-col items-center gap-0.5 active:scale-95 transition-transform">
-                          <div className="w-11 h-11 bg-white/25 backdrop-blur-md rounded-full flex items-center justify-center border border-white/20">
+                          <div className="w-11 h-11 bg-white/30 rounded-full flex items-center justify-center border border-white/20">
                             <MessageCircle className="w-5 h-5 text-white" />
                           </div>
                         </button>
 
                         <button className="flex flex-col items-center active:scale-95 transition-transform">
-                          <div className="w-11 h-11 bg-white/25 backdrop-blur-md rounded-full flex items-center justify-center border border-white/20">
+                          <div className="w-11 h-11 bg-white/30 rounded-full flex items-center justify-center border border-white/20">
                             <Share2 className="w-5 h-5 text-white" />
                           </div>
                         </button>
@@ -338,7 +338,7 @@ export function VideoFeedPage({ onClose, startIndex = 0 }: VideoFeedPageProps) {
                           onClick={() => alert(v?.navigationWip || '一键导航去大田（功能开发中）')}
                           className="flex flex-col items-center active:scale-95 transition-transform"
                         >
-                          <div className="w-11 h-11 bg-emerald-600/95 backdrop-blur-md rounded-full flex items-center justify-center border border-emerald-400/30 shadow-lg">
+                          <div className="w-11 h-11 bg-emerald-600/95 rounded-full flex items-center justify-center border border-emerald-400/30 shadow-lg">
                             <MapPin className="w-5 h-5 text-white" />
                           </div>
                         </button>

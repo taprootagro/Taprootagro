@@ -181,7 +181,7 @@ function generateMockFollowUp(
   if (lowerMsg.includes('水') || lowerMsg.includes('浇') || lowerMsg.includes('irrigation') || lowerMsg.includes('water')) {
     return `### 水分管理建议
 
-针对当前病害状况，水分管理至关重要：
+针对当前病害状���，水分管理至关重要：
 
 1. **控制田间湿度**：避免大水漫灌，采用滴灌或沟灌方式。
 2. **排水畅通**：确保田间排水系统畅通，降低病原菌繁殖的湿度条件。
@@ -437,6 +437,100 @@ class CloudAIService {
     await new Promise((r) => setTimeout(r, 1000 + Math.random() * 1000));
     cloudAIGuard.recordCall();
     return generateMockFollowUp(userMessage, previousAnalysis);
+  }
+
+  /**
+   * Send a voice message (audio) to the cloud AI for speech understanding + reply.
+   *
+   * The backend Edge Function is expected to:
+   *   1. Receive the audio base64 data
+   *   2. Run STT (speech-to-text) via the AI provider
+   *   3. Use the transcribed text + previousAnalysis context to generate a reply
+   *   4. Return the reply text
+   *
+   * @param audioBase64 - Base64-encoded audio (data:audio/webm;... format)
+   * @param previousAnalysis - Full conversation context for AI
+   * @returns AI reply text
+   */
+  async voiceFollowUp(
+    audioBase64: string,
+    previousAnalysis: string,
+  ): Promise<string> {
+    const endpoint = getEndpointUrl();
+    const cfg = getCloudAIConfig();
+
+    // ---- Frontend Guard Checks ----
+    const preflight = cloudAIGuard.preflightCheck();
+    if (preflight === 'DAILY_LIMIT') {
+      throw new Error('DAILY_LIMIT_REACHED');
+    }
+    if (preflight === 'COOLDOWN') {
+      const remaining = cloudAIGuard.getCooldownRemaining();
+      throw new Error(`COOLDOWN:${remaining}`);
+    }
+
+    if (endpoint) {
+      // ---- Real Backend Proxy Call ----
+      console.log(`[CloudAI] Voice follow-up POST ${endpoint} (audio size: ${Math.round(audioBase64.length / 1024)}KB)`);
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 90000); // 90s for voice (STT takes longer)
+
+        const res = await fetch(endpoint, {
+          method: "POST",
+          headers: getHeaders(),
+          signal: controller.signal,
+          body: JSON.stringify({
+            voiceFollowUp: true,
+            audio: audioBase64,
+            previousAnalysis,
+            modelId: cfg.modelId,
+            systemPrompt: cfg.systemPrompt,
+            maxTokens: cfg.maxTokens,
+          }),
+        });
+        clearTimeout(timeoutId);
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ error: "Unknown error" }));
+          throw new Error(err.error || err.message || `Server responded with ${res.status}`);
+        }
+
+        const data = await res.json();
+        let replyText = "";
+        if (typeof data === "string") replyText = data;
+        else if (data.analysis) replyText = data.analysis;
+        else if (data.text) replyText = data.text;
+        else if (data.content) replyText = data.content;
+        else if (data.reply) replyText = data.reply;
+        else if (data.choices?.[0]?.message?.content) replyText = data.choices[0].message.content;
+        else if (data.output?.text) replyText = data.output.text;
+        else replyText = JSON.stringify(data);
+
+        // If server also returns the transcribed text, prepend it
+        if (data.transcription) {
+          replyText = `> 🗣️ "${data.transcription}"\n\n${replyText}`;
+        }
+
+        cloudAIGuard.recordCall();
+        return replyText;
+      } catch (error: any) {
+        console.error("[CloudAI] Voice follow-up call failed:", error);
+        if (error?.name === 'AbortError') {
+          throw new Error('Voice request timed out (90s). Please try again later.');
+        }
+        if (error?.message?.includes('Failed to fetch') || error?.message?.includes('NetworkError')) {
+          throw new Error('Network error. Please check your internet connection.');
+        }
+        throw error;
+      }
+    }
+
+    // ---- Mock Mode ----
+    console.log("[CloudAI][MOCK] Generating mock voice follow-up reply");
+    await new Promise((r) => setTimeout(r, 1500 + Math.random() * 1500));
+    cloudAIGuard.recordCall();
+    return generateMockFollowUp("[Voice message from user about crop condition]", previousAnalysis);
   }
 }
 

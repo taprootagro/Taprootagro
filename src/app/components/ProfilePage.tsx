@@ -84,7 +84,7 @@ export function ProfilePage() {
           </div>
 
           {/* 白色登录卡片 - 被绿色背景衬托 */}
-          <div className="bg-white rounded-3xl p-6 shadow-2xl text-center border border-gray-100">
+          <div className="bg-white rounded-3xl p-6 shadow-2xl text-center">
             {/* 登录按钮 */}
             <button
               onClick={() => navigate("/login")}
@@ -248,7 +248,7 @@ export function ProfilePage() {
                     <ChevronRight className="w-5 h-5 text-emerald-600 flex-shrink-0" />
                   </button>
                   {itemIndex < section.items.length - 1 && (
-                    <div className="border-t border-gray-100 mx-4"></div>
+                    <div className="mx-4" style={{ height: '1px', background: 'linear-gradient(to right, transparent, rgba(0,0,0,0.06), transparent)' }}></div>
                   )}
                 </div>
               );

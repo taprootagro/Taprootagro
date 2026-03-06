@@ -135,8 +135,8 @@ export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
 
           {/* 拍照 — 使用 getUserMedia CameraOverlay */}
           <button
-            className="w-full flex items-center justify-center gap-3 py-4 active:bg-gray-50 transition-colors border-t border-gray-100"
-            onClick={() => setShowCameraOverlay(true)}
+            className="w-full flex items-center justify-center gap-3 py-4 active:bg-gray-50 transition-colors"
+            style={{ boxShadow: '0 -1px 0 rgba(0,0,0,0.04)' }}
           >
             <Camera className="w-5 h-5 text-emerald-600" />
             <span className="text-emerald-600" style={{ fontSize: '17px' }}>{texts.takePhoto}</span>
@@ -144,7 +144,8 @@ export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
 
           {/* 从相册选择 */}
           <button
-            className="w-full flex items-center justify-center gap-3 py-4 active:bg-gray-50 transition-colors border-t border-gray-100"
+            className="w-full flex items-center justify-center gap-3 py-4 active:bg-gray-50 transition-colors"
+            style={{ boxShadow: '0 -1px 0 rgba(0,0,0,0.04)' }}
             onClick={() => albumInputRef.current?.click()}
           >
             <ImageIcon className="w-5 h-5 text-emerald-600" />

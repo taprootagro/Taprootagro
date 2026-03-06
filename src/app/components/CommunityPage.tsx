@@ -1,6 +1,6 @@
 import { CameraCapture } from "./CameraCapture";
 import { useState, useEffect, useRef } from "react";
-import { Send, Plus, X, WifiOff, Play, Check, Camera, Phone, Video, Volume2, Mic, ScanLine, MessageSquare, AlertCircle, ShieldCheck, ShieldX, LogIn, ImageIcon, Loader } from "lucide-react";
+import { Plus, WifiOff, Play, Pause, Camera, Phone, Video, Mic, ScanLine, MessageSquare, AlertCircle, ShieldCheck, ShieldX, LogIn, ImageIcon, Loader, PenLine, Volume2, VolumeX, Send } from "lucide-react";
 import { useNavigate } from "react-router";
 import { useLanguage } from "../hooks/useLanguage";
 import { useHomeConfig } from "../hooks/useHomeConfig";
@@ -59,8 +59,7 @@ export function CommunityPage() {
 // Chat UI — only rendered after login (safe to use hooks)
 // ============================================================================
 function CommunityChat() {
-  const navigate = useNavigate();
-  const { t } = useLanguage();
+  const { t, isRTL } = useLanguage();
   const { config, saveConfig } = useHomeConfig();
 
   // 聊天页状态栏颜色与顶部绿色一致
@@ -83,61 +82,25 @@ function CommunityChat() {
   } | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
-  const [showTextInput, setShowTextInput] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [inputMode, setInputMode] = useState<'voice' | 'text'>('voice');
+  const [playingVoiceId, setPlayingVoiceId] = useState<string | null>(null);
+  const [ttsEnabled, setTtsEnabled] = useState(true); // 默认开启朗读（全局控制）
+  const playingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const isRecordingRef = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const scanAlbumInputRef = useRef<HTMLInputElement>(null); // 扫码-从相册选择
+  const scanAlbumInputRef = useRef<HTMLInputElement>(null);
   
   // ---- 防止键盘弹出时页面跳动（PWA核心问题）----
-  // 移动端 input 聚焦时，浏览器会触发原生 scrollIntoView，
-  // 把整个 fixed 布局往上推，导致页面跳出可视区留下大片空白。
-  // 通过锁定 scroll 位置 + 阻止原生滚动来解决。
-  const chatRootRef = useRef<HTMLDivElement>(null);
-  const textInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (!showTextInput) return;
-
-    // 锁定所有祖先元素的 scrollTop，防止浏览器原生聚焦滚动
-    const resetScroll = () => {
-      window.scrollTo(0, 0);
-      document.documentElement.scrollTop = 0;
-      document.body.scrollTop = 0;
-    };
-
-    // 立即重置 + 延迟重置（覆盖浏览器异步滚动）
-    resetScroll();
-    const raf1 = requestAnimationFrame(resetScroll);
-    const t1 = setTimeout(resetScroll, 50);
-    const t2 = setTimeout(resetScroll, 150);
-    const t3 = setTimeout(resetScroll, 300);
-
-    // 持续监听 scroll 事件，阻止任何页面级滚动
-    const onScroll = () => { resetScroll(); };
-    window.addEventListener('scroll', onScroll, { passive: false });
-    document.addEventListener('scroll', onScroll, { passive: false });
-
-    return () => {
-      cancelAnimationFrame(raf1);
-      clearTimeout(t1);
-      clearTimeout(t2);
-      clearTimeout(t3);
-      window.removeEventListener('scroll', onScroll);
-      document.removeEventListener('scroll', onScroll);
-    };
-  }, [showTextInput]);
-
+  const textInputRef = useRef<HTMLTextAreaElement>(null);
+  
   // 输入框聚焦处理 — 阻止原生 scrollIntoView
-  const handleInputFocus = (e: React.FocusEvent<HTMLInputElement>) => {
-    // 阻止浏览器的默认滚动行为
+  const handleInputFocus = (e: React.FocusEvent<HTMLTextAreaElement>) => {
     e.preventDefault();
-    // 强制重置滚动位置
     window.scrollTo(0, 0);
     document.documentElement.scrollTop = 0;
     document.body.scrollTop = 0;
-    // 延迟再次重置（覆盖某些浏览器的异步滚动）
     requestAnimationFrame(() => {
       window.scrollTo(0, 0);
     });
@@ -233,7 +196,7 @@ function CommunityChat() {
   // 加号菜单状态
   const [showPlusMenu, setShowPlusMenu] = useState(false);
   
-  // 点击菜单外部关闭菜单
+  // 点击菜单外部关闭菜
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent | TouchEvent) => {
       if (showPlusMenu) {
@@ -320,6 +283,9 @@ function CommunityChat() {
       if (recordingTimerRef.current) {
         clearInterval(recordingTimerRef.current);
       }
+      if (playingTimerRef.current) {
+        clearTimeout(playingTimerRef.current);
+      }
     };
   }, []);
 
@@ -371,12 +337,15 @@ function CommunityChat() {
     setRecordingTime(0);
   };
 
-  // 发送文字消息 — 传入 contact.imUserId 作为 targetUserId
+  // 发送文���消息 — 传入 contact.imUserId 作为 targetUserId
   const sendTextMessage = async () => {
     if (textMessage.trim() && !isSending) {
       const content = textMessage.trim();
       setTextMessage("");
-      setShowTextInput(false);
+      // 重置输入框高度
+      if (textInputRef.current) {
+        textInputRef.current.style.height = '36px';
+      }
       setIsSending(true);
 
       const optimisticMsg: Message = {
@@ -491,7 +460,6 @@ function CommunityChat() {
   // 扫码 Action Sheet — 从相册选择后用 BarcodeDetector 识别二维码
   const [scanAlbumScanning, setScanAlbumScanning] = useState(false);
   const [scanAlbumError, setScanAlbumError] = useState("");
-  const scanActionSheetAnimRef = useRef<'entering' | 'visible' | 'leaving'>('entering');
   
   // Action Sheet 动画控制
   const [scanSheetAnim, setScanSheetAnim] = useState<'entering' | 'visible' | 'leaving'>('entering');
@@ -640,67 +608,126 @@ function CommunityChat() {
     return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
   };
 
+  // 语音播放切换
+  const toggleVoicePlay = (msgId: string, duration: number) => {
+    if (playingVoiceId === msgId) {
+      // 暂停
+      setPlayingVoiceId(null);
+      if (playingTimerRef.current) { clearTimeout(playingTimerRef.current); playingTimerRef.current = null; }
+    } else {
+      // 播放
+      setPlayingVoiceId(msgId);
+      if (playingTimerRef.current) { clearTimeout(playingTimerRef.current); playingTimerRef.current = null; }
+      playingTimerRef.current = setTimeout(() => {
+        setPlayingVoiceId(null);
+        playingTimerRef.current = null;
+      }, (duration || 5) * 1000);
+    }
+  };
+
+  // TTS朗读文字消息（统一管理）
+  const speakText = (text: string, force = false) => {
+    if (!('speechSynthesis' in window)) return;
+    // force=true 时强制朗读（用户点击消息时），否则检查全局开关
+    if (!force && !ttsEnabled) return;
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 0.9;
+    window.speechSynthesis.speak(utterance);
+  };
+
+  // 点击文字消息时主动朗读
+  const handleTextMsgClick = (text: string) => {
+    // 如果当前是关闭状态，自动开启
+    if (!ttsEnabled) {
+      setTtsEnabled(true);
+    }
+    // 强制朗读选中的文字
+    speakText(text, true);
+  };
+
+  // 新收到的文字消息自动朗读
+  const prevMsgCountRef = useRef(chatMessages.length);
+  useEffect(() => {
+    if (chatMessages.length > prevMsgCountRef.current) {
+      const newMsgs = chatMessages.slice(prevMsgCountRef.current);
+      for (const msg of newMsgs) {
+        if (msg.type === 'text' && msg.senderId !== currentUserId && ttsEnabled) {
+          speakText(msg.content);
+        }
+      }
+    }
+    prevMsgCountRef.current = chatMessages.length;
+  }, [chatMessages, ttsEnabled, currentUserId]);
+
   // 渲染消息内容
   const renderMessageContent = (msg: Message) => {
     const isSent = msg.senderId === currentUserId;
-    const avatar = isSent ? "https://images.unsplash.com/photo-1642919854816-98575cbaefa8?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxzaW1wbGUlMjBsZWFmJTIwc2tldGNoJTIwbWluaW1hbCUyMGRyYXdpbmd8ZW58MXx8fHwxNzcwODU0NDU2fDA&ixlib=rb-4.1.0&q=80&w=1080" : contact.avatar;
+    const isFailed = msg.status === 'failed';
+    const isPlaying = playingVoiceId === msg.id;
+
+    const bubble = (
+      <div className="relative max-w-[85%]">
+        <div className={`rounded-2xl px-3 py-2 ${
+          isSent
+            ? `bg-emerald-500 text-white ${isRTL ? 'rounded-bl-md' : 'rounded-br-md'}`
+            : `bg-gray-100 text-gray-700 ${isRTL ? 'rounded-br-md' : 'rounded-bl-md'}`
+        }`}>
+          {msg.type === "voice" && (
+            <button
+              className="flex items-center gap-2 min-w-[80px] w-full"
+              onClick={() => toggleVoicePlay(msg.id, msg.duration || 5)}
+            >
+              {isPlaying
+                ? <Pause className="w-3.5 h-3.5 flex-shrink-0" />
+                : <Play className="w-3.5 h-3.5 flex-shrink-0" fill="currentColor" />
+              }
+              <div className="flex items-end gap-[2px] h-4">
+                {[1.5, 3, 2, 3.5, 1.5, 3, 2].map((h, i) => (
+                  <div
+                    key={i}
+                    className={`w-[3px] rounded-full ${isSent ? 'bg-white/80' : 'bg-gray-500'}`}
+                    style={isPlaying ? {
+                      height: `${h * 4}px`,
+                      animation: `voiceWave 0.4s ease-in-out ${i * 0.07}s infinite alternate`,
+                    } : {
+                      height: `${h * 4}px`,
+                    }}
+                  />
+                ))}
+              </div>
+              <span className="text-[10px] font-semibold flex-shrink-0">{msg.duration}"</span>
+            </button>
+          )}
+          {msg.type === "text" && (
+            <p 
+              className={`break-words leading-relaxed ${!isSent ? 'cursor-pointer active:opacity-70' : ''}`}
+              style={{ fontSize: 'clamp(13px, 3.5vw, 15px)' }}
+              onClick={() => !isSent && handleTextMsgClick(msg.content)}
+            >
+              {msg.content}
+            </p>
+          )}
+          {msg.type === "image" && (
+            <img src={msg.content} alt="" className="w-36 h-36 object-cover rounded-xl" />
+          )}
+        </div>
+      </div>
+    );
 
     return (
-      <div key={msg.id} className="flex flex-col gap-1">
-        <div className={`flex gap-2 items-start ${isSent ? "flex-row-reverse" : "flex-row"}`}>
-          <div className="flex-shrink-0 pt-0.5">
-            <img src={avatar} alt="Avatar" className="w-8 h-8 rounded-full object-cover ring-2 ring-gray-100 shadow-sm" />
+      <div key={msg.id} className={`flex items-end gap-1.5 ${isSent ? 'justify-end' : 'justify-start'}`}>
+        {isSent && isFailed && (
+          <div className="flex-shrink-0 mb-0.5">
+            <AlertCircle className="w-4 h-4 text-red-500" />
           </div>
-          <div className="flex flex-col gap-1 max-w-[70%]">
-            {msg.type === "voice" && (
-              <div className={`min-w-[100px] px-3 py-2 rounded-full flex items-center gap-2 shadow-md transition-all active:scale-95 ${isSent ? "bg-gradient-to-r from-emerald-500 to-emerald-600 text-white flex-row-reverse" : "bg-gradient-to-r from-gray-100 to-gray-200 text-gray-800 flex-row"}`}>
-                <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${isSent ? "bg-white/20" : "bg-white"}`}>
-                  <Play className="w-3 h-3 flex-shrink-0" fill="currentColor" />
-                </div>
-                <div className="flex-1 h-5 flex items-center">
-                  <div className="flex items-center gap-0.5 h-full">
-                    <div className={`w-0.5 h-1.5 rounded-full ${isSent ? "bg-white/80" : "bg-gray-500"}`}></div>
-                    <div className={`w-0.5 h-3 rounded-full ${isSent ? "bg-white" : "bg-gray-600"}`}></div>
-                    <div className={`w-0.5 h-2 rounded-full ${isSent ? "bg-white/80" : "bg-gray-500"}`}></div>
-                    <div className={`w-0.5 h-3.5 rounded-full ${isSent ? "bg-white" : "bg-gray-600"}`}></div>
-                    <div className={`w-0.5 h-1.5 rounded-full ${isSent ? "bg-white/80" : "bg-gray-500"}`}></div>
-                    <div className={`w-0.5 h-3 rounded-full ${isSent ? "bg-white" : "bg-gray-600"}`}></div>
-                    <div className={`w-0.5 h-2 rounded-full ${isSent ? "bg-white/80" : "bg-gray-500"}`}></div>
-                  </div>
-                </div>
-                <span className="text-[10px] font-semibold flex-shrink-0">{msg.duration}"</span>
-              </div>
-            )}
-            {msg.type === "text" && (
-              <div className={`px-4 py-2 rounded-2xl shadow-md ${isSent ? "bg-gradient-to-r from-emerald-500 to-emerald-600 text-white" : "bg-gradient-to-r from-gray-100 to-gray-200 text-gray-800"}`}>
-                <p className="text-sm break-words leading-relaxed">{msg.content}</p>
-              </div>
-            )}
-            {msg.type === "image" && (
-              <div className="w-32 h-32 rounded-2xl overflow-hidden shadow-lg ring-1 ring-gray-200">
-                <img src={msg.content} alt="Image" className="w-full h-full object-cover" />
-              </div>
-            )}
-            {isSent && (
-              <div className="flex items-center gap-1.5 justify-end">
-                <span className="text-[10px] text-gray-400 font-medium">{formatTime(msg.timestamp)}</span>
-                {msg.status === "sending" && <span className="text-[10px] text-amber-500 font-medium animate-pulse">...</span>}
-                {msg.status === "failed" && <AlertCircle className="w-3 h-3 text-red-500" />}
-                {msg.status === "sent" && (
-                  <div className="flex items-center">
-                    <Check className={`w-3 h-3 ${msg.read ? "text-emerald-500" : "text-gray-400"}`} strokeWidth={3} />
-                    <Check className={`w-3 h-3 -ml-1.5 ${msg.read ? "text-emerald-500" : "text-gray-400"}`} strokeWidth={3} />
-                  </div>
-                )}
-              </div>
-            )}
-            {!isSent && (
-              <div className="flex items-center gap-1 justify-start">
-                <span className="text-[10px] text-gray-400 font-medium">{formatTime(msg.timestamp)}</span>
-              </div>
-            )}
+        )}
+        {bubble}
+        {!isSent && isFailed && (
+          <div className="flex-shrink-0 mb-0.5">
+            <AlertCircle className="w-4 h-4 text-red-500" />
           </div>
-        </div>
+        )}
       </div>
     );
   };
@@ -753,7 +780,7 @@ function CommunityChat() {
                     确认绑定后，此商家信息将覆盖当前聊天联系人配置。<br />Confirming will overwrite the current chat contact.
                   </p>
                 </div>
-                <div className="flex border-t border-gray-100">
+                <div className="flex" style={{ boxShadow: '0 -1px 4px rgba(0,0,0,0.04)' }}>
                   <button onClick={() => setScanResult(null)} className="flex-1 py-3.5 text-gray-600 font-medium text-sm active:bg-gray-50 transition-colors">取消 Cancel</button>
                   <div className="w-px bg-gray-100" />
                   <button onClick={confirmBindMerchant} className="flex-1 py-3.5 text-emerald-600 font-semibold text-sm active:bg-emerald-50 transition-colors">确认绑定 Bind</button>
@@ -774,7 +801,7 @@ function CommunityChat() {
                   <p className="text-sm text-gray-700">{scanResult.rejectReason}</p>
                   <p className="text-[10px] text-gray-400">为了您的安全，只有来自白名单域名的二维码才能绑定商家联系人。请联系您的农资服务商获取正确的二维码。</p>
                 </div>
-                <div className="border-t border-gray-100">
+                <div style={{ boxShadow: '0 -1px 4px rgba(0,0,0,0.04)' }}>
                   <button onClick={() => setScanResult(null)} className="w-full py-3.5 text-gray-600 font-medium text-sm active:bg-gray-50 transition-colors">知道了 OK</button>
                 </div>
               </div>
@@ -803,7 +830,7 @@ function CommunityChat() {
                 <img src={contact.avatar} alt={contact.name} className="w-full h-full object-cover" />
               </div>
               {contact.online && (
-                <div className="absolute -bottom-0.5 -right-0.5">
+                <div className={`absolute -bottom-0.5 ${isRTL ? '-left-0.5' : '-right-0.5'}`}>
                   <div className="relative">
                     <div className="w-4 h-4 bg-green-400 rounded-full border-2 border-white shadow-md"></div>
                     <div className="absolute inset-0 w-4 h-4 bg-green-400 rounded-full animate-ping opacity-50"></div>
@@ -819,7 +846,24 @@ function CommunityChat() {
               <p className="text-white/90 text-xs font-medium">{config?.chatContact?.subtitle || "TaprootAgro授权店"}</p>
             </div>
           </div>
-          <div className="flex-shrink-0">
+          <div className="flex-shrink-0 flex items-center -gap-0.5">
+            {/* 统一语音播放控制 */}
+            <button 
+              className={`w-10 h-10 flex items-center justify-center active:scale-95 transition-all rounded-xl ${ttsEnabled ? 'active:bg-white/20' : 'bg-white/20 active:bg-white/30'}`}
+              onClick={() => {
+                setTtsEnabled(!ttsEnabled);
+                if (ttsEnabled) {
+                  // 关闭时立即停止当前播放
+                  window.speechSynthesis.cancel();
+                }
+              }}
+            >
+              {ttsEnabled 
+                ? <Volume2 className="w-5 h-5 text-white" strokeWidth={2.5} />
+                : <VolumeX className="w-5 h-5 text-white" strokeWidth={2.5} />
+              }
+            </button>
+            {/* 扫码按钮 */}
             <button className="w-10 h-10 flex items-center justify-center active:scale-95 transition-all rounded-xl active:bg-white/20" onClick={() => setShowScanActionSheet(true)}>
               <ScanLine className="w-5 h-5 text-white" strokeWidth={2.5} />
             </button>
@@ -846,88 +890,162 @@ function CommunityChat() {
         </div>
 
         {/* 底部输入栏 */}
-        <div className="px-4 py-3 bg-gradient-to-t from-gray-50 to-white flex-shrink-0 border-t border-gray-100 relative">
-          {showTextInput ? (
-            <div className="flex items-center gap-2">
-              <button onClick={() => setShowTextInput(false)} className="p-2 active:scale-95 rounded-full transition-all bg-gray-100 active:bg-gray-200 flex-shrink-0">
-                <X className="w-4 h-4 text-gray-600" strokeWidth={2.5} />
-              </button>
-              <input
-                type="text"
-                value={textMessage}
-                onChange={(e) => setTextMessage(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') sendTextMessage(); }}
-                placeholder={t.community.typeMessage || "输入消息..."}
-                className="flex-1 min-w-0 bg-gray-100 rounded-2xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-emerald-400 focus:bg-white transition-all shadow-sm"
-                autoFocus
-                ref={textInputRef}
-                onFocus={handleInputFocus}
-              />
-              <button
-                onClick={sendTextMessage}
-                disabled={!textMessage.trim()}
-                className={`rounded-2xl px-4 py-2.5 transition-all flex-shrink-0 flex items-center justify-center shadow-lg active:scale-95 ${textMessage.trim() ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 active:from-emerald-600 active:to-emerald-700' : 'bg-gray-300'}`}
-              >
-                <Send className="w-4 h-4 text-white" strokeWidth={2.5} />
-              </button>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2">
+        <div className="px-2 py-2 bg-gradient-to-t from-gray-50 to-white flex-shrink-0 relative" style={{ boxShadow: '0 -1px 8px rgba(0,0,0,0.06)' }}>
+            <div className="flex items-end gap-2">
+              {/* 加号菜单 — 电话/视频通话 */}
               <div className="relative flex-shrink-0 plus-menu-container">
                 <button 
                   onClick={() => setShowPlusMenu(!showPlusMenu)}
-                  className={`w-10 h-10 flex items-center justify-center active:scale-95 rounded-2xl transition-all shadow-lg ${showPlusMenu ? 'bg-gradient-to-br from-emerald-400 to-emerald-500' : 'bg-gradient-to-br from-gray-100 to-gray-200'}`}
+                  className={`w-9 h-9 rounded-full flex items-center justify-center active:scale-95 transition-all flex-shrink-0 ${showPlusMenu ? 'bg-emerald-50' : 'bg-gray-100'}`}
                 >
-                  <Plus className={`w-5 h-5 transition-transform ${showPlusMenu ? 'rotate-45 text-white' : 'text-gray-600'}`} strokeWidth={2.5} />
+                  <Plus className={`w-5 h-5 transition-transform ${showPlusMenu ? 'rotate-45 text-emerald-600' : 'text-gray-500'}`} strokeWidth={2.5} />
                 </button>
                 {showPlusMenu && (
-                  <div className="absolute bottom-full left-0 mb-3 bg-white rounded-3xl shadow-2xl border border-gray-100 py-3 z-20 w-[70px] backdrop-blur-xl">
-                    <button onClick={() => { setShowTextInput(true); setShowPlusMenu(false); }} className="w-full px-3 py-3 flex items-center justify-center active:bg-gray-50 transition-colors">
-                      <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-emerald-400 to-emerald-500 flex items-center justify-center shadow-lg active:scale-95 transition-transform">
-                        <MessageSquare className="w-5 h-5 text-white" strokeWidth={2.5} />
+                  <div className={`absolute bottom-full mb-2.5 bg-white rounded-2xl py-2 z-20 w-[60px] ${isRTL ? 'right-0' : 'left-0'}`} style={{ boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
+                    <button onClick={() => { setCallType("audio"); setCallStatus("calling"); setShowCallDialog(true); setShowPlusMenu(false); }} className="w-full px-2 py-2 flex items-center justify-center active:bg-gray-50 transition-colors">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-500 flex items-center justify-center active:scale-95 transition-transform">
+                        <Phone className="w-[18px] h-[18px] text-white" strokeWidth={2.5} />
                       </div>
                     </button>
-                    <div className="h-px bg-gray-100 my-2 mx-3" />
-                    <button onClick={() => { setCallType("audio"); setCallStatus("calling"); setShowCallDialog(true); setShowPlusMenu(false); }} className="w-full px-3 py-3 flex items-center justify-center active:bg-gray-50 transition-colors">
-                      <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-blue-400 to-blue-500 flex items-center justify-center shadow-lg active:scale-95 transition-transform">
-                        <Phone className="w-5 h-5 text-white" strokeWidth={2.5} />
+                    <div className="h-px bg-gray-100 my-1.5 mx-2.5" />
+                    <button onClick={() => { setCallType("video"); setCallStatus("calling"); setShowCallDialog(true); setShowPlusMenu(false); }} className="w-full px-2 py-2 flex items-center justify-center active:bg-gray-50 transition-colors">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-500 flex items-center justify-center active:scale-95 transition-transform">
+                        <Video className="w-[18px] h-[18px] text-white" strokeWidth={2.5} />
                       </div>
                     </button>
-                    <div className="h-px bg-gray-100 my-2 mx-3" />
-                    <button onClick={() => { setCallType("video"); setCallStatus("calling"); setShowCallDialog(true); setShowPlusMenu(false); }} className="w-full px-3 py-3 flex items-center justify-center active:bg-gray-50 transition-colors">
-                      <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-purple-400 to-purple-500 flex items-center justify-center shadow-lg active:scale-95 transition-transform">
-                        <Video className="w-5 h-5 text-white" strokeWidth={2.5} />
-                      </div>
-                    </button>
-                    <div className="absolute -bottom-2 left-5 w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent border-t-[8px] border-t-white"></div>
+                    <div className={`absolute -bottom-1.5 w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[6px] border-t-white ${isRTL ? 'right-4' : 'left-4'}`}></div>
                   </div>
                 )}
               </div>
+
+              {/* 左侧切换按钮：语音模式显示笔(切文字)，文字模式显示麦克风(切语音) */}
               <button
-                className={`flex-1 min-w-0 text-white rounded-2xl px-4 py-2.5 flex items-center justify-center gap-2 transition-all shadow-lg active:scale-[0.98] ${isRecording ? 'bg-gradient-to-r from-red-500 to-red-600 active:from-red-600 active:to-red-700' : 'bg-gradient-to-r from-emerald-500 to-emerald-600 active:from-emerald-600 active:to-emerald-700'}`}
-                onMouseDown={startRecording}
-                onMouseUp={stopRecording}
-                onMouseLeave={stopRecording}
-                onTouchStart={startRecording}
-                onTouchEnd={stopRecording}
+                onClick={() => setInputMode(inputMode === 'voice' ? 'text' : 'voice')}
+                className="w-9 h-9 flex items-center justify-center text-gray-500 active:scale-90 transition-all flex-shrink-0"
               >
-                {isRecording ? (
-                  <>
-                    <Volume2 className="w-4 h-4 flex-shrink-0 animate-pulse" strokeWidth={2.5} />
-                    <span className="text-sm font-semibold whitespace-nowrap">{recordingTime}" / 60"</span>
-                  </>
-                ) : (
-                  <>
-                    <Mic className="w-4 h-4 flex-shrink-0" strokeWidth={2.5} />
-                    <span className="text-sm font-semibold whitespace-nowrap">{t.community.holdToTalk}</span>
-                  </>
-                )}
+                {inputMode === 'voice' ? <PenLine className="w-[18px] h-[18px]" /> : <Mic className="w-[18px] h-[18px]" />}
               </button>
-              <button className="w-10 h-10 flex items-center justify-center bg-gradient-to-r from-emerald-500 to-emerald-600 active:from-emerald-600 active:to-emerald-700 rounded-2xl transition-all shadow-lg active:scale-95 flex-shrink-0" onClick={() => setShowCamera(true)}>
-                <Camera className="w-5 h-5 text-white" strokeWidth={2.5} />
+
+              {/* ── 语音模式：按住说话按钮 ── */}
+              {inputMode === 'voice' && (
+                <div
+                  className="flex-1 min-w-0 select-none"
+                  style={{ height: '36px' }}
+                  onTouchStart={(e) => {
+                    if (isRecording) return;
+                    const touch = e.touches[0];
+                    const startY = touch?.clientY || 0;
+                    (e.currentTarget as any).__startY = startY;
+                    setIsRecording(true);
+                    isRecordingRef.current = true;
+                    setRecordingTime(0);
+                    startRecording();
+                  }}
+                  onTouchMove={(e) => {
+                    const touch = e.touches[0];
+                    const startY = (e.currentTarget as any).__startY || 0;
+                    if (isRecording && (touch?.clientY || 0) < startY - 80) {
+                      if (recordingTimerRef.current) { clearInterval(recordingTimerRef.current); recordingTimerRef.current = null; }
+                      isRecordingRef.current = false;
+                      setIsRecording(false);
+                      setRecordingTime(0);
+                    }
+                  }}
+                  onTouchEnd={() => {
+                    if (isRecording) {
+                      if (recordingTime >= 1) {
+                        stopRecording();
+                      } else {
+                        // too short, cancel
+                        if (recordingTimerRef.current) { clearInterval(recordingTimerRef.current); recordingTimerRef.current = null; }
+                        isRecordingRef.current = false;
+                        setIsRecording(false);
+                        setRecordingTime(0);
+                      }
+                    }
+                  }}
+                  onTouchCancel={() => {
+                    if (isRecording) {
+                      if (recordingTimerRef.current) { clearInterval(recordingTimerRef.current); recordingTimerRef.current = null; }
+                      isRecordingRef.current = false;
+                      setIsRecording(false);
+                      setRecordingTime(0);
+                    }
+                  }}
+                >
+                  {!isRecording ? (
+                    <div className="bg-gray-100 rounded-2xl text-center text-sm text-gray-500 active:bg-emerald-500 active:text-white transition-colors select-none flex items-center justify-center" style={{ height: '36px' }}>
+                      <Mic className="w-4 h-4 inline-block mr-1.5" />
+                      {t.ai.holdToSpeak}
+                    </div>
+                  ) : (
+                    <div className="bg-emerald-500 rounded-2xl px-3.5 flex items-center gap-2.5" style={{ height: '36px' }}>
+                      <div className="flex-1 min-w-0 flex items-center gap-2">
+                        <div className="flex items-end gap-[2px] h-4">
+                          {[1,2,3,4,5,6].map(i => (
+                            <div key={i} className="w-[3px] bg-white/70 rounded-full" style={{
+                              height: `${6 + Math.random() * 10}px`,
+                              animation: `voiceWave 0.4s ease-in-out ${i * 0.07}s infinite alternate`
+                            }} />
+                          ))}
+                        </div>
+                        <span className="text-sm text-white font-medium tabular-nums">{recordingTime}"</span>
+                        <span className="text-[10px] text-white/60 tabular-nums">/ 60s</span>
+                      </div>
+                      <span className="text-[10px] text-white/80 flex-shrink-0">{t.ai.releaseToSend}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ── 文字模式：输入框 + 内嵌发送按钮 ── */}
+              {inputMode === 'text' && (
+                <div className="flex-1 min-w-0 relative" style={{ minHeight: '36px' }}>
+                  <textarea
+                    value={textMessage}
+                    onChange={(e) => {
+                      setTextMessage(e.target.value);
+                      // 自动调整高度（仅多行时才撑高）
+                      const el = e.target;
+                      el.style.height = '36px';
+                      // If content needs more space, expand (but only if not empty)
+                      if (e.target.value && el.scrollHeight > 36) {
+                        el.style.height = Math.min(el.scrollHeight, 96) + 'px';
+                      }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+                        e.preventDefault();
+                        sendTextMessage();
+                      }
+                    }}
+                    placeholder={t.community.typeMessage || '输入消息...'}
+                    className={`w-full bg-gray-100 rounded-2xl text-sm text-gray-700 placeholder-gray-400 outline-none focus:ring-2 focus:ring-emerald-300 transition-[box-shadow] resize-none overflow-y-auto ${isRTL ? 'pr-10 pl-3' : 'pl-3 pr-10'}`}
+                    ref={textInputRef}
+                    onFocus={handleInputFocus}
+                    style={{ height: '36px', minHeight: '36px', maxHeight: '96px', lineHeight: '18px', paddingTop: '9px', paddingBottom: '9px', boxSizing: 'border-box', fieldSizing: 'fixed' } as React.CSSProperties}
+                  />
+                  {/* 发送按钮 — 仅有内容时显示，在输入框内部 */}
+                  {textMessage.trim() && (
+                    <button
+                      onClick={sendTextMessage}
+                      disabled={isSending}
+                      className={`absolute bottom-1.5 w-7 h-7 flex items-center justify-center active:scale-90 transition-all disabled:opacity-40 disabled:active:scale-100 ${isRTL ? 'left-1.5' : 'right-1.5'}`}
+                    >
+                      <Send className="w-[17px] h-[17px] text-emerald-600" strokeWidth={2.5} />
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* 相机按钮 */}
+              <button
+                className="w-9 h-9 flex items-center justify-center bg-emerald-50 text-emerald-600 rounded-full active:scale-90 transition-all flex-shrink-0"
+                onClick={() => setShowCamera(true)}
+              >
+                <Camera className="w-[18px] h-[18px]" />
               </button>
             </div>
-          )}
         </div>
       </div>
 
@@ -962,7 +1080,8 @@ function CommunityChat() {
 
               {/* 扫码（相机） — 打开 QRScannerCapture */}
               <button
-                className="w-full flex items-center justify-center gap-3 py-4 active:bg-gray-50 transition-colors border-t border-gray-100"
+                className="w-full flex items-center justify-center gap-3 py-4 active:bg-gray-50 transition-colors"
+                style={{ boxShadow: '0 -1px 0 rgba(0,0,0,0.04)' }}
                 onClick={() => {
                   closeScanActionSheet();
                   // 延迟打开扫码器，等 action sheet 关闭动画完成
@@ -977,7 +1096,8 @@ function CommunityChat() {
 
               {/* 从相册选择 — 用 BarcodeDetector 识别 */}
               <button
-                className="w-full flex items-center justify-center gap-3 py-4 active:bg-gray-50 transition-colors border-t border-gray-100"
+                className="w-full flex items-center justify-center gap-3 py-4 active:bg-gray-50 transition-colors"
+                style={{ boxShadow: '0 -1px 0 rgba(0,0,0,0.04)' }}
                 onClick={() => scanAlbumInputRef.current?.click()}
                 disabled={scanAlbumScanning}
               >

@@ -6,9 +6,14 @@
  *
  * 相机可用时自动实时扫描（BarcodeDetector），
  * 相机不可用时降级为 file input（拍照 / 相册）。
+ *
+ * 使用全局 CameraManager：
+ * - 分级约束降级（1920→1280→640→bare），兼容 iPhone 8 Plus 等低端设备
+ * - 用完即释放，不在后台占用摄像头硬件
  */
 import { useRef, useState, useEffect, useCallback } from "react";
 import { X, Flashlight, FlashlightOff, Camera, ImageIcon } from "lucide-react";
+import { cameraManager } from "../utils/cameraManager";
 
 // ── BarcodeDetector type ────────────────────────────────────────
 interface BarcodeDetectorResult {
@@ -42,12 +47,12 @@ export function QRScannerCapture({ onScan, onClose }: QRScannerCaptureProps) {
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const albumInputRef = useRef<HTMLInputElement>(null);
 
-  const [stream, setStream] = useState<MediaStream | null>(null);
   const [torchOn, setTorchOn] = useState(false);
   const [torchSupported, setTorchSupported] = useState(false);
   const [scanLineY, setScanLineY] = useState(0);
   const [apiSupported, setApiSupported] = useState(true);
   const [cameraFailed, setCameraFailed] = useState(false);
+  const [cameraReady, setCameraReady] = useState(false);
 
   // 过渡动画
   const [animPhase, setAnimPhase] = useState<"entering" | "visible" | "leaving">("entering");
@@ -72,43 +77,41 @@ export function QRScannerCapture({ onScan, onClose }: QRScannerCaptureProps) {
     }
   }, []);
 
-  // ── Start camera ──────────────────────────────────────────────
+  // ── Start camera (via global CameraManager) ──────────────────
   useEffect(() => {
     let cancelled = false;
 
     (async () => {
       try {
-        const mediaStream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
-          audio: false,
-        });
+        const managed = await cameraManager.acquire('environment');
 
         if (cancelled) {
-          mediaStream.getTracks().forEach((t) => t.stop());
+          cameraManager.release();
           return;
         }
 
-        const videoTrack = mediaStream.getVideoTracks()[0];
-        const caps = videoTrack.getCapabilities?.() as any;
-        if (caps?.torch) setTorchSupported(true);
+        setTorchSupported(managed.torchSupported);
 
-        if (videoRef.current) videoRef.current.srcObject = mediaStream;
-        setStream(mediaStream);
+        if (videoRef.current) {
+          videoRef.current.srcObject = managed.stream;
+          videoRef.current.onloadedmetadata = () => {
+            videoRef.current?.play()
+              .then(() => setCameraReady(true))
+              .catch(() => setCameraReady(true));
+          };
+        }
       } catch {
         setCameraFailed(true);
       }
     })();
 
-    return () => { cancelled = true; };
-  }, []);
-
-  // ── Cleanup ───────────────────────────────────────────────────
-  useEffect(() => {
     return () => {
+      cancelled = true;
       cancelAnimationFrame(rafRef.current);
-      stream?.getTracks().forEach((t) => t.stop());
+      // 用完即释放 — 立即停止摄像头，不保活
+      cameraManager.release();
     };
-  }, [stream]);
+  }, []);
 
   // ── Scan loop ─────────────────────────────────────────────────
   const scanFrame = useCallback(() => {
@@ -126,7 +129,7 @@ export function QRScannerCapture({ onScan, onClose }: QRScannerCaptureProps) {
         if (barcodes.length > 0 && barcodes[0].rawValue) {
           scannedRef.current = true;
           if (navigator.vibrate) navigator.vibrate(100);
-          stream?.getTracks().forEach((t) => t.stop());
+          cameraManager.release();
           onScan(barcodes[0].rawValue);
           return;
         }
@@ -135,11 +138,11 @@ export function QRScannerCapture({ onScan, onClose }: QRScannerCaptureProps) {
       .catch(() => {
         rafRef.current = requestAnimationFrame(scanFrame);
       });
-  }, [stream, onScan]);
+  }, [onScan]);
 
   useEffect(() => {
     const video = videoRef.current;
-    if (!video || !stream || !apiSupported) return;
+    if (!video || !cameraReady || !apiSupported) return;
     const handlePlaying = () => { rafRef.current = requestAnimationFrame(scanFrame); };
     video.addEventListener("playing", handlePlaying);
     if (!video.paused) rafRef.current = requestAnimationFrame(scanFrame);
@@ -147,7 +150,7 @@ export function QRScannerCapture({ onScan, onClose }: QRScannerCaptureProps) {
       video.removeEventListener("playing", handlePlaying);
       cancelAnimationFrame(rafRef.current);
     };
-  }, [stream, scanFrame, apiSupported]);
+  }, [cameraReady, scanFrame, apiSupported]);
 
   // ── Scan line animation ───────────────────────────────────────
   useEffect(() => {
@@ -164,20 +167,15 @@ export function QRScannerCapture({ onScan, onClose }: QRScannerCaptureProps) {
 
   // ── Torch ─────────────────────────────────────────────────────
   const toggleTorch = async () => {
-    if (!stream) return;
-    try {
-      await (stream.getVideoTracks()[0] as any).applyConstraints({
-        advanced: [{ torch: !torchOn } as any],
-      });
-      setTorchOn(!torchOn);
-    } catch {}
+    const success = await cameraManager.toggleTorch(!torchOn);
+    if (success) setTorchOn(!torchOn);
   };
 
   // ── Close ─────────────────────────────────────────────────────
   const handleClose = () => {
     setAnimPhase("leaving");
     cancelAnimationFrame(rafRef.current);
-    stream?.getTracks().forEach((t) => t.stop());
+    cameraManager.release();
     setTimeout(() => onClose(), 150);
   };
 
@@ -196,11 +194,11 @@ export function QRScannerCapture({ onScan, onClose }: QRScannerCaptureProps) {
       if (barcodes.length > 0 && barcodes[0].rawValue) {
         scannedRef.current = true;
         if (navigator.vibrate) navigator.vibrate(100);
-        stream?.getTracks().forEach((t) => t.stop());
+        cameraManager.release();
         onScan(barcodes[0].rawValue);
       }
     } catch {}
-  }, [stream, onScan]);
+  }, [onScan]);
 
   // ── Render ────────────────────────────────────────────────────
   return (
@@ -276,6 +274,13 @@ export function QRScannerCapture({ onScan, onClose }: QRScannerCaptureProps) {
                 />
               </div>
             </div>
+
+            {/* 加载中 spinner */}
+            {!cameraReady && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/60">
+                <div className="w-10 h-10 border-3 border-white/30 border-t-white rounded-full animate-spin" />
+              </div>
+            )}
           </>
         )}
       </div>

@@ -228,6 +228,8 @@ export function StatementPage({ onClose }: StatementPageProps) {
       return;
     }
 
+    const txDate = formData.date;
+
     if (editingTransaction) {
       const updated = transactions.map((tx) =>
         tx.id === editingTransaction.id
@@ -238,8 +240,8 @@ export function StatementPage({ onClose }: StatementPageProps) {
               category: formData.category || getCategoryLabel(categoryKey),
               categoryKey,
               note: formData.note,
-              date: formData.date,
-              timestamp: new Date(formData.date).getTime(),
+              date: txDate,
+              timestamp: new Date(txDate).getTime(),
             }
           : tx
       );
@@ -253,10 +255,16 @@ export function StatementPage({ onClose }: StatementPageProps) {
         category: formData.category || getCategoryLabel(categoryKey),
         categoryKey,
         note: formData.note,
-        date: formData.date,
-        timestamp: new Date(formData.date).getTime(),
+        date: txDate,
+        timestamp: new Date(txDate).getTime(),
       };
       saveTransactions([newTransaction, ...transactions]);
+    }
+
+    // 保存后自动切换到该记录所在月份，确保统计数字实时可见
+    const txMonth = txDate.substring(0, 7);
+    if (selectedMonth !== "all" && selectedMonth !== txMonth) {
+      setSelectedMonth(txMonth);
     }
 
     setFormData({
@@ -480,7 +488,7 @@ export function StatementPage({ onClose }: StatementPageProps) {
 
           <div className="space-y-1.5">
             {/* 总余额 */}
-            <div className="bg-white/20 backdrop-blur-sm rounded-lg px-3 py-1.5 flex items-center justify-between">
+            <div className="bg-white/20 rounded-lg px-3 py-1.5 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className="w-6 h-6 rounded-md bg-white/20 flex items-center justify-center flex-shrink-0">
                   <Wallet className="w-3 h-3 text-white" />
@@ -493,7 +501,7 @@ export function StatementPage({ onClose }: StatementPageProps) {
             </div>
 
             {/* 总收入 */}
-            <div className="bg-white/20 backdrop-blur-sm rounded-lg px-3 py-1.5 flex items-center justify-between">
+            <div className="bg-white/20 rounded-lg px-3 py-1.5 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className="w-6 h-6 rounded-md bg-white/20 flex items-center justify-center flex-shrink-0">
                   <TrendingUp className="w-3 h-3 text-green-200" />
@@ -504,7 +512,7 @@ export function StatementPage({ onClose }: StatementPageProps) {
             </div>
 
             {/* 总支出 */}
-            <div className="bg-white/20 backdrop-blur-sm rounded-lg px-3 py-1.5 flex items-center justify-between">
+            <div className="bg-white/20 rounded-lg px-3 py-1.5 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className="w-6 h-6 rounded-md bg-white/20 flex items-center justify-center flex-shrink-0">
                   <TrendingDown className="w-3 h-3 text-red-200" />
@@ -594,7 +602,7 @@ export function StatementPage({ onClose }: StatementPageProps) {
                       </p>
                     )}
 
-                    <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
+                    <div className="flex items-center gap-2 pt-2" style={{ borderTop: '1px solid rgba(0,0,0,0.04)' }}>
                       <button
                         onClick={() => handleEdit(transaction)}
                         className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 bg-emerald-50 text-emerald-600 rounded-lg text-xs active:scale-95 transition-transform"
@@ -642,7 +650,7 @@ export function StatementPage({ onClose }: StatementPageProps) {
         {showDataPanel && (
           <div className="fixed inset-0 bg-black/50 z-50 flex items-end">
             <div className="bg-white w-full rounded-t-3xl">
-              <div className="sticky top-0 bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
+              <div className="sticky top-0 bg-white px-4 py-3 flex items-center justify-between" style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
                 <h3 className="text-lg font-bold text-gray-800">{ts("dataManagement")}</h3>
                 <button
                   onClick={() => setShowDataPanel(false)}
@@ -715,23 +723,16 @@ export function StatementPage({ onClose }: StatementPageProps) {
         {/* 添加/编辑表单弹窗 */}
         {showAddForm && (
           <div className="fixed inset-0 bg-black/50 z-50 flex items-end">
-            <div className="bg-white w-full rounded-t-3xl max-h-[85vh] overflow-y-auto overflow-x-hidden">
-              <div className="sticky top-0 bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
+            <div className="bg-white w-full rounded-t-3xl max-h-[85vh] flex flex-col overflow-hidden">
+              {/* 固定顶部：仅标题 */}
+              <div className="flex-shrink-0 bg-white px-4 py-3 flex items-center justify-center rounded-t-3xl" style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
                 <h3 className="text-lg font-bold text-gray-800">
                   {editingTransaction ? s.editRecord : s.addRecord}
                 </h3>
-                <button
-                  onClick={() => {
-                    setShowAddForm(false);
-                    setEditingTransaction(null);
-                  }}
-                  className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center active:scale-90 transition-transform"
-                >
-                  <X className="w-4 h-4 text-gray-600" />
-                </button>
               </div>
 
-              <div className="p-4 space-y-4">
+              {/* 可滚动表单区域 */}
+              <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4">
                 {/* 类型选择 */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -860,14 +861,30 @@ export function StatementPage({ onClose }: StatementPageProps) {
                     />
                   </div>
                 </div>
+              </div>
 
-                {/* 提交按钮 */}
-                <button
-                  onClick={handleSubmit}
-                  className="w-full py-4 bg-emerald-600 text-white font-bold rounded-xl active:scale-95 transition-transform shadow-lg"
-                >
-                  {editingTransaction ? s.saveChanges : s.addRecord}
-                </button>
+              {/* 固定底部：提交按钮 + 关闭按钮（与二级菜单 dock 统一） */}
+              <div className="flex-shrink-0 bg-white">
+                <div className="px-4 pt-3 pb-1">
+                  <button
+                    onClick={handleSubmit}
+                    className="w-full py-4 bg-emerald-600 text-white font-bold rounded-xl active:scale-95 transition-transform shadow-lg"
+                  >
+                    {editingTransaction ? s.saveChanges : s.addRecord}
+                  </button>
+                </div>
+                <div className="flex items-center justify-center px-1 pt-1.5 pb-2" style={{ boxShadow: '0 -1px 12px rgba(0,0,0,0.06)' }}>
+                  <button
+                    onClick={() => {
+                      setShowAddForm(false);
+                      setEditingTransaction(null);
+                    }}
+                    className="flex items-center justify-center pt-2.5 pb-1.5 active:scale-95 transition-transform touch-manipulation"
+                    aria-label="关闭"
+                  >
+                    <X className="w-7 h-7 text-red-500" strokeWidth={1.8} />
+                  </button>
+                </div>
               </div>
             </div>
           </div>

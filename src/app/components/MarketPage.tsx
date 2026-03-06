@@ -257,7 +257,7 @@ export function MarketPage() {
                           {marketSearchResults.map((product) => (
                             <div
                               key={product.id}
-                              className="bg-white rounded-xl overflow-hidden active:scale-95 transition-transform shadow-md border border-gray-100"
+                              className="bg-white rounded-xl overflow-hidden active:scale-95 transition-transform shadow-md"
                               onClick={() => setCurrentView({ type: "product", data: product })}
                             >
                               <LazyImage
@@ -307,7 +307,7 @@ export function MarketPage() {
                             {productsInSubCat.map((product) => (
                               <div
                                 key={product.id}
-                                className="bg-white rounded-xl overflow-hidden active:scale-95 transition-transform shadow-md border border-gray-100"
+                                className="bg-white rounded-xl overflow-hidden active:scale-95 transition-transform shadow-md"
                                 onClick={() => setCurrentView({ type: "product", data: product })}
                               >
                                 <LazyImage

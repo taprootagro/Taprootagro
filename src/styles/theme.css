@@ -19,6 +19,12 @@
   to { opacity: 1; }
 }
 
+/* 语音录制声波动画 — 轻量 transform */
+@keyframes voiceWave {
+  from { transform: scaleY(0.4); }
+  to { transform: scaleY(1); }
+}
+
 /* SplashScreen 退出动画 */
 @keyframes splash-exit {
   from { opacity: 1; transform: scale(1); }
@@ -74,7 +80,7 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
-  --app-bg: #ffffff;
+  --app-bg: #f0fdf4;
 }
 
 .dark {

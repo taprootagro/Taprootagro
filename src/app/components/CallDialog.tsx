@@ -1,6 +1,7 @@
 import { X, Phone, Video, Mic, MicOff, VideoOff, Volume2 } from "lucide-react";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { chatService } from "../services/ChatProxyService";
+import { useLanguage } from "../hooks/useLanguage";
 
 interface CallDialogProps {
   isOpen: boolean;
@@ -19,6 +20,7 @@ export function CallDialog({
   callType,
   callStatus: initialStatus,
 }: CallDialogProps) {
+  const { isRTL } = useLanguage();
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
@@ -128,7 +130,7 @@ export function CallDialog({
       {/* 关闭按钮 */}
       <button
         onClick={handleClose}
-        className="absolute top-4 right-4 w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center text-white"
+        className={`absolute top-4 w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center text-white ${isRTL ? 'left-4' : 'right-4'}`}
       >
         <X className="w-5 h-5" />
       </button>

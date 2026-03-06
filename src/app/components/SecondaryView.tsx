@@ -3,6 +3,10 @@ import { X } from "lucide-react";
 
 interface SecondaryViewProps {
   children: ReactNode;
+  footer?: ReactNode;
+  dockLeft?: ReactNode;
+  dockRight?: ReactNode;
+  headerRight?: ReactNode;
   onClose: () => void;
   title?: string;
   showTitle?: boolean;
@@ -13,7 +17,7 @@ interface SecondaryViewProps {
  * 动画：从底部浮上来 translateY(100%) → translateY(0)
  * 纯 CSS transform，GPU 合成，十年前手机也流畅
  */
-export function SecondaryView({ children, onClose, title, showTitle = true }: SecondaryViewProps) {
+export function SecondaryView({ children, footer, dockLeft, dockRight, headerRight, onClose, title, showTitle = true }: SecondaryViewProps) {
   const [phase, setPhase] = useState<'entering' | 'visible' | 'leaving'>('entering');
 
   useEffect(() => {
@@ -36,8 +40,9 @@ export function SecondaryView({ children, onClose, title, showTitle = true }: Se
 
   return (
     <div
-      className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-white"
+      className="fixed inset-0 z-50 flex flex-col overflow-hidden"
       style={{
+        backgroundColor: 'var(--app-bg)',
         transform: phase === 'entering'
           ? 'scale(0.94) translateY(12px)'   // 进入：从略小+偏下浮上来
           : phase === 'leaving'
@@ -55,11 +60,13 @@ export function SecondaryView({ children, onClose, title, showTitle = true }: Se
       <div className="bg-emerald-600 safe-top flex-shrink-0" />
 
       {/* 内容区域 */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden bg-white">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden" style={{ backgroundColor: 'var(--app-bg)' }}>
         {showTitle && title && (
           <div 
-            className="sticky top-0 bg-white border-b border-gray-200 z-10 flex items-center justify-center"
+            className="sticky top-0 z-10 flex items-center justify-center relative"
             style={{ 
+              backgroundColor: 'var(--app-bg)',
+              boxShadow: '0 1px 8px rgba(0,0,0,0.06)',
               padding: 'clamp(12px, 3vh, 20px) clamp(16px, 4vw, 24px)',
               minHeight: 'clamp(48px, 12vh, 64px)'
             }}
@@ -70,23 +77,39 @@ export function SecondaryView({ children, onClose, title, showTitle = true }: Se
             >
               {title}
             </h2>
+            {headerRight && (
+              <div className="absolute right-4 top-1/2" style={{ transform: 'translateY(-50%)' }}>
+                {headerRight}
+              </div>
+            )}
           </div>
         )}
-        <div className="bg-white min-h-full">
+        <div className="min-h-full" style={{ backgroundColor: 'var(--app-bg)' }}>
           {children}
         </div>
       </div>
 
-      {/* Dock栏 */}
-      <nav className="flex-shrink-0 bg-white border-t border-gray-200 safe-bottom">
-        <div className="flex justify-center items-center pt-1.5 pb-1">
-          <button
-            onClick={handleClose}
-            className="flex items-center justify-center p-2 transition-colors active:scale-95 touch-manipulation"
-            aria-label="关闭"
-          >
-            <X className="w-7 h-7 text-red-500" />
-          </button>
+      {/* Footer — 固定在滚动区域下方、Dock栏上方 */}
+      {footer && (
+        <div className="flex-shrink-0" style={{ backgroundColor: 'var(--app-bg)' }}>
+          {footer}
+        </div>
+      )}
+
+      {/* Dock栏 — 结构与 Layout 底部导航完全一致，只是内容换成关闭按钮 */}
+      <nav className="flex-shrink-0 bg-white safe-bottom" style={{ boxShadow: '0 -1px 12px rgba(0,0,0,0.06)' }}>
+        <div className="relative">
+          <div className="flex items-center justify-center px-1 relative">
+            {dockLeft && <div className="absolute left-4">{dockLeft}</div>}
+            {dockRight && <div className="absolute right-4">{dockRight}</div>}
+            <button
+              onClick={handleClose}
+              className="flex items-center justify-center pt-2.5 pb-1.5 active:scale-95 transition-transform touch-manipulation"
+              aria-label="关闭"
+            >
+              <X className="w-7 h-7 text-red-500" strokeWidth={1.8} />
+            </button>
+          </div>
         </div>
       </nav>
     </div>

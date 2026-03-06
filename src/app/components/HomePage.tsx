@@ -255,7 +255,7 @@ export function HomePage() {
                               clearSearch();
                               setCurrentView({ type: "product", data: product });
                             }}
-                            className="bg-white rounded-xl overflow-hidden active:scale-95 transition-transform shadow-sm border border-gray-100 text-left"
+                            className="bg-white rounded-xl overflow-hidden active:scale-95 transition-transform shadow-sm text-left"
                           >
                             <LazyImage
                               src={optimizeImageUrl(product.image, networkQuality)}
@@ -283,7 +283,7 @@ export function HomePage() {
                           {t.home?.news || "Articles"} ({searchResults.articles.length})
                         </h3>
                       </div>
-                      <div className="bg-white rounded-xl overflow-hidden shadow-sm border border-gray-100">
+                      <div className="bg-white rounded-xl overflow-hidden shadow-sm">
                         <div className="divide-y divide-gray-100">
                           {searchResults.articles.map((article: any) => (
                             <button
@@ -391,7 +391,7 @@ export function HomePage() {
             </button>
 
             {/* 文章列表 — 缩略图改用 LazyImage 懒加载 + WebP 优化 */}
-            <div className="bg-white rounded-2xl overflow-hidden shadow-lg border border-gray-100">
+            <div className="bg-white rounded-2xl overflow-hidden shadow-lg">
               <div className="divide-y divide-gray-100">
                 {articles.map((article) => (
                   <button
@@ -420,7 +420,7 @@ export function HomePage() {
 
             {/* ICP备案和公安备案号 - 极简样式 */}
             {(config?.filing?.icpNumber || config?.filing?.policeNumber) && (
-            <div className="bg-gray-50 rounded-lg border border-gray-200">
+            <div className="bg-gray-50 rounded-lg shadow-sm">
               <div className="px-3 py-2 space-y-1">
                 <p className="text-xs text-gray-500">{t.home.filingNo}</p>
                 {config?.filing?.icpNumber && (
