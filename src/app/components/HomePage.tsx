@@ -2,46 +2,40 @@ import { Search, ScanLine, Bot, Calculator, X } from "lucide-react";
 import { BannerCarousel } from "./BannerCarousel";
 import { usePerformanceMonitor } from "../hooks/usePerformanceMonitor";
 import { useLanguage } from "../hooks/useLanguage";
-import { useState, useEffect, useMemo, useRef, useCallback } from "react";
-import { CameraCapture } from "./CameraCapture";
-import { BannerDetailPage } from "./BannerDetailPage";
-import { AIAssistantPage } from "./AIAssistantPage";
-import { StatementPage } from "./StatementPage";
-import { LiveDetailPage } from "./LiveDetailPage";
-import { ArticleDetailPage } from "./ArticleDetailPage";
-import { ProductDetailPage } from "./ProductDetailPage";
-import { VideoFeedPage } from "./VideoFeedPage";
+import { useState, useEffect, useMemo, useRef, useCallback, lazy, Suspense } from "react";
 import { LazyImage } from "./LazyImage";
-import { preloadMainPages } from "../routes";
 import { useHomeConfig } from "../hooks/useHomeConfig";
 import { useNetworkQuality, optimizeImageUrl } from "../hooks/useNetworkQuality";
+import { QRScannerCapture } from "./QRScannerCapture";
+
+// 二级页面懒加载 — 这些页面仅在用户点击时才加载，避免首屏包体积膨胀
+const BannerDetailPage = lazy(() => import("./BannerDetailPage"));
+const AIAssistantPage = lazy(() => import("./AIAssistantPage"));
+const StatementPage = lazy(() => import("./StatementPage"));
+const ArticleDetailPage = lazy(() => import("./ArticleDetailPage"));
+const ProductDetailPage = lazy(() => import("./ProductDetailPage"));
+const VideoFeedPage = lazy(() => import("./VideoFeedPage"));
 
 export function HomePage() {
   // 性能监控
   usePerformanceMonitor("首页");
-  const { t } = useLanguage();
+  const { t, isRTL } = useLanguage();
   const { config } = useHomeConfig();
   const networkQuality = useNetworkQuality();
-  const [showCamera, setShowCamera] = useState(false);
-  const [imagesLoaded, setImagesLoaded] = useState(false);
+  const [showQRScanner, setShowQRScanner] = useState(false);
+  const [scanResult, setScanResult] = useState<string | null>(null);
 
   // 搜索状态
   const [searchQuery, setSearchQuery] = useState("");
   const [searchFocused, setSearchFocused] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   
-  // 预加载其他主要页面，提升底部导航切换速度
-  useEffect(() => {
-    preloadMainPages();
-  }, []);
-
   // 二级界面状态管理
   const [currentView, setCurrentView] = useState<
     | { type: "home" }
     | { type: "banner"; index: number; data: any }
     | { type: "aiAssistant" }
     | { type: "statement" }
-    | { type: "live" }
     | { type: "videoFeed"; startIndex?: number }
     | { type: "article"; data: any }
     | { type: "product"; data: any }
@@ -111,8 +105,6 @@ export function HomePage() {
   useEffect(() => {
     if (optimizedBannerUrls.length === 0) return;
     const firstImg = new Image();
-    firstImg.onload = () => setImagesLoaded(true);
-    firstImg.onerror = () => setImagesLoaded(true); // 失败也继续
     firstImg.src = optimizedBannerUrls[0].url;
   }, [optimizedBannerUrls]);
 
@@ -132,56 +124,52 @@ export function HomePage() {
     <div className="min-h-screen" style={{ backgroundColor: 'var(--app-bg)' }}>
       {/* 二级界面路由 */}
       {currentView.type === "banner" && (
-        <BannerDetailPage
-          onClose={() => setCurrentView({ type: "home" })}
-          bannerIndex={currentView.index}
-          bannerData={currentView.data}
-        />
+        <Suspense fallback={<div className="w-full h-full bg-gray-100 animate-pulse"></div>}>
+          <BannerDetailPage
+            onClose={() => setCurrentView({ type: "home" })}
+            bannerIndex={currentView.index}
+            bannerData={currentView.data}
+          />
+        </Suspense>
       )}
       {currentView.type === "aiAssistant" && (
-        <AIAssistantPage onClose={() => setCurrentView({ type: "home" })} />
+        <Suspense fallback={<div className="w-full h-full bg-gray-100 animate-pulse"></div>}>
+          <AIAssistantPage onClose={() => setCurrentView({ type: "home" })} />
+        </Suspense>
       )}
       {currentView.type === "statement" && (
-        <StatementPage onClose={() => setCurrentView({ type: "home" })} />
-      )}
-      {currentView.type === "live" && (
-        <LiveDetailPage 
-          onClose={() => setCurrentView({ type: "home" })}
-          onOpenVideoFeed={(startIndex) => setCurrentView({ type: "videoFeed", startIndex })}
-        />
+        <Suspense fallback={<div className="w-full h-full bg-gray-100 animate-pulse"></div>}>
+          <StatementPage onClose={() => setCurrentView({ type: "home" })} />
+        </Suspense>
       )}
       {currentView.type === "videoFeed" && (
-        <VideoFeedPage 
-          onClose={() => setCurrentView({ type: "home" })}
-          startIndex={currentView.startIndex}
-        />
+        <Suspense fallback={<div className="w-full h-full bg-gray-100 animate-pulse"></div>}>
+          <VideoFeedPage 
+            onClose={() => setCurrentView({ type: "home" })}
+            startIndex={currentView.startIndex}
+          />
+        </Suspense>
       )}
       {currentView.type === "article" && (
-        <ArticleDetailPage
-          onClose={() => setCurrentView({ type: "home" })}
-          article={currentView.data}
-        />
+        <Suspense fallback={<div className="w-full h-full bg-gray-100 animate-pulse"></div>}>
+          <ArticleDetailPage
+            onClose={() => setCurrentView({ type: "home" })}
+            article={currentView.data}
+          />
+        </Suspense>
       )}
       {currentView.type === "product" && (
-        <ProductDetailPage
-          onClose={() => setCurrentView({ type: "home" })}
-          product={currentView.data}
-        />
+        <Suspense fallback={<div className="w-full h-full bg-gray-100 animate-pulse"></div>}>
+          <ProductDetailPage
+            onClose={() => setCurrentView({ type: "home" })}
+            product={currentView.data}
+          />
+        </Suspense>
       )}
 
       {/* 首页内容 */}
       {currentView.type === "home" && (
         <>
-          {/* 相机捕获界面 */}
-          {showCamera && (
-            <CameraCapture
-              onCapture={(imageData) => {
-                // 处理拍摄的图片
-              }}
-              onClose={() => setShowCamera(false)}
-            />
-          )}
-
           {/* 搜索栏 */}
           <div className="bg-emerald-600 px-3 py-1.5 sticky top-0 z-10 shadow-md">
             <div className="flex gap-2 items-center max-w-screen-xl mx-auto">
@@ -190,24 +178,26 @@ export function HomePage() {
                 <input
                   type="text"
                   placeholder={t.home.searchPlaceholder}
-                  className="flex-1 min-w-0 outline-none text-xs placeholder:text-gray-400"
+                  className="flex-1 min-w-0 outline-none placeholder:text-gray-400"
+                  style={{ fontSize: 'clamp(13px, 3.5vw, 15px)' }}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onFocus={() => setSearchFocused(true)}
                   ref={searchInputRef}
                 />
-                {/* 清空按钮 */}
+                {/* 清空按钮 — P2-⑦触摸目标修复 */}
                 {searchQuery && (
                   <button
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => setSearchQuery("")}
-                    className="flex-shrink-0 p-0.5"
+                    className="flex-shrink-0 w-7 h-7 flex items-center justify-center"
+                    aria-label={t.common.close}
                   >
                     <X className="w-3.5 h-3.5 text-gray-400" />
                   </button>
                 )}
               </div>
-              {/* 搜索时显示取消按钮，否则显示扫码 */}
+              {/* 搜时显示取消按钮，否则显示扫码 */}
               {isSearching || searchFocused ? (
                 <button
                   onMouseDown={(e) => e.preventDefault()}
@@ -218,8 +208,9 @@ export function HomePage() {
                 </button>
               ) : (
                 <button 
-                  onClick={() => setShowCamera(true)}
+                  onClick={() => setShowQRScanner(true)}
                   className="bg-white w-10 h-10 rounded-full active:scale-95 transition-all duration-200 flex items-center justify-center flex-shrink-0 shadow-sm"
+                  aria-label={t.camera?.scanQRCode || 'Scan QR'}
                 >
                   <ScanLine className="w-4 h-4 text-gray-600" />
                 </button>
@@ -255,7 +246,7 @@ export function HomePage() {
                               clearSearch();
                               setCurrentView({ type: "product", data: product });
                             }}
-                            className="bg-white rounded-xl overflow-hidden active:scale-95 transition-transform shadow-sm text-left"
+                            className="bg-white rounded-xl overflow-hidden active:scale-95 transition-transform shadow-sm text-start"
                           >
                             <LazyImage
                               src={optimizeImageUrl(product.image, networkQuality)}
@@ -293,7 +284,7 @@ export function HomePage() {
                                 clearSearch();
                                 setCurrentView({ type: "article", data: article });
                               }}
-                              className="w-full px-3 py-2.5 text-left active:bg-emerald-50 transition-colors"
+                              className="w-full px-3 py-2.5 text-start active:bg-emerald-50 transition-colors"
                             >
                               <div className="flex items-center gap-3">
                                 {article.thumbnail && (
@@ -320,7 +311,7 @@ export function HomePage() {
 
           {/* 主内容区域 - 搜索时隐藏，增加底部内边距避免被底部导航遮挡 */}
           <div className="px-3 space-y-3 max-w-screen-xl mx-auto pb-safe-nav" style={{ display: isSearching ? 'none' : undefined }}>
-            {/* 轮播图 — 使用网络感知优化后的图片 URL */}
+            {/* 轮播图 — 使用网络感知优化后图片 URL */}
             <div 
               className="mt-3 rounded-2xl overflow-hidden bg-gray-100 relative active:scale-95 transition-transform cursor-pointer aspect-[2/1] shadow-lg"
             >
@@ -385,7 +376,7 @@ export function HomePage() {
                 <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></span>
                 {config.homeIcons?.liveBadge || t.home.liveNavigation}
               </div>
-              <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2 text-left">
+              <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent p-2 text-start">
                 <h3 className="text-white font-medium text-sm">{config.homeIcons?.liveTitle || config.liveStreams?.[0]?.title || t.home.agriVideos}</h3>
               </div>
             </button>
@@ -397,7 +388,7 @@ export function HomePage() {
                   <button
                     key={article.id}
                     onClick={() => setCurrentView({ type: "article", data: article })}
-                    className="w-full px-3 py-3 text-left active:bg-emerald-100 transition-colors"
+                    className="w-full px-3 py-3 text-start active:bg-emerald-100 transition-colors"
                   >
                     <div className="flex items-center justify-between gap-3">
                       <h3 className="flex-1 text-gray-900 text-sm sm:text-base line-clamp-2 min-w-0">
@@ -418,7 +409,7 @@ export function HomePage() {
               </div>
             </div>
 
-            {/* ICP备案和公安备案号 - 极简样式 */}
+            {/* ICP备案和公备案号 - 极简样式 */}
             {(config?.filing?.icpNumber || config?.filing?.policeNumber) && (
             <div className="bg-gray-50 rounded-lg shadow-sm">
               <div className="px-3 py-2 space-y-1">
@@ -450,6 +441,39 @@ export function HomePage() {
         </>
       )}
 
+      {/* QR二维码扫描器 — 农药溯源 */}
+      {showQRScanner && (
+        <QRScannerCapture
+          onScan={(code) => {
+            setShowQRScanner(false);
+            setScanResult(code);
+            // 扫描结果toast 5秒后自动消失
+            setTimeout(() => setScanResult(null), 5000);
+          }}
+          onClose={() => setShowQRScanner(false)}
+        />
+      )}
+
+      {/* 扫描结果提示 — 溯源查询结果（后端接入前展示原始数据） */}
+      {scanResult && (
+        <div className="fixed top-16 inset-x-3 z-[70] animate-slide-up" style={{ maxWidth: '420px', margin: '0 auto' }}>
+          <div className="bg-white rounded-2xl shadow-2xl border border-emerald-200 overflow-hidden">
+            <div className="bg-emerald-600 px-4 py-2 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <ScanLine className="w-4 h-4 text-white" />
+                <span className="text-white text-sm">{t.common.featureComingSoon || 'Traceability'}</span>
+              </div>
+              <button onClick={() => setScanResult(null)} className="text-white/70 active:text-white p-2" aria-label={t.common.close}>
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="px-4 py-3">
+              <p className="text-xs text-gray-500 mb-1">{t.common.qrData || 'QR Data'}:</p>
+              <p className="text-sm text-gray-800 break-all select-text">{scanResult}</p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

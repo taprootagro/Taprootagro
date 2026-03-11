@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useHomeConfig } from "./useHomeConfig";
+import { storageSetJSON } from "../utils/safeStorage";
 
 /**
  * useDynamicManifest — 动态 PWA Manifest 生成器（唯一的 manifest 来源）
@@ -65,7 +66,7 @@ export function useDynamicManifest() {
           }
         }
         if (cacheData.icon192 || cacheData.icon512) {
-          localStorage.setItem(ICON_CACHE_KEY, JSON.stringify(cacheData));
+          storageSetJSON(ICON_CACHE_KEY, cacheData);
         }
       } catch { /* localStorage full or unavailable */ }
 

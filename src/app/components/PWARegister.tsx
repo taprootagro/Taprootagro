@@ -4,6 +4,8 @@ import { useLanguage } from '../hooks/useLanguage';
 import { shouldShowUpdate, type RolloutConfig } from '../utils/rollout';
 import { errorMonitor } from '../utils/errorMonitor';
 import { notifyConfigUpdated } from '../hooks/useRemoteConfig';
+import { apiClient } from '../utils';
+import { storageGet, storageSet, storageGetJSON, storageSetJSON } from '../utils/safeStorage';
 
 /**
  * PWA Registration & Update Manager
@@ -22,6 +24,8 @@ import { notifyConfigUpdated } from '../hooks/useRemoteConfig';
  *   1. Change CACHE_VERSION in /public/service-worker.js
  *   2. Optionally update version in remote config at /taprootagro/global
  *   3. Deploy — clients discover the update on next day's first open
+ * 
+ * v2 Update: 使用 apiClient 进行远程配置获取，支持版本协商、重试、缓存
  */
 
 // No periodic polling — the SW handles daily checks itself
@@ -58,7 +62,7 @@ export function PWARegister() {
   const [waitingWorker, setWaitingWorker] = useState<ServiceWorker | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
   const [dismissed, setDismissed] = useState(false);
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
 
   // Handle the update action
   const handleUpdate = useCallback(() => {
@@ -77,13 +81,14 @@ export function PWARegister() {
       // 标记有待更新的 SW
       sessionStorage.setItem('taproot_sw_pending_update', '1');
       
-      // 告诉 waiting SW 可以 skipWaiting（但不立即激活）
-      waitingWorker.postMessage({ type: 'SKIP_WAITING' });
+      // 注意：iOS 下绝不能发送 SKIP_WAITING，否则新 SW 激活会立即清理旧缓存，
+      // 导致当前正在运行的页面在按需加载切片时发生 ChunkLoadError，甚至白屏崩溃。
+      // 正确做法是保留 waiting 状态，等用户彻底杀掉进程重启时，系统会自动激活新 SW。
       
       // 显示提示：重启应用后生效
       setIsUpdating(true);
       setTimeout(() => {
-        alert(t.common.updateOnRestart || '更新已准备就绪，请关闭并重新打开应用以完成更新');
+        alert(t.common.updateOnRestart || '更新已准备就绪，请彻底关闭并重新打开应用以完成更新');
         setIsUpdating(false);
         setDismissed(true);
       }, 500);
@@ -122,7 +127,7 @@ export function PWARegister() {
     try {
       // Use localStorage date string for daily gating (same logic as SW)
       const today = new Date().toISOString().slice(0, 10);
-      const lastCheckDate = localStorage.getItem(LS_KEY_LAST_REMOTE_CHECK) || '';
+      const lastCheckDate = storageGet(LS_KEY_LAST_REMOTE_CHECK) || '';
       if (lastCheckDate === today) {
         console.log('[PWA] Daily remote check already done today, skipping');
         return;
@@ -130,31 +135,36 @@ export function PWARegister() {
 
       console.log('[PWA] First open today — running client-side remote config check...');
 
-      // Fetch with timeout
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000);
-
-      const response = await fetch(REMOTE_CONFIG_URL, {
-        signal: controller.signal,
-        cache: 'no-store',
-        headers: { 'Accept': 'application/json' }
+      // 使用 apiClient 进行版本化、带重试的远程配置获取
+      const response = await apiClient<RolloutConfig>({
+        endpoint: REMOTE_CONFIG_URL,
+        method: 'GET',
+        preferredVersion: 'v3',
+        enableFallback: true,
+        cache: true,
+        cacheTTL: 24 * 60 * 60 * 1000, // 24小时缓存
+        offlineFallback: true,
+        timeout: 10000,
+        retry: {
+          maxRetries: 2,
+          initialDelay: 1000,
+        },
+        validateResponse: (data: unknown) => {
+          // 验证响应格式
+          return typeof data === 'object' && data !== null;
+        },
       });
-      clearTimeout(timeoutId);
 
-      if (!response.ok) {
-        console.warn(`[PWA] Remote config HTTP ${response.status}, keeping current version`);
-        // 4xx = file doesn't exist, don't waste bandwidth retrying today
-        // 5xx = server error, also skip retrying within the same day
-        localStorage.setItem(LS_KEY_LAST_REMOTE_CHECK, today);
-        return;
+      const config = response.data;
+      console.log('[PWA] Remote config received:', config);
+      
+      if (response.fallback) {
+        console.warn(`[PWA] Using fallback API version ${response.apiVersion} (requested: ${response.requestedVersion})`);
       }
 
-      const config = await response.json();
-      console.log('[PWA] Remote config received:', config);
-
       // Mark today as checked & persist config
-      localStorage.setItem(LS_KEY_LAST_REMOTE_CHECK, today);
-      localStorage.setItem(LS_KEY_REMOTE_CONFIG, JSON.stringify(config));
+      storageSet(LS_KEY_LAST_REMOTE_CHECK, today);
+      storageSetJSON(LS_KEY_REMOTE_CONFIG, config);
 
       // Configure error reporting endpoint from remote config
       if (config.errorReportUrl) {
@@ -163,7 +173,7 @@ export function PWARegister() {
       }
 
       // Extract version (supports multiple field names for flexibility)
-      const remoteVersion = config.version || config.cacheVersion || config.appVersion;
+      const remoteVersion = config.version || (config as any).cacheVersion || (config as any).appVersion;
       if (!remoteVersion) {
         console.log('[PWA] Remote config has no version field, check complete');
         return;
@@ -201,12 +211,9 @@ export function PWARegister() {
       // Notify the config update
       notifyConfigUpdated(config);
     } catch (error: any) {
-      // Network error, timeout, offline — silently ignore
-      if (error?.name === 'AbortError') {
-        console.warn('[PWA] Remote config check timed out, will retry next cycle');
-      } else {
-        console.warn('[PWA] Remote config check failed, keeping current version:', error?.message);
-      }
+      // apiClient 已经处理了重试和离线fallback
+      // 这里只处理彻底失败的情况
+      console.warn('[PWA] Remote config check failed after all retries:', error?.message);
       // Do NOT update the timestamp on failure, so it retries on next app load
     }
   }, []);
@@ -228,12 +235,7 @@ export function PWARegister() {
             console.log('[PWA] New version installed, checking rollout eligibility...');
 
             // Check rollout before showing update banner
-            const config = (() => {
-              try {
-                const raw = localStorage.getItem(LS_KEY_REMOTE_CONFIG);
-                return raw ? JSON.parse(raw) as RolloutConfig : null;
-              } catch { return null; }
-            })();
+            const config = storageGetJSON<RolloutConfig>(LS_KEY_REMOTE_CONFIG);
 
             // Get current version from the existing (active) SW
             const currentVersion = ''; // Will be checked against config
@@ -249,10 +251,7 @@ export function PWARegister() {
               // (in case rolloutPercentage is increased server-side)
               const recheckInterval = setInterval(() => {
                 try {
-                  const freshConfig = (() => {
-                    const raw = localStorage.getItem(LS_KEY_REMOTE_CONFIG);
-                    return raw ? JSON.parse(raw) as RolloutConfig : null;
-                  })();
+                  const freshConfig = storageGetJSON<RolloutConfig>(LS_KEY_REMOTE_CONFIG);
                   const { shouldUpdate: nowEligible } = shouldShowUpdate(freshConfig, currentVersion);
                   if (nowEligible) {
                     console.log('[PWA] Now eligible for rollout, showing update');
@@ -334,9 +333,7 @@ export function PWARegister() {
         case 'REMOTE_CONFIG_UPDATED':
           console.log('[PWA] Remote config updated via SW broadcast');
           if (event.data.config) {
-            try {
-              localStorage.setItem(LS_KEY_REMOTE_CONFIG, JSON.stringify(event.data.config));
-            } catch { /* ignore */ }
+            storageSetJSON(LS_KEY_REMOTE_CONFIG, event.data.config);
             notifyConfigUpdated(event.data.config);
             // Configure error reporting if present
             if (event.data.config.errorReportUrl) {
@@ -361,6 +358,32 @@ export function PWARegister() {
     };
   }, [checkRemoteConfig]);
 
+  // ---- Sync language to SW whenever it changes ----
+  useEffect(() => {
+    if (!canRegisterServiceWorker()) return;
+    if (!navigator.serviceWorker.controller) return;
+
+    // Map app language codes to SW translation keys
+    // SW supports: en, zh, fr, es, ar, sw
+    const langMap: Record<string, string> = {
+      en: 'en', zh: 'zh', 'zh-TW': 'zh', es: 'es', fr: 'fr',
+      ar: 'ar', pt: 'en', hi: 'en', ru: 'en', bn: 'en',
+      ur: 'ar', id: 'en', vi: 'en', ms: 'en', ja: 'zh',
+      th: 'en', my: 'en', tl: 'en', tr: 'en', fa: 'ar',
+    };
+    const swLang = langMap[language] || 'en';
+
+    try {
+      navigator.serviceWorker.controller.postMessage({
+        type: 'SET_LANGUAGE',
+        lang: swLang,
+      });
+      console.log('[PWA] Language synced to SW:', swLang);
+    } catch {
+      // SW not ready yet, will sync on next change
+    }
+  }, [language]);
+
   // PWA meta tags and manifest are now declared statically in index.html.
   // No need to inject them dynamically — removes duplicate DOM manipulation.
 
@@ -369,7 +392,7 @@ export function PWARegister() {
 
   return (
     <div
-      className="fixed bottom-16 left-2 right-2 z-[9999] animate-slide-up"
+      className="fixed bottom-16 inset-x-2 z-[9999] animate-slide-up"
       style={{ maxWidth: '420px', margin: '0 auto' }}
     >
       <div
@@ -411,7 +434,8 @@ export function PWARegister() {
           {/* Dismiss */}
           <button
             onClick={handleDismiss}
-            className="flex-shrink-0 w-7 h-7 flex items-center justify-center text-white/50 hover:text-white/80 rounded-full"
+            className="flex-shrink-0 w-10 h-10 flex items-center justify-center text-white/50 hover:text-white/80 rounded-full"
+            aria-label={t.common.close}
           >
             <X className="w-4 h-4" />
           </button>

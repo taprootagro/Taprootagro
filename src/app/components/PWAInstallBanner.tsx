@@ -11,13 +11,13 @@ import { useHomeConfig } from '../hooks/useHomeConfig';
  */
 export function PWAInstallBanner() {
   const { showBanner, platform, triggerInstall, dismiss } = useInstallPrompt();
-  const { lang } = useLanguage();
+  const { language, isRTL } = useLanguage();
   const { config } = useHomeConfig();
 
   if (!showBanner || !platform) return null;
 
   // 多语言文案（轻量内联，不扩充全局 i18n）
-  const texts = getTexts(lang);
+  const texts = getTexts(language);
 
   // 获取实际 App 图标：desktopIcon > appBranding.logoUrl > 回退到通用图标
   const customIcon = config?.desktopIcon?.icon192Url || config?.appBranding?.logoUrl;
@@ -41,7 +41,7 @@ export function PWAInstallBanner() {
 
   if (platform === 'ios') {
     return (
-      <div className="fixed bottom-20 left-3 right-3 z-[60] animate-slide-up">
+      <div className="fixed bottom-20 inset-x-3 z-[60] animate-slide-up">
         <div
           className="rounded-2xl p-4 shadow-2xl border border-gray-100"
           style={{
@@ -52,13 +52,13 @@ export function PWAInstallBanner() {
           {/* 关闭按钮 */}
           <button
             onClick={dismiss}
-            className="absolute top-3 right-3 w-7 h-7 flex items-center justify-center rounded-full bg-gray-100 active:bg-gray-200"
+            className={`absolute top-3 ${isRTL ? 'left-3' : 'right-3'} w-10 h-10 flex items-center justify-center rounded-full bg-gray-100 active:bg-gray-200`}
             aria-label="Close"
           >
             <X className="w-4 h-4 text-gray-500" />
           </button>
 
-          <div className="flex items-start gap-3 pr-6">
+          <div className={`flex items-start gap-3 ${isRTL ? 'pl-8' : 'pr-8'}`}>
             {/* 图标 */}
             {iconElement}
 
@@ -86,7 +86,7 @@ export function PWAInstallBanner() {
 
   // Android / Chrome
   return (
-    <div className="fixed bottom-20 left-3 right-3 z-[60] animate-slide-up">
+    <div className="fixed bottom-20 inset-x-3 z-[60] animate-slide-up">
       <div
         className="rounded-2xl p-4 shadow-2xl border border-gray-100"
         style={{
@@ -119,7 +119,7 @@ export function PWAInstallBanner() {
           {/* 关闭 */}
           <button
             onClick={dismiss}
-            className="w-7 h-7 flex items-center justify-center rounded-full flex-shrink-0 active:bg-gray-100"
+            className="w-10 h-10 flex items-center justify-center rounded-full flex-shrink-0 active:bg-gray-100"
             aria-label="Close"
           >
             <X className="w-4 h-4 text-gray-400" />

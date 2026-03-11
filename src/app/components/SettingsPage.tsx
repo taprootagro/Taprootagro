@@ -6,7 +6,7 @@ import { BackgroundSync } from "./BackgroundSync";
 import { useLanguage, languages, Language } from "../hooks/useLanguage";
 import { SecondaryView } from "./SecondaryView";
 import { useHomeConfig } from "../hooks/useHomeConfig";
-import { isUserLoggedIn, setUserLoggedIn } from "../utils/auth";
+import { isUserLoggedIn, setUserLoggedIn, clearAccessToken } from "../utils/auth";
 
 export function SettingsPage() {
   const navigate = useNavigate();
@@ -17,6 +17,7 @@ export function SettingsPage() {
   const [showLanguageSelector, setShowLanguageSelector] = useState(false);
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
   const [showTermsOfService, setShowTermsOfService] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const loggedIn = isUserLoggedIn();
 
   // 进入动画
@@ -141,7 +142,7 @@ export function SettingsPage() {
                         }`}>
                           <Icon className={`w-5 h-5 ${item.color} transition-transform duration-200 ${item.expanded ? 'scale-110' : ''}`} />
                         </div>
-                        <div className="text-left flex-1 min-w-0">
+                        <div className="text-start flex-1 min-w-0">
                           <p className="text-sm font-medium text-gray-900 truncate">
                             {item.label}
                           </p>
@@ -185,10 +186,7 @@ export function SettingsPage() {
       {loggedIn && (
         <div className="px-4 mt-4 pb-8">
           <button
-            onClick={() => {
-              setUserLoggedIn(false);
-              navigate("/home/profile", { replace: true });
-            }}
+            onClick={() => setShowLogoutConfirm(true)}
             className="w-full bg-white text-gray-400 py-3 rounded-2xl active:bg-gray-50 transition-colors duration-150 text-sm shadow-sm"
           >
             {t.profile.logout}
@@ -196,6 +194,44 @@ export function SettingsPage() {
         </div>
       )}
       </div>
+
+      {/* 退出登录确认弹窗 */}
+      {showLogoutConfirm && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center px-8" onClick={() => setShowLogoutConfirm(false)}>
+          <div className="absolute inset-0 bg-black/40" />
+          <div
+            className="relative bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+            style={{ animation: 'fadeScaleIn 200ms ease-out' }}
+          >
+            <h3 className="text-lg font-semibold text-gray-900 text-center mb-2">
+              {t.profile.logoutConfirm || "Logout"}
+            </h3>
+            <p className="text-sm text-gray-500 text-center mb-6">
+              {t.profile.logoutConfirmDesc || "Are you sure you want to logout?"}
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowLogoutConfirm(false)}
+                className="flex-1 py-3 rounded-2xl bg-gray-100 text-gray-600 text-sm font-medium active:bg-gray-200 transition-colors"
+              >
+                {t.common.cancel}
+              </button>
+              <button
+                onClick={() => {
+                  setShowLogoutConfirm(false);
+                  clearAccessToken();
+                  setUserLoggedIn(false);
+                  navigate("/home/profile", { replace: true });
+                }}
+                className="flex-1 py-3 rounded-2xl bg-red-500 text-white text-sm font-medium active:bg-red-600 transition-colors shadow-lg"
+              >
+                {t.profile.logoutConfirm || "Logout"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 语言选择器 - 浮现弹出 */}
       {showLanguageSelector && (
@@ -220,7 +256,7 @@ export function SettingsPage() {
                 }`}
               >
                 <div className="flex items-center gap-3 flex-1 min-w-0">
-                  <div className="text-left flex-1 min-w-0">
+                  <div className="text-start flex-1 min-w-0">
                     <p className={`font-semibold text-sm truncate ${
                       language === code ? 'text-emerald-900' : 'text-gray-900'
                     }`}>
@@ -230,7 +266,7 @@ export function SettingsPage() {
                   </div>
                 </div>
                 {language === code && (
-                  <Check className="w-5 h-5 text-emerald-600 flex-shrink-0 ml-2" />
+                  <Check className="w-5 h-5 text-emerald-600 flex-shrink-0 ms-2" />
                 )}
               </button>
             ))}
@@ -253,7 +289,7 @@ export function SettingsPage() {
         </SecondaryView>
       )}
 
-      {/* 服务���款 - 浮现弹出 */}
+      {/* 服务款 - 浮现弹出 */}
       {showTermsOfService && (
         <SecondaryView 
           title={config?.termsOfService?.title || t.settings.termsOfService} 

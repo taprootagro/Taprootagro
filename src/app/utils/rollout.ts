@@ -84,6 +84,7 @@
 // ============================================================
 
 import { getStableDeviceId } from './errorMonitor';
+import { storageGet } from './safeStorage';
 
 const LS_KEY_REMOTE_CONFIG = 'taproot_remote_config';
 
@@ -207,11 +208,11 @@ export interface RolloutConfig {
 // ============================================================
 
 /**
- * Get the stored remote config from localStorage.
+ * Get the stored remote config from safeStorage.
  */
 export function getStoredRemoteConfig(): RolloutConfig | null {
   try {
-    const raw = localStorage.getItem(LS_KEY_REMOTE_CONFIG);
+    const raw = storageGet(LS_KEY_REMOTE_CONFIG);
     return raw ? JSON.parse(raw) : null;
   } catch {
     return null;

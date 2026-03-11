@@ -12,6 +12,8 @@
 // accidental spam, and save bandwidth/costs.
 // ============================================================================
 
+import { storageGet, storageSet, storageRemove } from './safeStorage';
+
 const GUARD_STORAGE_KEY = 'agri_cloud_ai_guard';
 const CACHE_STORAGE_KEY = 'agri_cloud_ai_cache';
 
@@ -56,7 +58,7 @@ function getTodayStr(): string {
 
 function getUsage(): UsageRecord {
   try {
-    const raw = localStorage.getItem(GUARD_STORAGE_KEY);
+    const raw = storageGet(GUARD_STORAGE_KEY);
     if (raw) {
       const record: UsageRecord = JSON.parse(raw);
       // Reset if it's a new day
@@ -71,7 +73,7 @@ function getUsage(): UsageRecord {
 
 function saveUsage(record: UsageRecord): void {
   try {
-    localStorage.setItem(GUARD_STORAGE_KEY, JSON.stringify(record));
+    storageSet(GUARD_STORAGE_KEY, JSON.stringify(record));
   } catch { /* ignore */ }
 }
 
@@ -110,7 +112,7 @@ interface CacheEntry {
 
 function getCache(): CacheEntry[] {
   try {
-    const raw = localStorage.getItem(CACHE_STORAGE_KEY);
+    const raw = storageGet(CACHE_STORAGE_KEY);
     if (raw) return JSON.parse(raw);
   } catch { /* ignore */ }
   return [];
@@ -118,7 +120,7 @@ function getCache(): CacheEntry[] {
 
 function saveCache(entries: CacheEntry[]): void {
   try {
-    localStorage.setItem(CACHE_STORAGE_KEY, JSON.stringify(entries));
+    storageSet(CACHE_STORAGE_KEY, JSON.stringify(entries));
   } catch { /* ignore */ }
 }
 
@@ -289,8 +291,8 @@ export class CloudAIGuard {
   /** Clear all guard data (usage + cache) */
   clearAll(): void {
     try {
-      localStorage.removeItem(GUARD_STORAGE_KEY);
-      localStorage.removeItem(CACHE_STORAGE_KEY);
+      storageRemove(GUARD_STORAGE_KEY);
+      storageRemove(CACHE_STORAGE_KEY);
     } catch { /* ignore */ }
   }
 }

@@ -16,7 +16,6 @@ export function AbnormalFeedbackPage({ onClose }: AbnormalFeedbackPageProps) {
     >
       <div className="p-4">
         {/* 在这里添加异常反馈的内容 */}
-        <p className="text-gray-400 text-center mt-8">暂无内容</p>
       </div>
     </SecondaryView>
   );

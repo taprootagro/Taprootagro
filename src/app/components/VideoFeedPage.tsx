@@ -1,7 +1,9 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { X, Heart, MessageCircle, Share2, MapPin, Play, Loader2 } from "lucide-react";
+import { X, Share2, MapPin, Play, Loader2, Check, Volume2, VolumeX } from "lucide-react";
 import { useHomeConfig } from "../hooks/useHomeConfig";
 import { useLanguage } from "../hooks/useLanguage";
+import { convertCoord, type CoordSystem } from "../utils/coordTransform";
+import { isWeChatBrowser, initWxSdk, setupWxShare } from "../utils/wxJsSdk";
 
 interface VideoFeedPageProps {
   onClose: () => void;
@@ -16,7 +18,58 @@ export function VideoFeedPage({ onClose, startIndex = 0 }: VideoFeedPageProps) {
   const { config } = useHomeConfig();
   const { t } = useLanguage();
   const v = t.video;
+
+  // 从配置获取直播流列表
   const liveStreams = config.liveStreams || [];
+
+  // 全局分享/导航配置仅作为后备默认值
+  const globalShareConfig = config.liveShareConfig;
+  const globalNavConfig = config.liveNavigationConfig;
+
+  // ── 获取当前视频的分享配置（优先使用视频自身配置，否则回退到全局配置） ──
+  const getVideoShareConfig = (stream: typeof liveStreams[0]) => ({
+    enabled: stream.shareEnabled ?? globalShareConfig?.enabled ?? true,
+    shareUrl: stream.shareUrl || globalShareConfig?.shareUrl || '',
+    shareTitle: stream.shareTitle || globalShareConfig?.shareTitle || 'TaprootAgro',
+    shareText: stream.shareText || globalShareConfig?.shareText || '',
+    shareImgUrl: stream.shareImgUrl || globalShareConfig?.shareImgUrl || '',
+    wxJsSdkEnabled: stream.wxJsSdkEnabled ?? globalShareConfig?.wxJsSdkEnabled ?? false,
+    wxAppId: stream.wxAppId || globalShareConfig?.wxAppId || '',
+    wxSignatureApi: stream.wxSignatureApi || globalShareConfig?.wxSignatureApi || '',
+  });
+
+  // ── 获取当前视频的导航配置（优先使用视频自身配置，否则回退到全局配置） ──
+  const getVideoNavConfig = (stream: typeof liveStreams[0]) => ({
+    enabled: stream.navEnabled ?? globalNavConfig?.enabled ?? false,
+    latitude: stream.navLatitude || globalNavConfig?.latitude || '0',
+    longitude: stream.navLongitude || globalNavConfig?.longitude || '0',
+    address: stream.navAddress || globalNavConfig?.address || '',
+    coordSystem: (stream.navCoordSystem || globalNavConfig?.coordSystem || 'wgs84') as CoordSystem,
+    displayDays: stream.navDisplayDays ?? 15,
+    createdAt: stream.navCreatedAt ?? 0,
+    baiduMap: stream.navBaiduMap ?? globalNavConfig?.baiduMap ?? true,
+    amapMap: stream.navAmapMap ?? globalNavConfig?.amapMap ?? true,
+    googleMap: stream.navGoogleMap ?? globalNavConfig?.googleMap ?? true,
+    appleMaps: stream.navAppleMaps ?? globalNavConfig?.appleMaps ?? true,
+    waze: stream.navWaze ?? globalNavConfig?.waze ?? true,
+  });
+
+  // ── 检查导航是否过期 ──
+  const isNavExpired = (stream: typeof liveStreams[0]): boolean => {
+    const navCfg = getVideoNavConfig(stream);
+    if (!navCfg.enabled) return true;
+    if (!navCfg.createdAt || navCfg.createdAt === 0) return false; // 没设置创建时间，永不过期
+    const expireMs = navCfg.displayDays * 24 * 60 * 60 * 1000;
+    return Date.now() > navCfg.createdAt + expireMs;
+  };
+
+  // ── 坐标转换辅助（基于当前视频的导航配置） ──
+  const getCoordForStream = (stream: typeof liveStreams[0], target: CoordSystem): [number, number] => {
+    const navCfg = getVideoNavConfig(stream);
+    const rawLat = parseFloat(navCfg.latitude);
+    const rawLng = parseFloat(navCfg.longitude);
+    return convertCoord(rawLng, rawLat, navCfg.coordSystem, target);
+  };
 
   // 从配置生成视频列表
   const videos = liveStreams.length > 0
@@ -35,11 +88,10 @@ export function VideoFeedPage({ onClose, startIndex = 0 }: VideoFeedPageProps) {
         viewers: "0",
       }));
 
-  // P1 fix: isMuted 初始为 true，移动端自动播放要求静音
+  // 移动端自动播放要求静音，首次用户交互后可取消静音
   const [currentIndex, setCurrentIndex] = useState(() => Math.min(startIndex, Math.max(0, (liveStreams.length > 0 ? liveStreams.length : 3) - 1)));
-  const [isMuted] = useState(true);
+  const [isMuted, setIsMuted] = useState(true);
   const [isPlaying, setIsPlaying] = useState(true);
-  const [likedVideos, setLikedVideos] = useState<Set<number>>(new Set());
   const [touchStart, setTouchStart] = useState(0);
   const [touchEnd, setTouchEnd] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
@@ -47,6 +99,12 @@ export function VideoFeedPage({ onClose, startIndex = 0 }: VideoFeedPageProps) {
   // P3 fix: removed showPlayIcon dead state
   const [loadingStates, setLoadingStates] = useState<Record<number, boolean>>({});
   const [errorStates, setErrorStates] = useState<Record<number, boolean>>({});
+
+  // 分享 & 导航状态
+  const [showNavSheet, setShowNavSheet] = useState(false);
+  const [navSheetAnim, setNavSheetAnim] = useState<'entering' | 'visible' | 'leaving'>('entering');
+  const [shareToast, setShareToast] = useState<string | null>(null);
+  const wxInitRef = useRef(false);
 
   // 过渡动画状态
   const [animPhase, setAnimPhase] = useState<'entering' | 'visible' | 'leaving'>('entering');
@@ -179,15 +237,6 @@ export function VideoFeedPage({ onClose, startIndex = 0 }: VideoFeedPageProps) {
     setTouchEnd(0);
   };
 
-  const toggleLike = (videoId: number) => {
-    setLikedVideos(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(videoId)) newSet.delete(videoId);
-      else newSet.add(videoId);
-      return newSet;
-    });
-  };
-
   const togglePlay = () => {
     const currentVideo = videoRefs.current[currentIndex];
     if (currentVideo) {
@@ -198,6 +247,151 @@ export function VideoFeedPage({ onClose, startIndex = 0 }: VideoFeedPageProps) {
       }
       setIsPlaying(!isPlaying);
     }
+  };
+
+  // ── 切换静音 — 用户首次点击后取消静音，跟随设备音量 ──
+  const toggleMute = () => {
+    setIsMuted(prev => !prev);
+  };
+
+  // ── 微信 JS-SDK 初始化（使用当前视频的分享配置） ──
+  useEffect(() => {
+    if (!liveStreams.length || wxInitRef.current || !isWeChatBrowser()) return;
+    const currentStream = liveStreams[currentIndex];
+    if (!currentStream) return;
+    const sc = getVideoShareConfig(currentStream);
+    if (!sc.wxJsSdkEnabled || !sc.wxSignatureApi) return;
+
+    wxInitRef.current = true;
+    const url = sc.shareUrl || window.location.origin;
+    const title = sc.shareTitle || "TaprootAgro";
+    const desc = sc.shareText || "";
+    const imgUrl = sc.shareImgUrl || "";
+
+    initWxSdk(sc.wxSignatureApi)
+      .then(() => {
+        setupWxShare({ title, desc, link: url, imgUrl });
+      })
+      .catch((err) => {
+        console.warn("[VideoFeed] 微信JS-SDK初始化失败:", err);
+      });
+  }, [currentIndex, liveStreams]);
+
+  // ── 分享功能（基于当前视频的配置） ──
+  const handleShare = async () => {
+    const currentStream = liveStreams[currentIndex];
+    if (!currentStream) return;
+    const sc = getVideoShareConfig(currentStream);
+
+    const url = sc.shareUrl || window.location.origin;
+    const title = sc.shareTitle || "TaprootAgro";
+    const text = sc.shareText || "";
+
+    if (isWeChatBrowser() && sc.wxJsSdkEnabled && sc.wxSignatureApi) {
+      setShareToast(v?.shareHint || "Tap ··· at top-right to share");
+      setTimeout(() => setShareToast(null), 3000);
+      return;
+    }
+
+    if (navigator.share) {
+      try {
+        await navigator.share({ title, text, url });
+      } catch (err) {
+        if ((err as DOMException).name !== "AbortError") {
+          fallbackCopy(url);
+        }
+      }
+    } else {
+      fallbackCopy(url);
+    }
+  };
+
+  const fallbackCopy = async (url: string) => {
+    try {
+      await navigator.clipboard.writeText(url);
+      setShareToast(v?.linkCopied || "Link copied");
+    } catch {
+      const input = document.createElement("input");
+      input.value = url;
+      document.body.appendChild(input);
+      input.select();
+      document.execCommand("copy");
+      document.body.removeChild(input);
+      setShareToast(v?.linkCopied || "Link copied");
+    }
+    setTimeout(() => setShareToast(null), 2000);
+  };
+
+  // ── 导航功能（基于当前视频的配置） ──
+  const openNavSheet = () => {
+    setShowNavSheet(true);
+    setNavSheetAnim('entering');
+    requestAnimationFrame(() => setNavSheetAnim('visible'));
+  };
+
+  const closeNavSheet = () => {
+    setNavSheetAnim('leaving');
+    setTimeout(() => setShowNavSheet(false), 200);
+  };
+
+  // 获取当前视频的导航地图选项
+  const getCurrentMapOptions = () => {
+    const currentStream = liveStreams[currentIndex];
+    if (!currentStream) return [];
+    const nc = getVideoNavConfig(currentStream);
+
+    const mapOptions = [
+      {
+        key: "baiduMap",
+        enabled: nc.baiduMap,
+        label: v?.baiduMaps || "Baidu Maps",
+        getUrl: () => {
+          const [bdLng, bdLat] = getCoordForStream(currentStream, "bd09");
+          const addr = encodeURIComponent(nc.address || "");
+          return `https://api.map.baidu.com/marker?location=${bdLat},${bdLng}&title=${addr}&content=${addr}&output=html&coord_type=bd09ll&src=webapp.taprootagro`;
+        },
+      },
+      {
+        key: "amapMap",
+        enabled: nc.amapMap,
+        label: v?.amapMaps || "Amap",
+        getUrl: () => {
+          const [gcjLng, gcjLat] = getCoordForStream(currentStream, "gcj02");
+          const addr = encodeURIComponent(nc.address || "");
+          return `https://uri.amap.com/marker?position=${gcjLng},${gcjLat}&name=${addr}&src=webapp.taprootagro&coordinate=gaode&callnative=1`;
+        },
+      },
+      {
+        key: "googleMap",
+        enabled: nc.googleMap,
+        label: "Google Maps",
+        getUrl: () => {
+          const [wLng, wLat] = getCoordForStream(currentStream, "wgs84");
+          return `https://www.google.com/maps/dir/?api=1&destination=${wLat},${wLng}`;
+        },
+      },
+      {
+        key: "appleMaps",
+        enabled: nc.appleMaps,
+        label: "Apple Maps",
+        getUrl: () => {
+          const [wLng, wLat] = getCoordForStream(currentStream, "wgs84");
+          const addr = encodeURIComponent(nc.address || "");
+          return `https://maps.apple.com/?daddr=${wLat},${wLng}&dirflg=d&t=m&q=${addr}`;
+        },
+      },
+      {
+        key: "waze",
+        enabled: nc.waze,
+        label: "Waze",
+        getUrl: () => {
+          const [wLng, wLat] = getCoordForStream(currentStream, "wgs84");
+          return `https://waze.com/ul?ll=${wLat},${wLng}&navigate=yes`;
+        },
+      },
+    ];
+
+    return mapOptions.filter((m) => m.enabled);
   };
 
   return (
@@ -227,6 +421,25 @@ export function VideoFeedPage({ onClose, startIndex = 0 }: VideoFeedPageProps) {
           const isCurrent = index === currentIndex;
           const isLoading = loadingStates[index];
           const hasError = errorStates[index];
+
+          // 获取当前视频的分享/导航配置
+          const currentStream = liveStreams[index];
+          const videoShareCfg = currentStream ? getVideoShareConfig(currentStream) : null;
+          const videoNavCfg = currentStream ? getVideoNavConfig(currentStream) : null;
+          const navExpired = currentStream ? isNavExpired(currentStream) : true;
+          const videoEnabledMaps = currentStream ? (() => {
+            const nc = getVideoNavConfig(currentStream);
+            const maps = [
+              { key: "baiduMap", enabled: nc.baiduMap },
+              { key: "amapMap", enabled: nc.amapMap },
+              { key: "googleMap", enabled: nc.googleMap },
+              { key: "appleMaps", enabled: nc.appleMaps },
+              { key: "waze", enabled: nc.waze },
+            ];
+            return maps.filter(m => m.enabled);
+          })() : [];
+          const showShareBtn = videoShareCfg?.enabled !== false;
+          const showNavBtn = videoNavCfg?.enabled && !navExpired && videoEnabledMaps.length > 0;
 
           return (
             <div
@@ -287,7 +500,7 @@ export function VideoFeedPage({ onClose, startIndex = 0 }: VideoFeedPageProps) {
                   {!isPlaying && isCurrent && !isLoading && !hasError && (
                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
                       <div className="w-20 h-20 bg-black/50 rounded-full flex items-center justify-center">
-                        <Play className="w-10 h-10 text-white ml-1" fill="white" />
+                        <Play className="w-10 h-10 text-white ms-1" fill="white" />
                       </div>
                     </div>
                   )}
@@ -305,43 +518,26 @@ export function VideoFeedPage({ onClose, startIndex = 0 }: VideoFeedPageProps) {
                         </div>
                       </div>
 
-                      {/* 右侧互动按钮 */}
+                      {/* 右侧互动按钮 - 基于每个视频独立配置 */}
                       <div className="flex flex-col items-center gap-4 pb-1 flex-shrink-0">
-                        <button
-                          onClick={() => toggleLike(video.id)}
-                          className="flex flex-col items-center gap-0.5 active:scale-95 transition-transform"
-                        >
-                          <div className="w-11 h-11 bg-white/30 rounded-full flex items-center justify-center border border-white/20">
-                            <Heart
-                              className={`w-5 h-5 transition-all ${
-                                likedVideos.has(video.id)
-                                  ? "text-red-500 fill-red-500 scale-110"
-                                  : "text-white"
-                              }`}
-                            />
-                          </div>
-                        </button>
-
-                        <button className="flex flex-col items-center gap-0.5 active:scale-95 transition-transform">
-                          <div className="w-11 h-11 bg-white/30 rounded-full flex items-center justify-center border border-white/20">
-                            <MessageCircle className="w-5 h-5 text-white" />
-                          </div>
-                        </button>
-
-                        <button className="flex flex-col items-center active:scale-95 transition-transform">
+                        {showShareBtn && (
+                        <button onClick={handleShare} className="flex flex-col items-center active:scale-95 transition-transform">
                           <div className="w-11 h-11 bg-white/30 rounded-full flex items-center justify-center border border-white/20">
                             <Share2 className="w-5 h-5 text-white" />
                           </div>
                         </button>
+                        )}
 
+                        {showNavBtn && (
                         <button
-                          onClick={() => alert(v?.navigationWip || '一键导航去大田（功能开发中）')}
+                          onClick={openNavSheet}
                           className="flex flex-col items-center active:scale-95 transition-transform"
                         >
                           <div className="w-11 h-11 bg-emerald-600/95 rounded-full flex items-center justify-center border border-emerald-400/30 shadow-lg">
                             <MapPin className="w-5 h-5 text-white" />
                           </div>
                         </button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -353,8 +549,21 @@ export function VideoFeedPage({ onClose, startIndex = 0 }: VideoFeedPageProps) {
         })}
       </div>
 
+      {/* 音量切换按钮 — 左上角，仅当前视频可见时显示 */}
+      <button
+        onClick={toggleMute}
+        className="absolute top-4 ltr:left-4 rtl:right-4 z-20 w-10 h-10 bg-black/40 rounded-full flex items-center justify-center active:scale-90 transition-transform border border-white/10"
+        style={{ top: 'calc(env(safe-area-inset-top, 0px) + 12px)' }}
+      >
+        {isMuted ? (
+          <VolumeX className="w-5 h-5 text-white/80" />
+        ) : (
+          <Volume2 className="w-5 h-5 text-white" />
+        )}
+      </button>
+
       {/* 进度指示器 */}
-      <div className="absolute right-2 top-1/2 -translate-y-1/2 flex flex-col gap-1.5 z-20">
+      <div className="absolute ltr:right-2 rtl:left-2 top-1/2 -translate-y-1/2 flex flex-col gap-1.5 z-20">
         {videos.map((_, index) => (
           <div
             key={index}
@@ -382,6 +591,86 @@ export function VideoFeedPage({ onClose, startIndex = 0 }: VideoFeedPageProps) {
           </button>
         </div>
       </div>
+
+      {/* ── 分享提示 Toast ── */}
+      {shareToast && (
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[60] bg-gray-800 text-white px-5 py-2.5 rounded-full text-sm flex items-center gap-2 shadow-xl animate-[fadeInUp_0.2s_ease-out]">
+          <Check className="w-4 h-4 text-emerald-400" />
+          {shareToast}
+        </div>
+      )}
+
+      {/* ── 导航选择 Action Sheet ── */}
+      {showNavSheet && (() => {
+        const enabledMaps = getCurrentMapOptions();
+        const currentStream = liveStreams[currentIndex];
+        const nc = currentStream ? getVideoNavConfig(currentStream) : null;
+        return (
+        <div
+          className="fixed inset-0 z-[60] flex items-end justify-center"
+          onClick={(e) => { if (e.target === e.currentTarget) closeNavSheet(); }}
+          style={{
+            backgroundColor: navSheetAnim === 'visible' ? 'rgba(0,0,0,0.5)' : 'rgba(0,0,0,0)',
+            transition: 'background-color 200ms ease-out',
+          }}
+        >
+          <div
+            className="w-full max-w-lg mx-2 mb-2 safe-bottom"
+            style={{
+              transform: navSheetAnim === 'visible' ? 'translateY(0)' : 'translateY(100%)',
+              opacity: navSheetAnim === 'leaving' ? 0 : 1,
+              transition: navSheetAnim === 'leaving'
+                ? 'transform 200ms ease-in, opacity 150ms ease-in'
+                : 'transform 300ms cubic-bezier(0.16, 1, 0.3, 1), opacity 200ms ease-out',
+            }}
+          >
+            <div className="bg-white rounded-2xl overflow-hidden shadow-xl">
+              <div className="px-4 pt-4 pb-2 text-center">
+                <div className="flex items-center justify-center gap-1.5 mb-1">
+                  <MapPin className="w-4 h-4 text-emerald-600" />
+                  <p className="text-gray-800 text-sm">{v?.chooseNavApp || "Choose Navigation App"}</p>
+                </div>
+                {nc?.address && (
+                  <p className="text-gray-400 text-xs truncate px-4">{nc.address}</p>
+                )}
+                <p className="text-gray-300 text-[10px] mt-1">
+                  {`Coord: ${(nc?.coordSystem || 'wgs84').toUpperCase()} (auto-converted)`}
+                </p>
+              </div>
+
+              {enabledMaps.map((map) => (
+                <button
+                  key={map.key}
+                  className="w-full flex items-center justify-center gap-3 py-4 active:bg-gray-50 transition-colors"
+                  style={{ boxShadow: '0 -1px 0 rgba(0,0,0,0.04)' }}
+                  onClick={() => {
+                    closeNavSheet();
+                    setTimeout(() => {
+                      window.open(map.getUrl(), '_blank', 'noopener');
+                    }, 220);
+                  }}
+                >
+                  <span className="text-emerald-600" style={{ fontSize: '17px' }}>
+                    {map.label}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            <div className="bg-white rounded-2xl overflow-hidden shadow-xl mt-2">
+              <button
+                className="w-full py-4 active:bg-gray-50 transition-colors"
+                onClick={closeNavSheet}
+              >
+                <span className="text-gray-600 font-medium" style={{ fontSize: '17px' }}>
+                  {t.common.cancel || "Cancel"}
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
+        );
+      })()}
     </div>
   );
 }

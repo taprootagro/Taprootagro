@@ -1,13 +1,13 @@
-import { compressImageFile, compressImageBase64, COMPRESS_PRESETS } from '../utils/imageCompressor';
-import { CameraOverlay } from './CameraOverlay';
+import { compressImageFile, COMPRESS_PRESETS } from '../utils/imageCompressor';
 import { SecondaryView } from "./SecondaryView";
 import { useLanguage } from "../hooks/useLanguage";
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Camera, Loader, X, ScanLine, RefreshCw, AlertTriangle, FolderOpen, Play, Sparkles, Copy, Check, ChevronDown, ChevronUp, Send, Mic, PenLine, Image as ImageIcon, Volume2, VolumeX } from "lucide-react";
+import { Camera, Loader, X, ScanLine, RefreshCw, AlertTriangle, FolderOpen, Play, Pause, Sparkles, Copy, Check, ChevronDown, ChevronUp, Send, Mic, PenLine, Image as ImageIcon, Volume2, VolumeX } from "lucide-react";
 import { TaprootAgroDetector, Detection } from "../utils/taprootAgroDetector";
 import { useHomeConfig } from "../hooks/useHomeConfig";
 import { cloudAIService, type DeepAnalysisResult } from "../services/CloudAIService";
 import { cloudAIGuard } from "../utils/cloudAIGuard";
+import { useKeyboardHeight } from "../hooks/useKeyboardHeight";
 
 interface AIAssistantPageProps {
   onClose: () => void;
@@ -19,43 +19,15 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
   const { t, isRTL } = useLanguage();
   const { config } = useHomeConfig();
   const a = t.ai;
+  const { isKeyboardOpen } = useKeyboardHeight();
 
   // Cloud-only mode: when cloud AI is enabled AND device is online, skip local model
   // Default / offline → local inference; cloud AI enabled + online → cloud-only
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const cloudOnlyMode = config.cloudAIConfig?.enabled === true && isOnline;
 
-  // CameraOverlay state
-  const [showCameraOverlay, setShowCameraOverlay] = useState(false);
-
-  // ===== 演示数据 =====
-  const DEMO_SAMPLES = [
-    {
-      name: a.tomatoLeaf,
-      image: 'https://images.unsplash.com/photo-1665815920359-c97294ac4e18?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx0b21hdG8lMjBsZWFmJTIwZGlzZWFzZSUyMGJsaWdodCUyMHNwb3RzfGVufDF8fHx8MTc3MjE3MDAyM3ww&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral',
-      detections: [
-        { className: a.tomatoEarlyBlight, score: 0.92, bbox: [0.08, 0.15, 0.55, 0.65] as [number, number, number, number] },
-        { className: a.leafSpot, score: 0.78, bbox: [0.50, 0.40, 0.88, 0.85] as [number, number, number, number] },
-      ],
-    },
-    {
-      name: a.cornField,
-      image: 'https://images.unsplash.com/photo-1723167006254-5a9e9b2600cd?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjb3JuJTIwY3JvcCUyMHJ1c3QlMjBkaXNlYXNlJTIwZmllbGR8ZW58MXx8fHwxNzcyMTcwMDIzfDA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral',
-      detections: [
-        { className: a.cornRust, score: 0.88, bbox: [0.12, 0.20, 0.58, 0.72] as [number, number, number, number] },
-        { className: a.graySpot, score: 0.71, bbox: [0.48, 0.10, 0.92, 0.55] as [number, number, number, number] },
-      ],
-    },
-    {
-      name: a.riceField,
-      image: 'https://images.unsplash.com/photo-1561504935-4e7d4516a2d1?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxyaWNlJTIwcGFkZHklMjBmaWVsZCUyMGNyb3AlMjBjbG9zZXVwfGVufDF8fHx8MTc3MjE3MDAyM3ww&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral',
-      detections: [
-        { className: a.riceBlast, score: 0.95, bbox: [0.15, 0.25, 0.65, 0.78] as [number, number, number, number] },
-        { className: a.sheathBlight, score: 0.82, bbox: [0.55, 0.35, 0.90, 0.90] as [number, number, number, number] },
-        { className: a.brownPlanthopper, score: 0.67, bbox: [0.05, 0.60, 0.30, 0.88] as [number, number, number, number] },
-      ],
-    },
-  ];
+  // 系统相机 input ref
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   const [image, setImage] = useState<string | null>(null);
   const [status, setStatus] = useState<Status>('idle');
@@ -64,8 +36,6 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
   const [results, setResults] = useState<Detection[]>([]);
   const [done, setDone] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
-  const [isDemo, setIsDemo] = useState(false);
-  const [demoDetections, setDemoDetections] = useState<Detection[]>([]);
 
   // Deep Analysis state
   const [deepAnalysisResult, setDeepAnalysisResult] = useState<DeepAnalysisResult | null>(null);
@@ -84,11 +54,26 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
   const isUnlimited = dailyUsage.limit >= 999;
 
   // Follow-up chat state
-  const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'ai'; text: string; image?: string }[]>([]);
+  const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'ai'; text: string; image?: string; voiceDuration?: number }[]>([]);
   const [chatInput, setChatInput] = useState('');
   const [chatReplying, setChatReplying] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Voice message playback state (for waveform animation)
+  const [playingVoiceIdx, setPlayingVoiceIdx] = useState<number | null>(null);
+  const voicePlayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const toggleVoicePlay = useCallback((idx: number, duration: number) => {
+    if (playingVoiceIdx === idx) {
+      setPlayingVoiceIdx(null);
+      if (voicePlayTimerRef.current) { clearTimeout(voicePlayTimerRef.current); voicePlayTimerRef.current = null; }
+    } else {
+      setPlayingVoiceIdx(idx);
+      if (voicePlayTimerRef.current) clearTimeout(voicePlayTimerRef.current);
+      voicePlayTimerRef.current = setTimeout(() => setPlayingVoiceIdx(null), duration * 1000);
+    }
+  }, [playingVoiceIdx]);
 
   // Input mode: default voice, user can switch to text via pen icon
   const [inputMode, setInputMode] = useState<'voice' | 'text'>('voice');
@@ -97,12 +82,16 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
   const [isVoiceRecording, setIsVoiceRecording] = useState(false);
   const [voiceTime, setVoiceTime] = useState(0);
   const voiceTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Refs mirror state for touch handlers (avoid stale closures)
+  const isVoiceRecordingRef = useRef(false);
+  const voiceTimeRef = useRef(0);
 
   // MediaRecorder for real audio capture
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const voiceCancelledRef = useRef(false);
+  const lastVoiceDurationRef = useRef(0); // 录音结束前快照时长，供 onstop 异步回调读取
 
   // TTS auto-read state (default ON)
   const [ttsEnabled, setTtsEnabled] = useState(true);
@@ -174,8 +163,8 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
 
   // Camera menu state (for chat bar)
   const [showCamMenu, setShowCamMenu] = useState(false);
-  const [chatCameraMode, setChatCameraMode] = useState(false);
   const chatFileRef = useRef<HTMLInputElement>(null);
+  const chatCameraRef = useRef<HTMLInputElement>(null);
 
   // Refresh guard state
   const refreshGuardState = useCallback(() => {
@@ -225,7 +214,6 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
   }, []);
 
   const fileRef = useRef<HTMLInputElement>(null);
-  const cameraRef = useRef<HTMLInputElement>(null);
   const detectorRef = useRef<TaprootAgroDetector | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const pendingDrawRef = useRef<{ img: HTMLImageElement; dets: Detection[] } | null>(null);
@@ -276,17 +264,17 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
       await detector.loadModel();
       detectorRef.current = detector;
       setStatus('ready');
-      setIsDemo(false);
     } catch (err: any) {
       const msg = err?.message || String(err);
       console.log('🔍 Model load error:', msg);
-      if (msg.includes('MODEL_NOT_FOUND') || msg.includes('404') || msg.includes('no such file') || msg.includes('Could not fetch') || msg.includes('Failed to fetch')) {
-        setStatus('no-model');
+      // 如果云AI已启用，即使本地模型缺失也直接进入云端模式
+      if (config.cloudAIConfig?.enabled) {
+        setStatus('cloud-only');
       } else {
         setStatus('no-model');
       }
     }
-  }, [config.aiModelConfig]);
+  }, [config.aiModelConfig, config.cloudAIConfig?.enabled]);
 
   // Initialize: load model based on mode (only runs once on mount)
   useEffect(() => {
@@ -312,19 +300,26 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
     }
   }, [image, cloudOnlyMode]);
 
-  // CameraOverlay 拍照回调 — 接收 base64，压缩后设置为图片
-  const onCameraCapture = async (base64: string) => {
-    setShowCameraOverlay(false);
+  // 系统相机拍照回调 — 复用 onFile 逻辑
+  const onCameraFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
     try {
-      const compressed = await compressImageBase64(base64, COMPRESS_PRESETS.ai);
+      const compressed = await compressImageFile(f, COMPRESS_PRESETS.ai);
       setImage(compressed);
       setResults([]);
       setDone(false);
     } catch {
-      setImage(base64);
-      setResults([]);
-      setDone(false);
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        setImage(ev.target?.result as string);
+        setResults([]);
+        setDone(false);
+      };
+      reader.readAsDataURL(f);
     }
+    // 重置 input，允许连续拍同一张
+    if (cameraInputRef.current) cameraInputRef.current.value = '';
   };
 
   // 选图 — 压缩后再 setState，AI 预设保留足够清晰度识别病虫害
@@ -348,15 +343,22 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
     }
   };
 
-  // ===== 对话中追加图片（给AI看补充照片） =====
-  const onChatCameraCapture = async (base64: string) => {
-    setShowCameraOverlay(false);
+  // ===== 对话中系统相机拍照 → 追加图片给AI =====
+  const onChatCameraFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
     setShowCamMenu(false);
-    setChatCameraMode(false);
-    let imgSrc = base64;
+    let imgSrc: string;
     try {
-      imgSrc = await compressImageBase64(base64, COMPRESS_PRESETS.ai);
-    } catch { /* fallback 原图 */ }
+      imgSrc = await compressImageFile(f, COMPRESS_PRESETS.ai);
+    } catch {
+      imgSrc = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (ev) => resolve(ev.target?.result as string);
+        reader.readAsDataURL(f);
+      });
+    }
+    if (chatCameraRef.current) chatCameraRef.current.value = '';
     // 作为用户消息发送图片
     setChatMessages(prev => [...prev, { role: 'user', text: '', image: imgSrc }]);
     // 自动发给AI进行追问
@@ -506,27 +508,6 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
     }
   };
 
-  // 演示识别
-  const handleDemoDetect = async (sample: typeof DEMO_SAMPLES[0]) => {
-    setImage(sample.image);
-    setDetecting(true);
-    setResults([]);
-    setDone(false);
-    setDemoDetections(sample.detections);
-
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.src = sample.image;
-    await new Promise<void>((res) => { img.onload = () => res(); img.onerror = () => res(); });
-
-    await new Promise(r => setTimeout(r, 1200 + Math.random() * 800));
-
-    pendingDrawRef.current = { img, dets: sample.detections };
-    setResults(sample.detections);
-    setDone(true);
-    setDetecting(false);
-  };
-
   // 画检测框
   const drawBoxes = (img: HTMLImageElement, dets: Detection[]) => {
     const canvas = canvasRef.current;
@@ -577,7 +558,6 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
     setImage(null);
     setResults([]);
     setDone(false);
-    setDemoDetections([]);
     setDeepAnalysisResult(null);
     setDeepAnalyzing(false);
     setDeepError('');
@@ -586,13 +566,14 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
     setChatMessages([]);
     setChatInput('');
     setChatReplying(false);
+    setPlayingVoiceIdx(null);
+    if (voicePlayTimerRef.current) { clearTimeout(voicePlayTimerRef.current); voicePlayTimerRef.current = null; }
+    // 重置录音 refs
+    isVoiceRecordingRef.current = false;
+    voiceTimeRef.current = 0;
+    if (voiceTimerRef.current) { clearInterval(voiceTimerRef.current); voiceTimerRef.current = null; }
     if (fileRef.current) fileRef.current.value = '';
-    if (cameraRef.current) cameraRef.current.value = '';
-  };
-
-  const enterDemo = () => {
-    setIsDemo(true);
-    setStatus('ready');
+    if (cameraInputRef.current) cameraInputRef.current.value = '';
   };
 
   useEffect(() => {
@@ -721,7 +702,7 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
     setChatInput('');
     // Reset textarea height
     if (chatInputRef.current) {
-      chatInputRef.current.style.height = '40px';
+      chatInputRef.current.style.height = '48px';
     }
     
     // Check if this is local AI result (pure local or network fallback)
@@ -793,6 +774,9 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
       recorder.start(250); // collect chunks every 250ms
     } catch (err) {
       console.error('[Voice] Microphone access denied:', err);
+      // 重置所有录音状态（state + refs 同步）
+      isVoiceRecordingRef.current = false;
+      voiceTimeRef.current = 0;
       setIsVoiceRecording(false);
       if (voiceTimerRef.current) { clearInterval(voiceTimerRef.current); voiceTimerRef.current = null; }
       setVoiceTime(0);
@@ -822,9 +806,8 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
   const handleVoiceSendReal = async (audioBlob: Blob) => {
     if (!deepAnalysisResult || chatReplying || deepAnalyzing) return;
 
-    const durationSec = voiceTime || 1;
-    const voiceText = `🎤 ${a.voiceMsg} (${durationSec}s)`;
-    setChatMessages(prev => [...prev, { role: 'user', text: voiceText }]);
+    const durationSec = lastVoiceDurationRef.current || 1; // 从 ref 快照读取，避免 state 已被重置为 0
+    setChatMessages(prev => [...prev, { role: 'user', text: '', voiceDuration: durationSec }]);
     
     // Check if this is local AI result (pure local or network fallback)
     if (isLocalAIResult) {
@@ -863,6 +846,15 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
     }
   }, [chatMessages, chatReplying]);
 
+  // 键盘弹出时也滚动到底部，确保输入框可见
+  useEffect(() => {
+    if (isKeyboardOpen && chatEndRef.current) {
+      setTimeout(() => {
+        chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+    }
+  }, [isKeyboardOpen]);
+
   // Auto-read latest AI reply via TTS
   const lastSpokenIndexRef = useRef(-1);
   useEffect(() => {
@@ -884,6 +876,55 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
   // Check if action should be blocked — limits removed, always allow
   const isBlocked = useCallback(() => {
     return false;
+  }, []);
+
+  // ── 语音录制辅助函数（Touch + Mouse 共用）──
+  const handleVoiceRecordStart = useCallback(() => {
+    if (isVoiceRecordingRef.current) return;
+    stopTTS();
+    isVoiceRecordingRef.current = true;
+    voiceTimeRef.current = 0;
+    setIsVoiceRecording(true);
+    setVoiceTime(0);
+    startRealRecording();
+    voiceTimerRef.current = setInterval(() => {
+      voiceTimeRef.current += 1;
+      const t = voiceTimeRef.current;
+      setVoiceTime(t);
+      if (t >= 59) {
+        lastVoiceDurationRef.current = t;
+        isVoiceRecordingRef.current = false;
+        setIsVoiceRecording(false);
+        if (voiceTimerRef.current) { clearInterval(voiceTimerRef.current); voiceTimerRef.current = null; }
+        stopRealRecording(false);
+      }
+    }, 1000);
+  }, [stopTTS]);
+
+  const handleVoiceRecordEnd = useCallback(() => {
+    if (!isVoiceRecordingRef.current) return;
+    const duration = voiceTimeRef.current;
+    lastVoiceDurationRef.current = duration;
+    isVoiceRecordingRef.current = false;
+    setIsVoiceRecording(false);
+    if (voiceTimerRef.current) { clearInterval(voiceTimerRef.current); voiceTimerRef.current = null; }
+    if (duration >= 1) {
+      stopRealRecording(false);
+    } else {
+      stopRealRecording(true);
+    }
+    voiceTimeRef.current = 0;
+    setVoiceTime(0);
+  }, []);
+
+  const handleVoiceRecordCancel = useCallback(() => {
+    if (!isVoiceRecordingRef.current) return;
+    isVoiceRecordingRef.current = false;
+    setIsVoiceRecording(false);
+    if (voiceTimerRef.current) { clearInterval(voiceTimerRef.current); voiceTimerRef.current = null; }
+    stopRealRecording(true);
+    voiceTimeRef.current = 0;
+    setVoiceTime(0);
   }, []);
 
   // Close camera menu on outside click
@@ -914,13 +955,13 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
       // List items
       if (line.startsWith('- **')) {
         const match = line.match(/^- \*\*(.+?)\*\*[：:](.*)$/);
-        if (match) return <p key={i} className="text-xs text-gray-600 ml-3 my-0.5"><span className="text-gray-800">{match[1]}</span>：{match[2]}</p>;
+        if (match) return <p key={i} className="text-xs text-gray-600 ms-3 my-0.5"><span className="text-gray-800">{match[1]}</span>：{match[2]}</p>;
       }
-      if (line.startsWith('- ')) return <p key={i} className="text-xs text-gray-600 ml-3 my-0.5">{line.slice(2)}</p>;
+      if (line.startsWith('- ')) return <p key={i} className="text-xs text-gray-600 ms-3 my-0.5">{line.slice(2)}</p>;
       // Numbered items
       if (/^\d+\.\s\*\*/.test(line)) {
         const match = line.match(/^(\d+)\.\s\*\*(.+?)\*\*[：:](.*)$/);
-        if (match) return <p key={i} className="text-xs text-gray-600 ml-3 my-0.5"><span className="text-emerald-700">{match[1]}.</span> <span className="text-gray-800">{match[2]}</span>：{match[3]}</p>;
+        if (match) return <p key={i} className="text-xs text-gray-600 ms-3 my-0.5"><span className="text-emerald-700">{match[1]}.</span> <span className="text-gray-800">{match[2]}</span>：{match[3]}</p>;
       }
       // Bold text
       if (line.includes('**')) {
@@ -938,9 +979,9 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
 
   // ===== 底部操作栏 — 通过 footer 插槽固定在叉号上方 =====
   const bottomBar = image ? (
-    <div className="bg-white px-4 pt-3 pb-2 space-y-2 shadow-[0_-4px_16px_rgba(0,0,0,0.08)]">
+    <div className="bg-white px-3 pt-3 pb-3 space-y-2 shadow-[0_-4px_16px_rgba(0,0,0,0.08)]">
       {/* 识别按钮 — 本地模式，未开始 */}
-      {!done && !detecting && !isDemo && !cloudOnlyMode && (
+      {!done && !detecting && !cloudOnlyMode && (
         <button
           onClick={handleDetect}
           className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white py-3.5 rounded-2xl active:scale-[0.97] transition-transform shadow-lg shadow-emerald-200/50"
@@ -971,77 +1012,45 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
 
       {/* ═══ 聊天栏：默认语音模式，点笔切文字 ═══ */}
       {(deepAnalysisResult || (cloudOnlyMode && image)) && (
-        <div className="flex items-end gap-2">
+        <div className="flex items-center gap-2">
           {/* 左侧切换按钮：语音模式显示笔(切文字)，文字模式显示麦克风(切语音) */}
           <button
             onClick={() => setInputMode(inputMode === 'voice' ? 'text' : 'voice')}
-            className="w-10 h-10 flex items-center justify-center text-gray-500 active:scale-90 transition-all flex-shrink-0"
+            className="w-11 h-11 flex items-center justify-center bg-emerald-50 text-emerald-600 rounded-full active:scale-90 transition-all flex-shrink-0"
           >
-            {inputMode === 'voice' ? <PenLine className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+            {inputMode === 'voice' ? <PenLine className="w-[18px] h-[18px]" /> : <Mic className="w-[18px] h-[18px]" />}
           </button>
 
           {/* ── 语音模式：按住说话按钮 ── */}
           {inputMode === 'voice' && (
             <div
               className="flex-1 min-w-0 select-none"
-              style={{ height: '40px' }}
+              style={{ height: '44px' }}
               onTouchStart={(e) => {
-                if (isVoiceRecording) return;
                 const touch = e.touches[0];
-                const startY = touch?.clientY || 0;
-                (e.currentTarget as any).__startY = startY;
-                // 直接开始录音 + 启动 MediaRecorder
-                setIsVoiceRecording(true);
-                setVoiceTime(0);
-                startRealRecording();
-                voiceTimerRef.current = setInterval(() => setVoiceTime(prev => {
-                  if (prev >= 59) {
-                    setIsVoiceRecording(false);
-                    if (voiceTimerRef.current) { clearInterval(voiceTimerRef.current); voiceTimerRef.current = null; }
-                    stopRealRecording(false); // triggers onstop → handleVoiceSendReal
-                    return 0;
-                  }
-                  return prev + 1;
-                }), 1000);
+                (e.currentTarget as any).__startY = touch?.clientY || 0;
+                handleVoiceRecordStart();
               }}
               onTouchMove={(e) => {
                 const touch = e.touches[0];
                 const startY = (e.currentTarget as any).__startY || 0;
-                if (isVoiceRecording && (touch?.clientY || 0) < startY - 80) {
-                  setIsVoiceRecording(false);
-                  if (voiceTimerRef.current) { clearInterval(voiceTimerRef.current); voiceTimerRef.current = null; }
-                  stopRealRecording(true); // cancel — discard audio
-                  setVoiceTime(0);
+                if (isVoiceRecordingRef.current && (touch?.clientY || 0) < startY - 80) {
+                  handleVoiceRecordCancel();
                 }
               }}
-              onTouchEnd={() => {
-                if (isVoiceRecording) {
-                  setIsVoiceRecording(false);
-                  if (voiceTimerRef.current) { clearInterval(voiceTimerRef.current); voiceTimerRef.current = null; }
-                  if (voiceTime >= 1) {
-                    stopRealRecording(false); // triggers onstop → handleVoiceSendReal
-                  } else {
-                    stopRealRecording(true); // too short, cancel
-                  }
-                  setVoiceTime(0);
-                }
-              }}
-              onTouchCancel={() => {
-                if (isVoiceRecording) {
-                  setIsVoiceRecording(false);
-                  if (voiceTimerRef.current) { clearInterval(voiceTimerRef.current); voiceTimerRef.current = null; }
-                  stopRealRecording(true); // cancel
-                  setVoiceTime(0);
-                }
-              }}
+              onTouchEnd={() => handleVoiceRecordEnd()}
+              onTouchCancel={() => handleVoiceRecordCancel()}
+              onMouseDown={() => handleVoiceRecordStart()}
+              onMouseUp={() => handleVoiceRecordEnd()}
+              onMouseLeave={() => { if (isVoiceRecordingRef.current) handleVoiceRecordCancel(); }}
             >
               {!isVoiceRecording ? (
-                <div className="bg-gray-100 rounded-2xl text-center text-sm text-gray-500 active:bg-emerald-500 active:text-white transition-colors select-none flex items-center justify-center" style={{ height: '40px' }}>
-                  <Mic className="w-4 h-4 inline-block mr-1.5 -mt-0.5" />
-                  {a.holdToSpeak}
+                <div className="bg-emerald-50 rounded-full text-center text-emerald-600 active:bg-emerald-500 active:text-white transition-colors select-none flex items-center justify-center shadow-sm" style={{ height: '44px', fontSize: 'clamp(12px, 3.2vw, 14px)' }}>
+                  <Mic className="w-4 h-4 inline-block me-1.5 flex-shrink-0" />
+                  <span className="truncate">{a.holdToSpeak}</span>
                 </div>
               ) : (
-                <div className="bg-emerald-500 rounded-2xl px-4 flex items-center gap-2.5" style={{ height: '40px' }}>
+                <div className="bg-emerald-500 rounded-full px-3 flex items-center gap-2" style={{ height: '44px' }}>
                   <div className="flex-1 min-w-0 flex items-center gap-2">
                     <div className="flex items-end gap-[2px] h-4">
                       {[1,2,3,4,5,6].map(i => (
@@ -1062,16 +1071,16 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
 
           {/* ── 文字模式：输入框 + 内嵌发送按钮 ── */}
           {inputMode === 'text' && (
-            <div className="flex-1 min-w-0 relative" style={{ height: '40px' }}>
+            <div className="flex-1 min-w-0 relative" style={{ minHeight: '44px' }}>
               <textarea
                 ref={chatInputRef}
                 value={chatInput}
                 onChange={(e) => {
                   setChatInput(e.target.value);
                   // Auto-resize: always reset to min height first
-                  e.target.style.height = '40px';
+                  e.target.style.height = '44px';
                   // If content needs more space, expand (but only if not empty)
-                  if (e.target.value && e.target.scrollHeight > 40) {
+                  if (e.target.value && e.target.scrollHeight > 44) {
                     e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
                   }
                 }}
@@ -1084,17 +1093,17 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
                 placeholder={a.chatPlaceholder || '输入消息...'}
                 disabled={chatReplying || deepAnalyzing || !deepAnalysisResult || (!isUnlimited && dailyUsage.used >= dailyUsage.limit)}
                 rows={1}
-                className={`w-full bg-gray-100 rounded-2xl text-sm text-gray-700 placeholder-gray-400 outline-none focus:ring-2 focus:ring-emerald-300 disabled:opacity-50 transition-all resize-none ${isRTL ? 'pr-12 pl-4' : 'pl-4 pr-12'}`}
-                style={{ height: '40px', minHeight: '40px', maxHeight: '120px', paddingTop: '11px', paddingBottom: '11px', lineHeight: '18px', boxSizing: 'border-box' }}
+                className={`w-full bg-emerald-50 rounded-full text-gray-700 placeholder-emerald-400 outline-none focus:ring-2 focus:ring-emerald-300 disabled:opacity-50 transition-all resize-none shadow-sm ${isRTL ? 'pr-11 pl-4' : 'pl-4 pr-11'}`}
+                style={{ height: '44px', minHeight: '44px', maxHeight: '120px', paddingTop: '12px', paddingBottom: '12px', lineHeight: '20px', boxSizing: 'border-box', fontSize: 'clamp(13px, 3.5vw, 15px)' }}
               />
               {/* 发送按钮 — 仅文字模式有内容时显示，在输入框内部 */}
               {chatInput.trim() && (
                 <button
                   onClick={handleChatSend}
                   disabled={chatReplying || deepAnalyzing || !deepAnalysisResult || (!isUnlimited && dailyUsage.used >= dailyUsage.limit)}
-                  className={`absolute bottom-2 w-8 h-8 flex items-center justify-center active:scale-90 transition-all disabled:opacity-40 disabled:active:scale-100 ${isRTL ? 'left-1.5' : 'right-1.5'}`}
+                  className={`absolute bottom-1.5 w-8 h-8 flex items-center justify-center active:scale-90 transition-all disabled:opacity-40 disabled:active:scale-100 ${isRTL ? 'left-1.5' : 'right-1.5'}`}
                 >
-                  <Send className="w-[18px] h-[18px] text-emerald-600" strokeWidth={2.5} />
+                  <Send className="w-5 h-5 text-emerald-600" strokeWidth={2.5} />
                 </button>
               )}
             </div>
@@ -1103,14 +1112,14 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
           <div className="relative flex-shrink-0 cam-menu-container">
             <button
               onClick={() => setShowCamMenu(!showCamMenu)}
-              className="w-10 h-10 flex items-center justify-center bg-emerald-50 text-emerald-600 rounded-full active:scale-90 transition-all shadow-sm"
+              className="w-11 h-11 flex items-center justify-center bg-emerald-50 text-emerald-600 rounded-full active:scale-90 transition-all flex-shrink-0 shadow-sm"
             >
               <Camera className="w-5 h-5" />
             </button>
             {showCamMenu && (
               <div className={`absolute bottom-full mb-2 bg-white rounded-2xl shadow-2xl py-2 z-20 w-40 overflow-hidden ${isRTL ? 'left-0' : 'right-0'}`}>
                 <button
-                  onClick={() => { setShowCamMenu(false); setShowCameraOverlay(true); setChatCameraMode(true); }}
+                  onClick={() => { setShowCamMenu(false); chatCameraRef.current?.click(); }}
                   className="w-full px-4 py-3 flex items-center gap-3 active:bg-gray-50 transition-colors"
                 >
                   <Camera className="w-4 h-4 text-emerald-600" />
@@ -1126,6 +1135,7 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
                 </button>
               </div>
             )}
+            <input ref={chatCameraRef} type="file" accept="image/*" capture="environment" onChange={onChatCameraFile} className="hidden" />
             <input ref={chatFileRef} type="file" accept="image/*" onChange={onChatFile} className="hidden" />
           </div>
         </div>
@@ -1176,25 +1186,18 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
               <div className="flex items-center gap-2 mb-1 min-w-0">
                 <Loader className="w-3.5 h-3.5 text-emerald-600 animate-spin flex-shrink-0" />
                 <span className="text-xs text-emerald-700 font-medium truncate min-w-0">{a.loadingModel}</span>
-                <span className="text-[10px] text-emerald-500 ml-auto flex-shrink-0">{progress}%</span>
+                <span className="text-[10px] text-emerald-500 ms-auto flex-shrink-0">{progress}%</span>
               </div>
               <div className="w-full bg-emerald-200 rounded-full h-1">
                 <div className="bg-emerald-600 h-1 rounded-full transition-all" style={{ width: `${progress}%` }} />
               </div>
             </div>
           )}
-          {status === 'ready' && !isDemo && (
+          {status === 'ready' && (
             <div className="flex items-center gap-2 bg-emerald-50 rounded-xl px-3 py-2 min-w-0 shadow-sm">
               <div className="w-2 h-2 bg-emerald-500 rounded-full flex-shrink-0" />
               <span className="text-xs text-emerald-700 font-medium truncate min-w-0">{a.modelReady}</span>
-              <span className="text-[10px] text-emerald-500 ml-auto flex-shrink-0 whitespace-nowrap">{detectorRef.current?.getLabels().length || 0} {a.classes}</span>
-            </div>
-          )}
-          {status === 'ready' && isDemo && (
-            <div className="flex items-center gap-2 bg-amber-50 rounded-xl px-3 py-2 min-w-0 shadow-sm">
-              <Play className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
-              <span className="text-xs text-amber-700 font-medium truncate min-w-0">{a.demoMode}</span>
-              <span className="text-[10px] text-amber-500 ml-auto flex-shrink-0 whitespace-nowrap">{a.simulatedResults}</span>
+              <span className="text-[10px] text-emerald-500 ms-auto flex-shrink-0 whitespace-nowrap">{detectorRef.current?.getLabels().length || 0} {a.classes}</span>
             </div>
           )}
           {status === 'error' && (
@@ -1252,11 +1255,8 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
               </div>
 
               <div className="space-y-2">
-                <button onClick={enterDemo} className="w-full py-3 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-xl font-medium active:scale-[0.97] transition-transform flex items-center justify-center gap-2 px-4">
-                  <Play className="w-4 h-4 flex-shrink-0" /><span className="truncate">{a.enterDemo}</span>
-                </button>
-                <button onClick={loadModel} className="w-full py-3 bg-white border border-gray-200 text-gray-600 rounded-xl font-medium active:scale-[0.97] transition-transform text-sm px-4 truncate shadow-sm">
-                  {a.redetectModel}
+                <button onClick={loadModel} className="w-full py-3 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white rounded-xl font-medium active:scale-[0.97] transition-transform flex items-center justify-center gap-2 px-4">
+                  <RefreshCw className="w-4 h-4 flex-shrink-0" /><span className="truncate">{a.redetectModel}</span>
                 </button>
               </div>
             </div>
@@ -1274,49 +1274,22 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
                   <p className="text-xs text-gray-500">{a.photoDetectDesc}</p>
                 </div>
 
-                {!isDemo && (
-                  <div className="w-full max-w-xs space-y-3">
-                    <button
-                      onClick={() => setShowCameraOverlay(true)}
-                      className="w-full flex items-center justify-center gap-2 bg-emerald-600 text-white py-3.5 rounded-2xl active:scale-[0.97] transition-transform shadow-lg shadow-emerald-200/60"
-                    >
-                      <Camera className="w-5 h-5" /><span className="font-medium">{a.takePhoto}</span>
-                    </button>
-                    <button
-                      onClick={() => fileRef.current?.click()}
-                      className="w-full flex items-center justify-center gap-2 bg-white text-emerald-700 py-3.5 rounded-2xl active:scale-[0.97] transition-transform shadow-lg shadow-gray-200/60"
-                    >
-                      <ImageIcon className="w-5 h-5" /><span className="font-medium">{t.camera.chooseFromAlbum}</span>
-                    </button>
-                    <input ref={fileRef} type="file" accept="image/*" onChange={onFile} className="hidden" />
-                  </div>
-                )}
-
-                {/* 演示样本 */}
-                {isDemo && (
-                  <div className="space-y-2.5">
-                    <p className="text-xs text-gray-500 font-medium">{a.selectSample}</p>
-                    {DEMO_SAMPLES.map((sample, i) => (
-                      <button
-                        key={i}
-                        onClick={() => handleDemoDetect(sample)}
-                        disabled={detecting}
-                        className="w-full bg-white rounded-xl shadow overflow-hidden flex items-center active:scale-[0.98] transition-transform disabled:opacity-50"
-                      >
-                        <img src={sample.image} alt={sample.name} className="w-20 h-20 object-cover flex-shrink-0" />
-                        <div className={`flex-1 px-3 min-w-0 overflow-hidden ${isRTL ? 'text-right' : 'text-left'}`}>
-                          <p className="text-sm font-bold text-gray-800 truncate">{sample.name}</p>
-                          <p className="text-[11px] text-gray-400 mt-0.5 truncate">{sample.detections.length} {a.targets}</p>
-                          <div className="flex flex-wrap gap-1 mt-1 overflow-hidden max-h-[36px]">
-                            {sample.detections.map((d, j) => (
-                              <span key={j} className="text-[10px] bg-emerald-50 text-emerald-600 px-1.5 py-0.5 rounded truncate max-w-[120px]">{d.className}</span>
-                            ))}
-                          </div>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
+                <div className="w-full max-w-xs space-y-3">
+                  <button
+                    onClick={() => cameraInputRef.current?.click()}
+                    className="w-full flex items-center justify-center gap-2 bg-emerald-600 text-white py-3.5 rounded-2xl active:scale-[0.97] transition-transform shadow-lg shadow-emerald-200/60"
+                  >
+                    <Camera className="w-5 h-5" /><span className="font-medium">{a.takePhoto}</span>
+                  </button>
+                  <button
+                    onClick={() => fileRef.current?.click()}
+                    className="w-full flex items-center justify-center gap-2 bg-white text-emerald-700 py-3.5 rounded-2xl active:scale-[0.97] transition-transform shadow-lg shadow-gray-200/60"
+                  >
+                    <ImageIcon className="w-5 h-5" /><span className="font-medium">{t.camera.chooseFromAlbum}</span>
+                  </button>
+                  <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={onCameraFile} className="hidden" />
+                  <input ref={fileRef} type="file" accept="image/*" onChange={onFile} className="hidden" />
+                </div>
               </div>
             ) : (
               /* 检测结果区域 */
@@ -1365,7 +1338,7 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
                       </div>
                     )}
 
-                    {/* AI分析结果 — 与普通AI消息统一风格 */}
+                    {/* AI分��结果 — 与普通AI消息统一风格 */}
                     {deepAnalysisResult && (
                       <div className="flex justify-start">
                         <div 
@@ -1378,7 +1351,10 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
                     )}
 
                     {/* 追问对话消息 */}
-                    {chatMessages.map((msg, idx) => (
+                    {chatMessages.map((msg, idx) => {
+                      const isVoice = !!msg.voiceDuration;
+                      const isPlaying = playingVoiceIdx === idx;
+                      return (
                       <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                         <div 
                           className={`max-w-[85%] rounded-2xl px-3 py-2 ${
@@ -1391,14 +1367,40 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
                           {msg.image && (
                             <img src={msg.image} alt="" className="w-36 h-36 object-cover rounded-xl mb-1" />
                           )}
-                          {msg.role === 'ai' ? (
+                          {isVoice ? (
+                            <button
+                              className="flex items-center gap-2 min-w-[80px] w-full"
+                              onClick={(e) => { e.stopPropagation(); toggleVoicePlay(idx, msg.voiceDuration!); }}
+                            >
+                              {isPlaying
+                                ? <Pause className="w-3.5 h-3.5 flex-shrink-0" />
+                                : <Play className="w-3.5 h-3.5 flex-shrink-0" fill="currentColor" />
+                              }
+                              <div className="flex items-end gap-[2px] h-4">
+                                {[1.5, 3, 2, 3.5, 1.5, 3, 2].map((h, i) => (
+                                  <div
+                                    key={i}
+                                    className={`w-[3px] rounded-full ${msg.role === 'user' ? 'bg-white/80' : 'bg-gray-500'}`}
+                                    style={isPlaying ? {
+                                      height: `${h * 4}px`,
+                                      animation: `voiceWave 0.4s ease-in-out ${i * 0.07}s infinite alternate`,
+                                    } : {
+                                      height: `${h * 4}px`,
+                                    }}
+                                  />
+                                ))}
+                              </div>
+                              <span className="text-[10px] font-semibold flex-shrink-0">{msg.voiceDuration}"</span>
+                            </button>
+                          ) : msg.role === 'ai' ? (
                             <div className="leading-relaxed" style={{ fontSize: 'clamp(13px, 3.5vw, 15px)' }}>{renderMarkdown(msg.text)}</div>
                           ) : msg.text ? (
                             <p className="leading-relaxed" style={{ fontSize: 'clamp(13px, 3.5vw, 15px)' }}>{msg.text}</p>
                           ) : null}
                         </div>
                       </div>
-                    ))}
+                      );
+                    })}
                     {chatReplying && (
                       <div className="flex justify-start">
                         <div className={`bg-gray-100 rounded-2xl ${isRTL ? 'rounded-br-md' : 'rounded-bl-md'} px-3 py-2 flex items-center gap-1.5`}>
@@ -1457,9 +1459,7 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
                         </div>
                       );
                     })}
-                    {isDemo && (
-                      <p className="text-[10px] text-center text-amber-500 pt-1">{a.demoNote}</p>
-                    )}
+
                   </div>
                 )}
 
@@ -1546,7 +1546,10 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
                         {/* Follow-up chat messages */}
                         {chatMessages.length > 0 && (
                           <div className="px-4 py-2 border-t border-gray-100 space-y-2 max-h-[300px] overflow-y-auto">
-                            {chatMessages.map((msg, idx) => (
+                            {chatMessages.map((msg, idx) => {
+                              const isVoice = !!msg.voiceDuration;
+                              const isPlaying = playingVoiceIdx === idx;
+                              return (
                               <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                                 <div 
                                   className={`max-w-[85%] rounded-2xl px-3 py-2 ${
@@ -1559,14 +1562,40 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
                                   {msg.image && (
                                     <img src={msg.image} alt="" className="w-36 h-36 object-cover rounded-xl mb-1" />
                                   )}
-                                  {msg.role === 'ai' ? (
+                                  {isVoice ? (
+                                    <button
+                                      className="flex items-center gap-2 min-w-[80px] w-full"
+                                      onClick={(e) => { e.stopPropagation(); toggleVoicePlay(idx, msg.voiceDuration!); }}
+                                    >
+                                      {isPlaying
+                                        ? <Pause className="w-3.5 h-3.5 flex-shrink-0" />
+                                        : <Play className="w-3.5 h-3.5 flex-shrink-0" fill="currentColor" />
+                                      }
+                                      <div className="flex items-end gap-[2px] h-4">
+                                        {[1.5, 3, 2, 3.5, 1.5, 3, 2].map((h, i) => (
+                                          <div
+                                            key={i}
+                                            className={`w-[3px] rounded-full ${msg.role === 'user' ? 'bg-white/80' : 'bg-gray-500'}`}
+                                            style={isPlaying ? {
+                                              height: `${h * 4}px`,
+                                              animation: `voiceWave 0.4s ease-in-out ${i * 0.07}s infinite alternate`,
+                                            } : {
+                                              height: `${h * 4}px`,
+                                            }}
+                                          />
+                                        ))}
+                                      </div>
+                                      <span className="text-[10px] font-semibold flex-shrink-0">{msg.voiceDuration}"</span>
+                                    </button>
+                                  ) : msg.role === 'ai' ? (
                                     <div className="leading-relaxed" style={{ fontSize: 'clamp(13px, 3.5vw, 15px)' }}>{renderMarkdown(msg.text)}</div>
                                   ) : msg.text ? (
                                     <p className="leading-relaxed" style={{ fontSize: 'clamp(13px, 3.5vw, 15px)' }}>{msg.text}</p>
                                   ) : null}
                                 </div>
                               </div>
-                            ))}
+                              );
+                            })}
                             {chatReplying && (
                               <div className="flex justify-start">
                                 <div className={`bg-gray-100 rounded-2xl ${isRTL ? 'rounded-br-md' : 'rounded-bl-md'} px-3 py-2 flex items-center gap-1.5`}>
@@ -1589,7 +1618,7 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
           </>
         )}
       </div>
-      {showCameraOverlay && <CameraOverlay onClose={() => { setShowCameraOverlay(false); setChatCameraMode(false); }} onCapture={chatCameraMode ? onChatCameraCapture : onCameraCapture} />}
+
     </SecondaryView>
   );
 }

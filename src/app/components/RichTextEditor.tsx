@@ -237,7 +237,7 @@ export function RichTextEditor({ label, value, onChange, placeholder, minHeight 
         {/* Editable Area */}
         <div className="relative">
           {isEmpty && placeholder && (
-            <div className="absolute top-0 left-0 px-3 py-2 text-gray-400 text-sm pointer-events-none select-none">
+            <div className="absolute top-0 inset-x-0 px-3 py-2 text-gray-400 text-sm pointer-events-none select-none">
               {placeholder}
             </div>
           )}

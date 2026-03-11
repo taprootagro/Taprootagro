@@ -13,6 +13,7 @@
 import type { ChatMessage } from './ChatProxyService';
 import type { IMMode, ChatProvider } from '../hooks/useHomeConfig';
 import { SupabaseRealtimeAdapter } from './SupabaseRealtimeAdapter';
+import { storageGet } from '../utils/safeStorage';
 import { EdgeFunctionProxyAdapter } from './EdgeFunctionProxyAdapter';
 import { IMProviderDirectAdapter } from './IMProviderDirectAdapter';
 
@@ -83,7 +84,7 @@ export function getIMAdapterConfig(): IMAdapterConfig {
   };
 
   try {
-    const saved = localStorage.getItem(CONFIG_STORAGE_KEY);
+    const saved = storageGet(CONFIG_STORAGE_KEY);
     if (saved) {
       const parsed = JSON.parse(saved);
       const bpc = parsed.backendProxyConfig;

@@ -101,7 +101,7 @@ export function SplashScreen() {
       onAnimationEnd={handleAnimationEnd}
     >
       {/* 状态栏白色占位 — 开屏页为白色背景，状态栏同步为白色 */}
-      <div className="bg-white safe-top fixed top-0 left-0 right-0 z-50" />
+      <div className="bg-white safe-top fixed top-0 inset-x-0 z-50" />
 
       {/* Logo */}
       <div 
@@ -123,7 +123,7 @@ export function SplashScreen() {
             className="text-emerald-600 font-bold"
             style={{ fontSize: 'clamp(60px, 16vw, 90px)' }}
           >
-            农
+            🌱
           </span>
         )}
       </div>

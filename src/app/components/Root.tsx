@@ -6,13 +6,15 @@ import { ResponsiveScale } from './ResponsiveScale';
 import { PWARegister } from './PWARegister';
 import { ErrorBoundary } from './ErrorBoundary';
 import { errorMonitor } from '../utils/errorMonitor';
-import { useHomeConfig } from '../hooks/useHomeConfig';
+import { installSilentRecovery } from '../utils/silentRecovery';
+import { initTaprootDB } from '../utils/db';
+import { defaultConfig } from '../hooks/useHomeConfig';
+import { ConfigProvider, useConfigContext } from '../hooks/ConfigProvider';
 import { useDynamicIcon } from '../hooks/useDynamicIcon';
-import { ConfigProvider } from '../hooks/ConfigProvider';
 
 // Inner component that uses hooks requiring config context
 function RootInner() {
-  const { config } = useHomeConfig();
+  const { config } = useConfigContext();
   useDynamicIcon(config.desktopIcon);
 
   return (
@@ -29,11 +31,12 @@ export function Root() {
   // Install error monitor after mount (avoids patching fetch during SSR/preview)
   useEffect(() => {
     errorMonitor.install();
+    installSilentRecovery();
+    initTaprootDB(); // fire-and-forget — app works with localStorage fallback until ready
   }, []);
 
-  // 获取 defaultConfig 以传递给 ConfigProvider
-  const { defaultConfig } = useHomeConfig();
-
+  // defaultConfig 是模块级常量，直接 import 即可，无需调用 useHomeConfig() hook
+  // 这样避免在 ConfigProvider 之外创建多余的 state 实例
   return (
     <LanguageProvider>
       <ConfigProvider defaultConfig={defaultConfig}>

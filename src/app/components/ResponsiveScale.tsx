@@ -1,58 +1,48 @@
 import { useEffect } from 'react';
 
 /**
- * 响应式缩放组件
- * 根据屏幕宽度动态调整根元素字体大小，实现整体UI的等比例缩放
- * 设计基准：375px (iPhone SE / 小屏手机)
- * 缩放范围：320px ~ 480px
+ * 响应式视口组件
+ * 
+ * 变更说明（v2）：
+ * - 移除了动态修改根字体大小的逻辑，改为尊重用户系统字体设置
+ *   （无障碍合规：WCAG 2.1 SC 1.4.4 要求文字可放大到 200% 不丢失内容）
+ * - 保留 --app-height CSS 变量，解决 iOS Safari 100vh 不准的问题
+ * - 用户如果在系统设置中调大字体，App 会自动跟随，无需额外处理
  */
 export function ResponsiveScale() {
   useEffect(() => {
-    const setRootFontSize = () => {
-      const screenWidth = window.innerWidth;
-      
-      // 设计基准宽度 (参考iPhone SE等小屏手机)
-      const baseWidth = 375;
-      
-      // 基准字体大小
-      const baseFontSize = 16;
-      
-      // 限制最小和最大宽度，避免极端情况
-      const minWidth = 320; // 最小屏幕宽度
-      const maxWidth = 480; // 最大屏幕宽度（小型平板）
-      
-      // 计算实际宽度（在限制范围内）
-      const actualWidth = Math.min(Math.max(screenWidth, minWidth), maxWidth);
-      
-      // 计算缩放比例
-      const scale = actualWidth / baseWidth;
-      
-      // 计算新的字体大小
-      const newFontSize = baseFontSize * scale;
-      
-      // 设置根元素字体大小
-      document.documentElement.style.fontSize = `${newFontSize}px`;
-      
-      // 同时更新CSS变量
-      document.documentElement.style.setProperty('--font-size', `${newFontSize}px`);
-      
-      // 调试信息（可选）
-      // console.log(`Screen: ${screenWidth}px, Scale: ${scale.toFixed(2)}, Font: ${newFontSize.toFixed(2)}px`);
+    const updateViewportHeight = () => {
+      // 动态视口高度 — 解决 iOS Safari 工具栏导致 100vh 不准
+      const vh = window.innerHeight;
+      document.documentElement.style.setProperty('--app-height', `${vh}px`);
     };
 
     // 初始设置
-    setRootFontSize();
+    updateViewportHeight();
 
     // 监听窗口大小变化
-    window.addEventListener('resize', setRootFontSize);
+    window.addEventListener('resize', updateViewportHeight);
     
     // 监听屏幕方向变化
-    window.addEventListener('orientationchange', setRootFontSize);
+    const handleOrientation = () => {
+      // orientationchange 后尺寸可能有延迟，等 150ms 再更新
+      setTimeout(updateViewportHeight, 150);
+    };
+    window.addEventListener('orientationchange', handleOrientation);
+    
+    // iOS Safari 滚动工具栏显隐会改变 innerHeight
+    // 用 visualViewport 监听更精确
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', updateViewportHeight);
+    }
 
     // 清理函数
     return () => {
-      window.removeEventListener('resize', setRootFontSize);
-      window.removeEventListener('orientationchange', setRootFontSize);
+      window.removeEventListener('resize', updateViewportHeight);
+      window.removeEventListener('orientationchange', handleOrientation);
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', updateViewportHeight);
+      }
     };
   }, []);
 

@@ -8,6 +8,7 @@ import {
   getFeatureFlags,
   DEFAULT_FEATURES,
 } from '../utils/rollout';
+import { storageGet, storageSet } from '../utils/safeStorage';
 
 // ============================================================
 // Remote Config Reactive Store
@@ -123,11 +124,7 @@ export function useRemoteConfig(): UseRemoteConfigResult {
   const annId = config?.announcement?.id || '';
   const [annDismissed, setAnnDismissed] = useState(() => {
     if (!annId) return false;
-    try {
-      return localStorage.getItem(LS_DISMISSED_PREFIX + annId) === '1';
-    } catch {
-      return false;
-    }
+    return storageGet(LS_DISMISSED_PREFIX + annId) === '1';
   });
 
   // Re-check dismiss state when announcement ID changes
@@ -136,18 +133,12 @@ export function useRemoteConfig(): UseRemoteConfigResult {
       setAnnDismissed(false);
       return;
     }
-    try {
-      setAnnDismissed(localStorage.getItem(LS_DISMISSED_PREFIX + annId) === '1');
-    } catch {
-      setAnnDismissed(false);
-    }
+    setAnnDismissed(storageGet(LS_DISMISSED_PREFIX + annId) === '1');
   }, [annId]);
 
   const dismissAnnouncement = useCallback(() => {
     if (!annId) return;
-    try {
-      localStorage.setItem(LS_DISMISSED_PREFIX + annId, '1');
-    } catch { /* ignore */ }
+    storageSet(LS_DISMISSED_PREFIX + annId, '1');
     setAnnDismissed(true);
   }, [annId]);
 

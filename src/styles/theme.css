@@ -25,6 +25,23 @@
   to { transform: scaleY(1); }
 }
 
+/* Dialog fade-scale-in animation */
+@keyframes fadeScaleIn {
+  from { opacity: 0; transform: scale(0.92); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* Bottom sheet slide-up animation */
+@keyframes slideUpIn {
+  from { opacity: 0; transform: translateY(40px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Toast fade-in */
+.animate-fade-in {
+  animation: fadeScaleIn 200ms ease-out;
+}
+
 /* SplashScreen 退出动画 */
 @keyframes splash-exit {
   from { opacity: 1; transform: scale(1); }
@@ -178,7 +195,6 @@
     width: 100%;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    font-size: var(--font-size);
     font-family: system-ui, -apple-system, sans-serif;
     /* 禁止水平方向过度滚动，防止 PWA 中左右滑动触发浏览器前进/后退 */
     overscroll-behavior-x: none;
@@ -193,9 +209,6 @@
     /* 移动端优化 — 仅允许纵向滑动和缩放，阻止横向手势导航 */
     touch-action: pan-y pinch-zoom;
     -webkit-tap-highlight-color: transparent;
-    /* 防止文字选择 */
-    user-select: none;
-    -webkit-user-select: none;
     /* 禁止横向过度滚动（双保险） */
     overscroll-behavior-x: none;
     /* 禁止长按弹出系统菜单（iOS Safari callout / 链接预览） */
@@ -277,7 +290,7 @@
 
   .rich-editor-content ul,
   .rich-editor-content ol {
-    padding-left: 1.5em;
+    padding-inline-start: 1.5em;
     margin-bottom: 0.5em;
   }
 
@@ -301,8 +314,8 @@
   }
 
   .rich-editor-content blockquote {
-    border-left: 3px solid #059669;
-    padding-left: 12px;
+    border-inline-start: 3px solid #059669;
+    padding-inline-start: 12px;
     margin: 8px 0;
     color: #555;
   }
@@ -333,7 +346,7 @@
 
   .rich-content ul,
   .rich-content ol {
-    padding-left: 1.5em;
+    padding-inline-start: 1.5em;
     margin-bottom: 0.5em;
   }
 
@@ -357,8 +370,8 @@
   }
 
   .rich-content blockquote {
-    border-left: 3px solid #059669;
-    padding-left: 12px;
+    border-inline-start: 3px solid #059669;
+    padding-inline-start: 12px;
     margin: 8px 0;
     color: #555;
   }
@@ -385,11 +398,10 @@
   /**
   * Default typography styles for HTML elements (h1-h4, p, label, button, input).
   * These are in @layer base, so Tailwind utility classes (like text-sm, text-lg) automatically override them.
+  * 
+  * 注意：html 根字体大小不再通过 JS 或 CSS 变量强制设定，
+  * 而是继承浏览器/系统默认值（通常 16px），尊重用户的无障碍字体设置。
   */
-
-  html {
-    font-size: var(--font-size);
-  }
 
   h1 {
     font-size: var(--text-2xl);

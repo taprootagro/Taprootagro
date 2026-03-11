@@ -86,6 +86,7 @@ export function QRScannerCapture({ onScan, onClose }: QRScannerCaptureProps) {
         const managed = await cameraManager.acquire('environment');
 
         if (cancelled) {
+          if (videoRef.current) videoRef.current.srcObject = null;
           cameraManager.release();
           return;
         }
@@ -109,6 +110,7 @@ export function QRScannerCapture({ onScan, onClose }: QRScannerCaptureProps) {
       cancelled = true;
       cancelAnimationFrame(rafRef.current);
       // 用完即释放 — 立即停止摄像头，不保活
+      if (videoRef.current) videoRef.current.srcObject = null;
       cameraManager.release();
     };
   }, []);
@@ -129,6 +131,7 @@ export function QRScannerCapture({ onScan, onClose }: QRScannerCaptureProps) {
         if (barcodes.length > 0 && barcodes[0].rawValue) {
           scannedRef.current = true;
           if (navigator.vibrate) navigator.vibrate(100);
+          if (videoRef.current) videoRef.current.srcObject = null;
           cameraManager.release();
           onScan(barcodes[0].rawValue);
           return;
@@ -175,6 +178,7 @@ export function QRScannerCapture({ onScan, onClose }: QRScannerCaptureProps) {
   const handleClose = () => {
     setAnimPhase("leaving");
     cancelAnimationFrame(rafRef.current);
+    if (videoRef.current) videoRef.current.srcObject = null;
     cameraManager.release();
     setTimeout(() => onClose(), 150);
   };
@@ -194,6 +198,7 @@ export function QRScannerCapture({ onScan, onClose }: QRScannerCaptureProps) {
       if (barcodes.length > 0 && barcodes[0].rawValue) {
         scannedRef.current = true;
         if (navigator.vibrate) navigator.vibrate(100);
+        if (videoRef.current) videoRef.current.srcObject = null;
         cameraManager.release();
         onScan(barcodes[0].rawValue);
       }

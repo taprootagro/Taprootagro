@@ -1,10 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
+import { MapPin, Edit, Settings, FileText, Package, CreditCard, Calendar, Info, QrCode, ChevronRight, LogIn } from "lucide-react";
 import { useNavigate } from "react-router";
-import { MapPin, Edit, Settings, FileText, Package, CreditCard, Calendar, Info, Scan, QrCode, ChevronRight, LogIn } from "lucide-react";
 import { useLanguage } from "../hooks/useLanguage";
 import { useHomeConfig } from "../hooks/useHomeConfig";
-import { CameraCapture } from "./CameraCapture";
-import { isUserLoggedIn } from "../utils/auth";
+import { storageGet } from "../utils/safeStorage";
+import { isUserLoggedIn, getUserId } from "../utils/auth";
+import { kvGetEncrypted } from "../utils/db";
 import { PickupAddressEdit } from "./PickupAddressEdit";
 import { AllOrdersPage } from "./AllOrdersPage";
 import { PendingReceiptPage } from "./PendingReceiptPage";
@@ -12,12 +13,15 @@ import { PendingPaymentPage } from "./PendingPaymentPage";
 import { InvoiceRecordsPage } from "./InvoiceRecordsPage";
 import { AbnormalFeedbackPage } from "./AbnormalFeedbackPage";
 import { AboutUsPage } from "./AboutUsPage";
+import { ProfileDetailPage } from "./ProfileDetailPage";
+
+// 懒加载二维码卡片
+const ProfileQRCard = lazy(() => import("./ProfileQRCard"));
 
 export function ProfilePage() {
   const navigate = useNavigate();
   const { t } = useLanguage();
   const { config } = useHomeConfig();
-  const [showCamera, setShowCamera] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [showAddressEdit, setShowAddressEdit] = useState(false);
   const [showAllOrders, setShowAllOrders] = useState(false);
@@ -26,18 +30,19 @@ export function ProfilePage() {
   const [showInvoiceRecords, setShowInvoiceRecords] = useState(false);
   const [showAbnormalFeedback, setShowAbnormalFeedback] = useState(false);
   const [showAboutUs, setShowAboutUs] = useState(false);
-  const [pickupAddress, setPickupAddress] = useState(
-    "中国（山东）自由贸易试验区济南片区舜华路街道经十路7000号，汉峪金融商务中心A4-3-901"
-  );
+  const [showProfileDetail, setShowProfileDetail] = useState(false);
+  const [showQRCard, setShowQRCard] = useState(false);
+  const [pickupAddress, setPickupAddress] = useState("");
 
-  // 检查登录状态
+  const userId = getUserId();
+
   useEffect(() => {
     setIsLoggedIn(isUserLoggedIn());
-    // 从 localStorage 加载保存的地址
-    const savedAddress = localStorage.getItem("pickup-address");
-    if (savedAddress) {
-      setPickupAddress(savedAddress);
-    }
+    const savedAddress = storageGet("pickup-address");
+    if (savedAddress) setPickupAddress(savedAddress);
+    kvGetEncrypted("pickup-address").then((addr) => {
+      if (addr) setPickupAddress(addr);
+    }).catch(() => {});
   }, []);
 
   const menuItems = [
@@ -60,32 +65,22 @@ export function ProfilePage() {
     },
   ];
 
-  // 未登录时显示的界面
+  // 未登录
   if (!isLoggedIn) {
     return (
       <div className="pb-safe-nav min-h-full relative" style={{ backgroundColor: 'var(--app-bg)' }}>
-        {/* 绿色圆角矩形背景层 - 从顶部到Logo和登录卡片之间 */}
         <div className="absolute top-0 left-0 right-0 h-60 bg-emerald-600 rounded-b-3xl shadow-lg">
-          {/* 装饰元素 */}
-          <div className="absolute top-8 right-8 w-20 h-20 bg-white/10 rounded-full blur-2xl"></div>
-          <div className="absolute bottom-8 left-8 w-24 h-24 bg-white/10 rounded-full blur-3xl"></div>
+          <div className="absolute top-8 ltr:right-8 rtl:left-8 w-20 h-20 bg-white/10 rounded-full blur-2xl"></div>
+          <div className="absolute bottom-8 ltr:left-8 rtl:right-8 w-24 h-24 bg-white/10 rounded-full blur-3xl"></div>
         </div>
-
-        {/* 内容区域 - 在绿色背景上方 */}
-        <div className="relative z-10 px-4 pt-12">
-          {/* Logo头像区域 */}
+        <div className="relative z-10 px-4" style={{ paddingTop: 'calc(env(safe-area-inset-top, 8px) + 16px)' }}>
           <div className="flex flex-col items-center mb-8">
             <div className="w-20 h-20 rounded-full bg-white flex items-center justify-center shadow-lg ring-4 ring-white/30 mb-3">
               <span className="text-4xl">🌿</span>
             </div>
-            <p className="text-white/90 text-sm">
-              {t.profile.loginPrompt || "请登录以使用完整功能"}
-            </p>
+            <p className="text-white/90 text-sm">{t.profile.loginPrompt}</p>
           </div>
-
-          {/* 白色登录卡片 - 被绿色背景衬托 */}
           <div className="bg-white rounded-3xl p-6 shadow-2xl text-center">
-            {/* 登录按钮 */}
             <button
               onClick={() => navigate("/login")}
               className="w-full bg-emerald-600 text-white py-3.5 rounded-2xl active:bg-emerald-700 transition-colors duration-150 flex items-center justify-center gap-2 font-medium shadow-lg"
@@ -94,8 +89,6 @@ export function ProfilePage() {
               {t.common.login}
             </button>
           </div>
-
-          {/* 访客入口 - 设置 */}
           <div className="mt-4">
             <div className="bg-white rounded-2xl overflow-hidden shadow-sm">
               <button
@@ -115,20 +108,10 @@ export function ProfilePage() {
     );
   }
 
-  // 已登录时显示的界面
+  // 已登录
   return (
     <div className="pb-safe-nav min-h-full" style={{ backgroundColor: 'var(--app-bg)' }}>
-      {/* 相机捕获界面 */}
-      {showCamera && (
-        <CameraCapture
-          onCapture={(imageData) => {
-            console.log("拍摄的图片:", imageData);
-          }}
-          onClose={() => setShowCamera(false)}
-        />
-      )}
-
-      {/* 地址编辑弹窗 */}
+      {showProfileDetail && <ProfileDetailPage onClose={() => setShowProfileDetail(false)} />}
       {showAddressEdit && (
         <PickupAddressEdit
           initialAddress={pickupAddress}
@@ -136,67 +119,62 @@ export function ProfilePage() {
           onSave={(newAddress) => setPickupAddress(newAddress)}
         />
       )}
+      {showAllOrders && <AllOrdersPage onClose={() => setShowAllOrders(false)} />}
+      {showPendingReceipt && <PendingReceiptPage onClose={() => setShowPendingReceipt(false)} />}
+      {showPendingPayment && <PendingPaymentPage onClose={() => setShowPendingPayment(false)} />}
+      {showInvoiceRecords && <InvoiceRecordsPage onClose={() => setShowInvoiceRecords(false)} />}
+      {showAbnormalFeedback && <AbnormalFeedbackPage onClose={() => setShowAbnormalFeedback(false)} />}
+      {showAboutUs && <AboutUsPage onClose={() => setShowAboutUs(false)} />}
 
-      {/* 所有订单页面 */}
-      {showAllOrders && (
-        <AllOrdersPage onClose={() => setShowAllOrders(false)} />
+      {/* 懒加载二维码卡片 */}
+      {showQRCard && (
+        <Suspense fallback={null}>
+          <ProfileQRCard
+            onClose={() => setShowQRCard(false)}
+            userId={userId || ""}
+            name={config?.userProfile?.name || "Rick"}
+          />
+        </Suspense>
       )}
 
-      {/* 待收货页面 */}
-      {showPendingReceipt && (
-        <PendingReceiptPage onClose={() => setShowPendingReceipt(false)} />
-      )}
-
-      {/* 待付款页面 */}
-      {showPendingPayment && (
-        <PendingPaymentPage onClose={() => setShowPendingPayment(false)} />
-      )}
-
-      {/* 发票记录页面 */}
-      {showInvoiceRecords && (
-        <InvoiceRecordsPage onClose={() => setShowInvoiceRecords(false)} />
-      )}
-
-      {/* 异常反馈页面 */}
-      {showAbnormalFeedback && (
-        <AbnormalFeedbackPage onClose={() => setShowAbnormalFeedback(false)} />
-      )}
-
-      {/* 关于我们页面 */}
-      {showAboutUs && (
-        <AboutUsPage onClose={() => setShowAboutUs(false)} />
-      )}
-
-      {/* 绿色头部区域 */}
-      <div className="bg-emerald-600 px-4 pt-12 pb-6 rounded-b-3xl relative shadow-lg">
-        {/* 扫一扫和二维码按钮 */}
-        <div className="absolute top-12 ltr:right-4 rtl:left-4 flex flex-col items-center gap-2">
+      {/* 绿色头部 — 头像 + 网名 + 二维码 水平对齐 */}
+      <div className="bg-emerald-600 px-4 pb-5 rounded-b-3xl shadow-lg" style={{ paddingTop: 'calc(env(safe-area-inset-top, 8px) + 16px)' }}>
+        <div className="flex items-center gap-3">
+          {/* 头像 — 点击进入编辑 */}
           <button
-            onClick={() => setShowCamera(true)}
-            className="text-white active:scale-95 transition-transform duration-150 bg-white/10 p-2 rounded-full backdrop-blur-sm"
+            onClick={() => setShowProfileDetail(true)}
+            className="w-14 h-14 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 shadow-lg flex-shrink-0 overflow-hidden ring-4 ring-white/20 active:opacity-80 transition-opacity"
           >
-            <Scan className="w-5 h-5" />
+            {config?.userProfile?.avatar ? (
+              <img
+                src={config.userProfile.avatar}
+                alt="Avatar"
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center bg-white">
+                <span className="text-2xl">🌿</span>
+              </div>
+            )}
           </button>
-          <button className="text-white active:scale-95 transition-transform duration-150 bg-white/10 p-2 rounded-full backdrop-blur-sm">
+
+          {/* 网名 — 点击进入编辑 */}
+          <button
+            onClick={() => setShowProfileDetail(true)}
+            className="flex-1 min-w-0 text-start active:opacity-80 transition-opacity"
+          >
+            <h2 className="text-xl font-semibold text-white truncate">
+              {config?.userProfile?.name || "Rick"}
+            </h2>
+          </button>
+
+          {/* 二维码按钮 */}
+          <button
+            onClick={() => setShowQRCard(true)}
+            className="flex-shrink-0 text-white active:scale-95 transition-transform duration-150 bg-white/10 p-2.5 rounded-full backdrop-blur-sm"
+          >
             <QrCode className="w-5 h-5" />
           </button>
-        </div>
-
-        {/* 用户信息 */}
-        <div className="flex items-center gap-3">
-          {/* 头像 */}
-          <div className="w-16 h-16 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 shadow-lg flex-shrink-0 overflow-hidden ring-4 ring-white/20">
-            <img
-              src={config?.userProfile?.avatar || "https://images.unsplash.com/photo-1642919854816-98575cbaefa8?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxzaW1wbGUlMjBsZWFmJTIwc2tldGNoJTIwbWluaW1hbCUyMGRyYXdpbmd8ZW58MXx8fHwxNzcwODU0NDU2fDA&ixlib=rb-4.1.0&q=80&w=1080"}
-              alt="User Avatar"
-              className="w-full h-full object-cover"
-            />
-          </div>
-
-          {/* 用户详细信息 */}
-          <div className="flex-1 min-w-0">
-            <h2 className="text-xl font-semibold text-white truncate">{config?.userProfile?.name || "Rick"}</h2>
-          </div>
         </div>
       </div>
 
@@ -207,11 +185,9 @@ export function ProfilePage() {
             <MapPin className="w-4 h-4 text-emerald-600 flex-shrink-0 mt-0.5" />
             <div className="flex-1 min-w-0">
               <h3 className="text-sm font-semibold text-gray-800 mb-1.5">{t.profile.pickupInfo}</h3>
-              <p className="text-xs text-gray-500 leading-relaxed line-clamp-2 break-all">
-                {pickupAddress}
-              </p>
+              <p className="text-xs text-gray-500 leading-relaxed line-clamp-2 break-all">{pickupAddress}</p>
             </div>
-            <button 
+            <button
               onClick={() => setShowAddressEdit(true)}
               className="text-emerald-600 active:scale-95 transition-transform duration-150 flex-shrink-0"
             >
@@ -224,10 +200,7 @@ export function ProfilePage() {
       {/* 菜单列表 */}
       <div className="px-4 mt-4 space-y-3">
         {menuItems.map((section, sectionIndex) => (
-          <div
-            key={sectionIndex}
-            className="bg-white rounded-2xl overflow-hidden shadow-lg"
-          >
+          <div key={sectionIndex} className="bg-white rounded-2xl overflow-hidden shadow-lg">
             {section.section && (
               <div className="px-4 py-2 bg-gray-50">
                 <h3 className="text-sm text-gray-600">{section.section}</h3>
@@ -237,7 +210,7 @@ export function ProfilePage() {
               const Icon = item.icon;
               return (
                 <div key={itemIndex}>
-                  <button 
+                  <button
                     onClick={item.action}
                     className="w-full px-4 py-3 flex items-center justify-between active:bg-emerald-100 transition-colors duration-150 min-w-0"
                   >
@@ -260,5 +233,4 @@ export function ProfilePage() {
   );
 }
 
-// 默认导出用于懒加载
 export default ProfilePage;

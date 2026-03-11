@@ -1,6 +1,7 @@
 import { SecondaryView } from "./SecondaryView";
 import { Megaphone } from "lucide-react";
 import { useHomeConfig } from "../hooks/useHomeConfig";
+import { useLanguage } from "../hooks/useLanguage";
 import type { MarketAdvertisementConfig } from "../hooks/useHomeConfig";
 
 interface MarketAdDetailPageProps {
@@ -11,12 +12,13 @@ interface MarketAdDetailPageProps {
 export function MarketAdDetailPage({ onClose, ad }: MarketAdDetailPageProps) {
   // 从配置中读取最新数据，确保编辑后实时显示
   const { config } = useHomeConfig();
+  const { t } = useLanguage();
   const latestAd = config.marketPage.advertisements.find(a => a.id === ad.id) || ad;
 
   return (
     <SecondaryView 
       onClose={onClose} 
-      title={latestAd.title || "活动详情"}
+      title={latestAd.title || t.market?.viewDetails || "Details"}
       showTitle={true}
     >
       <div className="flex flex-col h-full" style={{ backgroundColor: 'var(--app-bg)' }}>

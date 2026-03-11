@@ -13,13 +13,13 @@ export function SkeletonScreen() {
         <div className="h-24 bg-gray-200 rounded"></div>
       </div>
       
-      {/* 底部 Dock 栏 */}
-      <div className="border-t border-gray-200 h-14 flex-shrink-0 bg-white safe-bottom">
-        <div className="flex justify-around items-center h-full px-4">
-          <div className="w-8 h-8 bg-gray-200 rounded-full"></div>
-          <div className="w-8 h-8 bg-gray-200 rounded-full"></div>
-          <div className="w-8 h-8 bg-gray-200 rounded-full"></div>
-          <div className="w-8 h-8 bg-gray-200 rounded-full"></div>
+      {/* 底部导航栏 */}
+      <div className="flex-shrink-0 bg-white safe-bottom" style={{ boxShadow: '0 -1px 12px rgba(0,0,0,0.06)' }}>
+        <div className="flex justify-around items-center px-4" style={{ minHeight: '48px' }}>
+          <div className="w-7 h-7 bg-gray-200 rounded-full"></div>
+          <div className="w-7 h-7 bg-gray-200 rounded-full"></div>
+          <div className="w-7 h-7 bg-gray-200 rounded-full"></div>
+          <div className="w-7 h-7 bg-gray-200 rounded-full"></div>
         </div>
       </div>
     </div>
@@ -37,7 +37,7 @@ export function HomePageSkeleton() {
       
       {/* 轮播图占位 */}
       <div className="px-3 pt-3">
-        <div className="h-40 bg-gray-200 rounded-xl"></div>
+        <div className="aspect-[2/1] bg-gray-200 rounded-2xl"></div>
       </div>
       
       {/* 功能卡片占位 */}

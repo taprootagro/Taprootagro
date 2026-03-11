@@ -7,14 +7,13 @@ import {
   SkeletonScreen,
 } from "./components/SkeletonScreen";
 
-// 懒加载页面组件 - 按需加载，减少首次加载体积
+// 懒加载页面组件 - 按需加载,减少首次加载体积
 // 注意: 主 tab 页面（Home/Market/Community/Profile）已由 Layout.tsx 内部 keep-alive 管理
 const SettingsPage = lazy(() => import("./components/SettingsPage"));
 const LoginPage = lazy(() => import("./components/LoginPage"));
 const ConfigManagerPage = lazy(() => import("./components/ConfigManagerPage"));
 const OAuthCallback = lazy(() => import("./components/OAuthCallback"));
 
-// 预加载函数 - 在首页加载完成后预加载其他主要页面，提升切换速度
 export function preloadMainPages() {
   // 使用 requestIdleCallback 在浏览器空闲时预加载，不影响主线程性能
   if ('requestIdleCallback' in window) {

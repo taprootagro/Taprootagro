@@ -383,7 +383,7 @@ export default function ConfigManagerPage() {
           <thead className="bg-emerald-600 text-white">
             <tr>
               {getTableHeaders().map((header, index) => (
-                <th key={index} className="px-3 py-2 text-left text-xs font-semibold border-r border-emerald-500 last:border-r-0">
+                <th key={index} className="px-3 py-2 text-start text-xs font-semibold border-r border-emerald-500 last:border-r-0">
                   {header}
                 </th>
               ))}
@@ -696,6 +696,135 @@ export default function ConfigManagerPage() {
               />
               <p className="mt-1 text-xs text-gray-500">{ct("缩略图用于列表封面展示，视频URL用于播放页面", "Thumbnail for list cover display, Video URL for playback page")}</p>
             </div>
+
+            {/* ── 分享设置 (Per-video) ── */}
+            <div className="border-t border-gray-200 pt-4 mt-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <span className="w-6 h-6 rounded-md bg-blue-100 text-blue-700 flex items-center justify-center text-xs">S</span>
+                  <h4 className="text-sm text-gray-800">{ct("分享设置", "Share Settings")}</h4>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input type="checkbox" checked={editingItem.shareEnabled ?? false} onChange={(e) => setEditingItem({ ...editingItem, shareEnabled: e.target.checked })} className="sr-only peer" />
+                  <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+                </label>
+              </div>
+              {editingItem.shareEnabled && (
+                <div className="space-y-3 pl-2 border-l-2 border-blue-200">
+                  <InputField label={ct("分享链接", "Share URL")} value={editingItem.shareUrl || ""} onChange={(v: string) => setEditingItem({ ...editingItem, shareUrl: v })} placeholder={ct("留空自动取当前域名", "Leave empty for current domain")} />
+                  <InputField label={ct("分享标题", "Share Title")} value={editingItem.shareTitle || ""} onChange={(v: string) => setEditingItem({ ...editingItem, shareTitle: v })} />
+                  <InputField label={ct("分享描述", "Share Text")} value={editingItem.shareText || ""} onChange={(v: string) => setEditingItem({ ...editingItem, shareText: v })} />
+                  <InputField label={ct("分享缩略图URL", "Share Image URL")} value={editingItem.shareImgUrl || ""} onChange={(v: string) => setEditingItem({ ...editingItem, shareImgUrl: v })} />
+                  <div className="mt-2">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" checked={editingItem.wxJsSdkEnabled ?? false} onChange={(e) => setEditingItem({ ...editingItem, wxJsSdkEnabled: e.target.checked })} className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500" />
+                      <span className="text-sm text-gray-700">{ct("启用微信JS-SDK分享", "Enable WeChat JS-SDK Share")}</span>
+                    </label>
+                    {editingItem.wxJsSdkEnabled && (
+                      <div className="mt-2 space-y-2 pl-4">
+                        <InputField label={ct("微信AppID", "WeChat AppID")} value={editingItem.wxAppId || ""} onChange={(v: string) => setEditingItem({ ...editingItem, wxAppId: v })} />
+                        <InputField label={ct("签名接口URL", "Signature API URL")} value={editingItem.wxSignatureApi || ""} onChange={(v: string) => setEditingItem({ ...editingItem, wxSignatureApi: v })} placeholder="https://api.example.com/wx-signature" />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* ── 导航设置 (Per-video) ── */}
+            <div className="border-t border-gray-200 pt-4 mt-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <span className="w-6 h-6 rounded-md bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs">N</span>
+                  <h4 className="text-sm text-gray-800">{ct("导航设置", "Navigation Settings")}</h4>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input type="checkbox" checked={editingItem.navEnabled ?? false} onChange={(e) => {
+                    const updates: any = { ...editingItem, navEnabled: e.target.checked };
+                    if (e.target.checked && !editingItem.navCreatedAt) {
+                      updates.navCreatedAt = Date.now();
+                    }
+                    setEditingItem(updates);
+                  }} className="sr-only peer" />
+                  <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+                </label>
+              </div>
+              {editingItem.navEnabled && (
+                <div className="space-y-3 pl-2 border-l-2 border-emerald-200">
+                  <div className="grid grid-cols-2 gap-3">
+                    <InputField label={ct("纬度", "Latitude")} value={editingItem.navLatitude || ""} onChange={(v: string) => setEditingItem({ ...editingItem, navLatitude: v })} placeholder="39.9042" />
+                    <InputField label={ct("经度", "Longitude")} value={editingItem.navLongitude || ""} onChange={(v: string) => setEditingItem({ ...editingItem, navLongitude: v })} placeholder="116.4074" />
+                  </div>
+                  <InputField label={ct("地址名称", "Address Name")} value={editingItem.navAddress || ""} onChange={(v: string) => setEditingItem({ ...editingItem, navAddress: v })} placeholder={ct("例如：北京市海淀区中关村大街1号", "e.g. 1 Zhongguancun St, Haidian, Beijing")} />
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{ct("导航按钮显示天数", "Navigation Button Display Days")}</label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min="1"
+                        max="365"
+                        value={editingItem.navDisplayDays ?? 15}
+                        onChange={(e) => setEditingItem({ ...editingItem, navDisplayDays: parseInt(e.target.value) || 15 })}
+                        className="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm"
+                      />
+                      <span className="text-sm text-gray-500">{ct("天", "days")}</span>
+                    </div>
+                    <p className="mt-1 text-xs text-gray-400">{ct("超过指定天数后，导航按钮将自动隐藏（默认15天）", "Navigation button auto-hides after specified days (default 15)")}</p>
+                    {editingItem.navCreatedAt && (
+                      <p className="mt-1 text-xs text-emerald-600">{ct("导航启用于：", "Navigation enabled on: ")}{new Date(editingItem.navCreatedAt).toLocaleDateString()}</p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">{ct("输入坐标系", "Input Coordinate System")}</label>
+                    <div className="flex gap-2">
+                      {[
+                        { value: "wgs84", label: "WGS84", hint: ct("GPS原始", "GPS Raw") },
+                        { value: "gcj02", label: "GCJ02", hint: ct("国测局/高德", "China/Amap") },
+                        { value: "bd09", label: "BD09", hint: ct("百度", "Baidu") },
+                      ].map((cs) => (
+                        <button
+                          key={cs.value}
+                          type="button"
+                          onClick={() => setEditingItem({ ...editingItem, navCoordSystem: cs.value })}
+                          className={`flex-1 py-2 px-2 rounded-lg border text-center transition-colors ${
+                            (editingItem.navCoordSystem || "wgs84") === cs.value
+                              ? "border-emerald-500 bg-emerald-50 text-emerald-700"
+                              : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+                          }`}
+                        >
+                          <p className="text-xs font-medium">{cs.label}</p>
+                          <p className="text-[10px] text-gray-400 mt-0.5">{cs.hint}</p>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-600 mb-2">{ct("启用的地图应用", "Enabled Map Apps")}</p>
+                    <div className="space-y-2">
+                      {[
+                        { key: "navBaiduMap", label: ct("百度地图", "Baidu Maps"), hint: ct("中国区", "China"), icon: "M" },
+                        { key: "navAmapMap", label: ct("高德地图", "Amap / Gaode"), hint: ct("中国区", "China"), icon: "A" },
+                        { key: "navGoogleMap", label: "Google Maps", hint: ct("国际", "Intl"), icon: "G" },
+                        { key: "navAppleMaps", label: "Apple Maps", hint: ct("国际", "Intl"), icon: "A" },
+                        { key: "navWaze", label: "Waze", hint: ct("国际", "Intl"), icon: "W" },
+                      ].map((app) => (
+                        <label key={app.key} className="flex items-center justify-between py-1.5 cursor-pointer">
+                          <div className="flex items-center gap-2">
+                            <span className="w-5 h-5 rounded bg-gray-100 text-gray-600 flex items-center justify-center text-[10px]">{app.icon}</span>
+                            <span className="text-sm text-gray-800">{app.label}</span>
+                            <span className="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">{app.hint}</span>
+                          </div>
+                          <label className="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" checked={(editingItem as any)[app.key] ?? true} onChange={(e) => setEditingItem({ ...editingItem, [app.key]: e.target.checked })} className="sr-only peer" />
+                            <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+                          </label>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </>
         );
       case "articles":
@@ -1006,7 +1135,7 @@ export default function ConfigManagerPage() {
       case "marketCategories": return ct("市场类别", "Market Categories");
       case "marketProducts": return ct("市场产品", "Market Products");
       case "marketAd": return ct("市场广告", "Market Ads");
-      case "filing": return ct("备案信息", "Filing Info");
+      case "filing": return ct("备案��息", "Filing Info");
       case "aboutUs": return ct("关于我们", "About Us");
       case "privacy": return ct("隐私政策", "Privacy Policy");
       case "terms": return ct("服务条款", "Terms of Service");
@@ -1786,7 +1915,7 @@ export default function ConfigManagerPage() {
                           setWorkingConfig(newConfig);
                           setHasChanges(true);
                         }}
-                        className={`w-full text-left px-3 py-3 rounded-xl border-2 transition-all ${
+                        className={`w-full text-start px-3 py-3 rounded-xl border-2 transition-all ${
                           isActive
                             ? `${modeOption.color} ${modeOption.activeColor} ring-2`
                             : 'border-gray-200 bg-white hover:bg-gray-50'
@@ -1801,7 +1930,7 @@ export default function ConfigManagerPage() {
                               : 'bg-gray-100 text-gray-500'
                           }`}>{isActive ? ct("已选", "Active") : modeOption.badge}</span>
                         </div>
-                        <p className="text-[11px] text-gray-500 mt-1 ml-7">{modeOption.desc}</p>
+                        <p className="text-[11px] text-gray-500 mt-1 ms-7">{modeOption.desc}</p>
                       </button>
                     );
                   })}
@@ -1828,7 +1957,7 @@ export default function ConfigManagerPage() {
                           setWorkingConfig(newConfig);
                           setHasChanges(true);
                         }}
-                        className={`w-full text-left px-3 py-3 rounded-xl border-2 transition-all ${
+                        className={`w-full text-start px-3 py-3 rounded-xl border-2 transition-all ${
                           isActive
                             ? `${provider.color} ${provider.activeColor} ring-2`
                             : 'border-gray-200 bg-white hover:bg-gray-50'
@@ -1839,8 +1968,8 @@ export default function ConfigManagerPage() {
                           <span className={`text-sm ${isActive ? 'text-gray-900' : 'text-gray-700'}`}>{provider.name}</span>
                           {isActive && <span className="ml-auto text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">{ct("已选", "Active")}</span>}
                         </div>
-                        <p className="text-[11px] text-gray-500 mt-1 ml-7">{provider.desc}</p>
-                        <div className="flex flex-wrap gap-1 mt-1.5 ml-7">
+                        <p className="text-[11px] text-gray-500 mt-1 ms-7">{provider.desc}</p>
+                        <div className="flex flex-wrap gap-1 mt-1.5 ms-7">
                           {['Text', 'Image', 'Voice', 'Audio Call', 'Video Call'].map(f => (
                             <span key={f} className="text-[9px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">{f}</span>
                           ))}
@@ -1951,7 +2080,7 @@ export default function ConfigManagerPage() {
                       value={workingConfig.backendProxyConfig?.supabaseUrl || ""}
                       onChange={(e) => {
                         const newConfig = JSON.parse(JSON.stringify(workingConfig));
-                        if (!newConfig.backendProxyConfig) newConfig.backendProxyConfig = { supabaseUrl: "", supabaseAnonKey: "", edgeFunctionName: "chat-proxy", enabled: false, chatProvider: "aliyun-im", aliyunAppId: "", sendbirdAppId: "", cometchatAppId: "", cometchatRegion: "us" };
+                        if (!newConfig.backendProxyConfig) newConfig.backendProxyConfig = { supabaseUrl: "", supabaseAnonKey: "", edgeFunctionName: "chat-proxy", enabled: false, chatProvider: "aliyun-im", imMode: "edge-function-proxy", aliyunAppId: "", sendbirdAppId: "", cometchatAppId: "", cometchatRegion: "us" };
                         newConfig.backendProxyConfig.supabaseUrl = e.target.value;
                         setWorkingConfig(newConfig);
                         setHasChanges(true);
@@ -1967,7 +2096,7 @@ export default function ConfigManagerPage() {
                       value={workingConfig.backendProxyConfig?.supabaseAnonKey || ""}
                       onChange={(e) => {
                         const newConfig = JSON.parse(JSON.stringify(workingConfig));
-                        if (!newConfig.backendProxyConfig) newConfig.backendProxyConfig = { supabaseUrl: "", supabaseAnonKey: "", edgeFunctionName: "chat-proxy", enabled: false, chatProvider: "aliyun-im", aliyunAppId: "", sendbirdAppId: "", cometchatAppId: "", cometchatRegion: "us" };
+                        if (!newConfig.backendProxyConfig) newConfig.backendProxyConfig = { supabaseUrl: "", supabaseAnonKey: "", edgeFunctionName: "chat-proxy", enabled: false, chatProvider: "aliyun-im", imMode: "edge-function-proxy", aliyunAppId: "", sendbirdAppId: "", cometchatAppId: "", cometchatRegion: "us" };
                         newConfig.backendProxyConfig.supabaseAnonKey = e.target.value;
                         setWorkingConfig(newConfig);
                         setHasChanges(true);
@@ -1987,7 +2116,7 @@ export default function ConfigManagerPage() {
                       value={workingConfig.backendProxyConfig?.edgeFunctionName || "chat-proxy"}
                       onChange={(e) => {
                         const newConfig = JSON.parse(JSON.stringify(workingConfig));
-                        if (!newConfig.backendProxyConfig) newConfig.backendProxyConfig = { supabaseUrl: "", supabaseAnonKey: "", edgeFunctionName: "chat-proxy", enabled: false, chatProvider: "aliyun-im", aliyunAppId: "", sendbirdAppId: "", cometchatAppId: "", cometchatRegion: "us" };
+                        if (!newConfig.backendProxyConfig) newConfig.backendProxyConfig = { supabaseUrl: "", supabaseAnonKey: "", edgeFunctionName: "chat-proxy", enabled: false, chatProvider: "aliyun-im", imMode: "edge-function-proxy", aliyunAppId: "", sendbirdAppId: "", cometchatAppId: "", cometchatRegion: "us" };
                         newConfig.backendProxyConfig.edgeFunctionName = e.target.value;
                         setWorkingConfig(newConfig);
                         setHasChanges(true);
@@ -2165,12 +2294,12 @@ export default function ConfigManagerPage() {
                           <div className="flex-1 min-w-0">
                             <span className="text-sm text-gray-800">{provider.label}</span>
                             {isEnabled && hasCredentials && (
-                              <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] bg-emerald-100 text-emerald-700">
+                              <span className="ms-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] bg-emerald-100 text-emerald-700">
                                 {ct('已配置', 'Configured')}
                               </span>
                             )}
                             {isEnabled && !hasCredentials && (
-                              <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] bg-amber-100 text-amber-700">
+                              <span className="ms-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] bg-amber-100 text-amber-700">
                                 {ct('待配置', 'Pending')}
                               </span>
                             )}
@@ -2841,6 +2970,7 @@ export default function ConfigManagerPage() {
               </button>
             </div>
 
+            {/* ── 直播专属：提示信息 ── */}
             {/* Excel样式表格 */}
             {renderTable()}
 

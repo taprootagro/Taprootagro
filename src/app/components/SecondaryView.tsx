@@ -1,5 +1,7 @@
 import { ReactNode, useEffect, useState, useCallback } from "react";
 import { X } from "lucide-react";
+import { useKeyboardHeight } from "../hooks/useKeyboardHeight";
+import { useLanguage } from "../hooks/useLanguage";
 
 interface SecondaryViewProps {
   children: ReactNode;
@@ -16,9 +18,16 @@ interface SecondaryViewProps {
  * SecondaryView — 二级页面容器
  * 动画：从底部浮上来 translateY(100%) → translateY(0)
  * 纯 CSS transform，GPU 合成，十年前手机也流畅
+ *
+ * Android 返回键支持：
+ *   监听 Escape 键（桌面）和 popstate（Android 返回键映射）。
+ *   不主动调用 history.pushState / history.back()，
+ *   避免与 React Router 的 history 管理冲突。
  */
 export function SecondaryView({ children, footer, dockLeft, dockRight, headerRight, onClose, title, showTitle = true }: SecondaryViewProps) {
   const [phase, setPhase] = useState<'entering' | 'visible' | 'leaving'>('entering');
+  const { keyboardHeight, isKeyboardOpen } = useKeyboardHeight();
+  const { isRTL } = useLanguage();
 
   useEffect(() => {
     // 双帧确保浏览器完成首帧布局再触发过渡，低端设备也能稳定触发动画
@@ -32,6 +41,22 @@ export function SecondaryView({ children, footer, dockLeft, dockRight, headerRig
     setPhase('leaving');
   }, []);
 
+  // ── Android 返回键 / Escape 键支持 ──
+  useEffect(() => {
+    // Escape 键（桌面浏览器、Android WebView 部分映射）
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        handleClose();
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [handleClose]);
+
   const handleTransitionEnd = useCallback(() => {
     if (phase === 'leaving') onClose();
   }, [phase, onClose]);
@@ -41,17 +66,22 @@ export function SecondaryView({ children, footer, dockLeft, dockRight, headerRig
   return (
     <div
       className="fixed inset-0 z-50 flex flex-col overflow-hidden"
+      role="dialog"
+      aria-modal="true"
+      aria-label={title || 'Secondary view'}
       style={{
         backgroundColor: 'var(--app-bg)',
-        transform: phase === 'entering'
-          ? 'scale(0.94) translateY(12px)'   // 进入：从略小+偏下浮上来
-          : phase === 'leaving'
-            ? 'scale(0.97)'                  // 退出：纯缩小，不位移，干净利落
-            : 'none',
-        opacity: off ? 0 : 1,
+        // 键盘弹出时收缩底部，让 footer/input 紧贴键盘顶部
+        bottom: isKeyboardOpen ? `${keyboardHeight}px` : '0px',
         transition: phase === 'leaving'
           ? 'transform 160ms ease-in, opacity 120ms ease-in'
           : 'transform 380ms cubic-bezier(0.16, 1, 0.3, 1), opacity 280ms cubic-bezier(0.16, 1, 0.3, 1)',
+        transform: phase === 'entering'
+          ? 'scale(0.94) translateY(12px)'
+          : phase === 'leaving'
+            ? 'scale(0.97)'
+            : 'none',
+        opacity: off ? 0 : 1,
         willChange: off ? 'transform, opacity' : 'auto',
       }}
       onTransitionEnd={handleTransitionEnd}
@@ -78,7 +108,7 @@ export function SecondaryView({ children, footer, dockLeft, dockRight, headerRig
               {title}
             </h2>
             {headerRight && (
-              <div className="absolute right-4 top-1/2" style={{ transform: 'translateY(-50%)' }}>
+              <div className={`absolute ${isRTL ? 'left-4' : 'right-4'} top-1/2`} style={{ transform: 'translateY(-50%)' }}>
                 {headerRight}
               </div>
             )}
@@ -96,22 +126,27 @@ export function SecondaryView({ children, footer, dockLeft, dockRight, headerRig
         </div>
       )}
 
-      {/* Dock栏 — 结构与 Layout 底部导航完全一致，只是内容换成关闭按钮 */}
+      {/* Dock栏 — 键盘弹出时隐藏，节省空间让输入框紧贴键盘 */}
+      {!isKeyboardOpen && (
       <nav className="flex-shrink-0 bg-white safe-bottom" style={{ boxShadow: '0 -1px 12px rgba(0,0,0,0.06)' }}>
         <div className="relative">
           <div className="flex items-center justify-center px-1 relative">
-            {dockLeft && <div className="absolute left-4">{dockLeft}</div>}
-            {dockRight && <div className="absolute right-4">{dockRight}</div>}
+            {dockLeft && <div className={`absolute ${isRTL ? 'right-4' : 'left-4'}`}>{dockLeft}</div>}
+            {dockRight && <div className={`absolute ${isRTL ? 'left-4' : 'right-4'}`}>{dockRight}</div>}
             <button
               onClick={handleClose}
               className="flex items-center justify-center pt-2.5 pb-1.5 active:scale-95 transition-transform touch-manipulation"
-              aria-label="关闭"
+              aria-label={title ? `Close ${title}` : 'Close'}
+              style={{ minWidth: '48px', minHeight: '48px' }}
             >
-              <X className="w-7 h-7 text-red-500" strokeWidth={1.8} />
+              <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">
+                <X className="w-5 h-5 text-red-500" strokeWidth={2} />
+              </div>
             </button>
           </div>
         </div>
       </nav>
+      )}
     </div>
   );
 }

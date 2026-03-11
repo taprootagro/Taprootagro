@@ -2,18 +2,19 @@ import { Search, ScanLine, X } from "lucide-react";
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useLanguage } from "../hooks/useLanguage";
 import { useHomeConfig } from "../hooks/useHomeConfig";
-import { CameraCapture } from "./CameraCapture";
 import { MarketAdDetailPage } from "./MarketAdDetailPage";
 import { ProductDetailPage } from "./ProductDetailPage";
 import { LazyImage } from "./LazyImage";
 import { useNetworkQuality, optimizeImageUrl } from "../hooks/useNetworkQuality";
 import type { MarketAdvertisementConfig } from "../hooks/useHomeConfig";
+import { QRScannerCapture } from "./QRScannerCapture";
 
 export function MarketPage() {
   const { t } = useLanguage();
   const { config } = useHomeConfig();
   const networkQuality = useNetworkQuality();
-  const [showCamera, setShowCamera] = useState(false);
+  const [showQRScanner, setShowQRScanner] = useState(false);
+  const [scanResult, setScanResult] = useState<string | null>(null);
   
   // 搜索状态
   const [marketSearchQuery, setMarketSearchQuery] = useState("");
@@ -40,10 +41,27 @@ export function MarketPage() {
 
   useEffect(() => {
     if (advertisements.length <= 1) return;
+    if (document.hidden) return;
+
     adTimerRef.current = setInterval(() => {
       setAdIndex(prev => (prev + 1) % advertisements.length);
     }, 4000);
-    return () => { if (adTimerRef.current) clearInterval(adTimerRef.current); };
+
+    const handleVisibility = () => {
+      if (document.hidden) {
+        if (adTimerRef.current) { clearInterval(adTimerRef.current); adTimerRef.current = null; }
+      } else {
+        adTimerRef.current = setInterval(() => {
+          setAdIndex(prev => (prev + 1) % advertisements.length);
+        }, 4000);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      if (adTimerRef.current) clearInterval(adTimerRef.current);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }, [advertisements.length]);
   
   // 初始选中第一个一级类别
@@ -116,16 +134,6 @@ export function MarketPage() {
       {/* 商城主界面 */}
       {currentView.type === "market" && (
         <>
-          {/* 相机捕获界面 */}
-          {showCamera && (
-            <CameraCapture
-              onCapture={(imageData) => {
-                // 处理拍摄的图片
-              }}
-              onClose={() => setShowCamera(false)}
-            />
-          )}
-
           {/* 搜索栏 - 完全固定在顶部，不参与滚动 */}
           <div className="bg-emerald-600 px-3 py-1.5 z-10 flex-shrink-0">
             <div className="flex gap-2 items-center max-w-screen-xl mx-auto">
@@ -134,7 +142,8 @@ export function MarketPage() {
                 <input
                   type="text"
                   placeholder={t.market.searchProducts}
-                  className="flex-1 min-w-0 outline-none text-xs"
+                  className="flex-1 min-w-0 outline-none placeholder:text-gray-400"
+                  style={{ fontSize: 'clamp(13px, 3.5vw, 15px)' }}
                   value={marketSearchQuery}
                   onChange={(e) => setMarketSearchQuery(e.target.value)}
                   onFocus={() => setMarketSearchFocused(true)}
@@ -144,7 +153,8 @@ export function MarketPage() {
                   <button
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => setMarketSearchQuery("")}
-                    className="flex-shrink-0 p-0.5"
+                    className="flex-shrink-0 w-7 h-7 flex items-center justify-center"
+                    aria-label={t.common.close}
                   >
                     <X className="w-3.5 h-3.5 text-gray-400" />
                   </button>
@@ -160,8 +170,9 @@ export function MarketPage() {
                 </button>
               ) : (
                 <button 
-                  onClick={() => setShowCamera(true)}
+                  onClick={() => setShowQRScanner(true)}
                   className="bg-white w-10 h-10 rounded-full active:scale-95 transition-transform flex items-center justify-center flex-shrink-0"
+                  aria-label={t.camera.scanQRCode}
                 >
                   <ScanLine className="w-4 h-4 text-gray-600" />
                 </button>
@@ -183,17 +194,18 @@ export function MarketPage() {
                   onClick={() => {
                     setSelectedCategory(category.id);
                   }}
-                  className={`w-full py-3 px-1 text-xs text-center transition-all duration-200 active:scale-95 relative ${
+                  className={`w-full py-3 px-2 text-center transition-all duration-200 active:scale-95 relative ${
                     selectedCategory === category.id
                       ? "bg-white text-emerald-600 font-medium shadow-md"
                       : "text-gray-600"
                   }`}
+                  style={{ fontSize: 'clamp(11px, 3vw, 13px)' }}
                 >
                   {/* 左侧绿色指示条 */}
                   {selectedCategory === category.id && (
-                    <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-emerald-600 rounded-r-full"></div>
+                    <div className="absolute start-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-emerald-600 ltr:rounded-r-full rtl:rounded-l-full"></div>
                   )}
-                  <div className="break-words leading-tight">{category.name}</div>
+                  <div className="break-words leading-tight line-clamp-2">{category.name}</div>
                 </button>
               ))}
             </div>
@@ -335,6 +347,39 @@ export function MarketPage() {
             </div>
           </div>
         </>
+      )}
+
+      {/* QR二维码扫描器 — 农药溯源 */}
+      {showQRScanner && (
+        <QRScannerCapture
+          onScan={(code) => {
+            setShowQRScanner(false);
+            setScanResult(code);
+            setTimeout(() => setScanResult(null), 5000);
+          }}
+          onClose={() => setShowQRScanner(false)}
+        />
+      )}
+
+      {/* 扫描结果提示 */}
+      {scanResult && (
+        <div className="fixed top-16 inset-x-3 z-[70] animate-slide-up" style={{ maxWidth: '420px', margin: '0 auto' }}>
+          <div className="bg-white rounded-2xl shadow-2xl border border-emerald-200 overflow-hidden">
+            <div className="bg-emerald-600 px-4 py-2 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <ScanLine className="w-4 h-4 text-white" />
+                <span className="text-white text-sm">{t.common.featureComingSoon || 'Traceability'}</span>
+              </div>
+              <button onClick={() => setScanResult(null)} className="text-white/70 active:text-white w-10 h-10 flex items-center justify-center" aria-label={t.common.close}>
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="px-4 py-3">
+              <p className="text-xs text-gray-500 mb-1">{t.common.qrData || 'QR Data'}:</p>
+              <p className="text-sm text-gray-800 break-all select-text">{scanResult}</p>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -14,6 +14,9 @@
 // In MOCK mode (no Supabase connected), it simulates server responses locally.
 // ============================================================================
 
+import { storageGet } from '../utils/safeStorage';
+import { getAccessToken } from '../utils/auth';
+
 import type {
   TokenRequest,
   TokenResponse,
@@ -22,6 +25,8 @@ import type {
   ChatMessageDTO,
   PollResponse,
 } from "./ChatBackend";
+import { getUserId } from "../utils/auth";
+import { apiClient } from '../utils/apiClient';
 
 export interface ChatMessage {
   id: string;
@@ -67,7 +72,7 @@ function getProxyConfig(): ProxyCfg {
   };
 
   try {
-    const saved = localStorage.getItem(CONFIG_STORAGE_KEY);
+    const saved = storageGet(CONFIG_STORAGE_KEY);
     if (saved) {
       const parsed = JSON.parse(saved);
       const bpc = parsed.backendProxyConfig;
@@ -105,9 +110,13 @@ function isBackendAvailable(): boolean {
 
 function getHeaders(): Record<string, string> {
   const cfg = getProxyConfig();
+  const accessToken = getAccessToken();
   return {
     "Content-Type": "application/json",
-    ...(cfg.supabaseAnonKey ? { Authorization: `Bearer ${cfg.supabaseAnonKey}` } : {}),
+    // Authorization ONLY carries user's JWT — never fall back to anonKey.
+    // If no accessToken, this header is omitted so the backend returns 401.
+    ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    // apikey is always the anonKey (required by Supabase Edge Function gateway routing)
     ...(cfg.supabaseAnonKey ? { apikey: cfg.supabaseAnonKey } : {}),
   };
 }
@@ -137,16 +146,18 @@ const mockMessageStore: ChatMessage[] = [];
 export class ChatProxyService {
   private currentUserId: string = "me";
   private currentChannel: string = "default-channel";
+  private _listeners = new Set<(msg: ChatMessage) => void>();
+  private _targetUserId: string | null = null;
   private _mode: "backend" | "mock" = "mock";
-  private _listeners: Set<(msg: ChatMessage) => void> = new Set();
+  private _mockWarningShown = false; // 只显示一次警告
   private _pollTimer: ReturnType<typeof setTimeout> | null = null;
   private _pollSinceTimestamp: number = 0;
   private _pollInterval: number = 3000; // 3s default, auto-adjusts
   private _seenMessageIds: Set<string> = new Set();
   private _isPolling: boolean = false;
-  private _targetUserId: string = ""; // 当前聊天对象的IM用户ID
 
   constructor() {
+    this.currentUserId = getUserId() || "";
     this.refreshMode();
     window.addEventListener("configUpdate", () => this.refreshMode());
   }
@@ -155,16 +166,12 @@ export class ChatProxyService {
     const newMode = isBackendAvailable() ? "backend" : "mock";
     if (newMode !== this._mode) {
       console.log(`[ChatProxy] Mode changed: ${this._mode} → ${newMode}`);
+      this._mockWarningShown = false; // 模式改变时重置警告标志
     }
     this._mode = newMode;
     const cfg = getProxyConfig();
     console.log(`[ChatProxy] Running in ${this._mode.toUpperCase()} mode | Provider: ${cfg.chatProvider}`);
-    if (this._mode === "mock") {
-      console.warn(
-        "[ChatProxy] Backend proxy not enabled. Running in MOCK mode.\n" +
-        "Go to ConfigManager → Backend Proxy tab to configure IM provider and enable backend proxy."
-      );
-    }
+    // 移除启动时的警告 - 只在实际使用时提示
   }
 
   get mode() {
@@ -201,7 +208,7 @@ export class ChatProxyService {
   }
 
   /** Get the current target user ID */
-  get targetUserId(): string {
+  get targetUserId(): string | null {
     return this._targetUserId;
   }
 
@@ -302,17 +309,17 @@ export class ChatProxyService {
     try {
       const url = `${base}/poll?channel=${encodeURIComponent(this.currentChannel)}&since=${this._pollSinceTimestamp}&userId=${encodeURIComponent(this.currentUserId)}`;
       
-      const res = await fetch(url, { headers: getHeaders() });
+      const res = await apiClient<PollResponse>({
+        endpoint: url,
+        method: "GET",
+        headers: getHeaders(),
+        timeout: 10000,
+        retry: { maxRetries: 1 } // Do not retry aggressively for polling
+      });
 
-      if (!res.ok) {
-        console.warn(`[ChatProxy] Poll failed: ${res.status}`);
-        this._isPolling = false;
-        return;
-      }
+      const data = res.data;
 
-      const data: PollResponse = await res.json();
-
-      if (data.messages && data.messages.length > 0) {
+      if (data && data.messages && data.messages.length > 0) {
         console.log(`[ChatProxy] Poll received ${data.messages.length} new message(s)`);
 
         for (const dto of data.messages) {
@@ -385,20 +392,25 @@ export class ChatProxyService {
         provider: cfg.chatProvider,
       };
 
-      const res = await fetch(`${base}/token`, {
-        method: "POST",
-        headers: getHeaders(),
-        body: JSON.stringify(body),
-      });
+      try {
+        const res = await apiClient<TokenResponse>({
+          endpoint: `${base}/token`,
+          method: "POST",
+          headers: getHeaders(),
+          body: JSON.stringify(body),
+          retry: { maxRetries: 2 }
+        });
 
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: "Unknown error" }));
-        throw new Error(`Token request failed: ${err.error}`);
+        const data = res.data;
+        if (!data || !data.token) {
+           throw new Error("Token response invalid");
+        }
+
+        console.log(`[ChatProxy] Received token for ${cfg.chatProvider}: ${data.token.substring(0, 10)}...`);
+        return { token: data.token, appId: data.appId, uid: data.uid };
+      } catch (err: any) {
+        throw new Error(`Token request failed: ${err.message || "Unknown error"}`);
       }
-
-      const data: TokenResponse = await res.json();
-      console.log(`[ChatProxy] Received token for ${cfg.chatProvider}: ${data.token.substring(0, 10)}...`);
-      return { token: data.token, appId: data.appId, uid: data.uid };
     }
 
     // Mock mode
@@ -420,6 +432,15 @@ export class ChatProxyService {
     duration?: number,
     targetUserId?: string
   ): Promise<ChatMessage> {
+    // 首次使用时显示Mock模式提示（仅一次）
+    if (this._mode === "mock" && !this._mockWarningShown) {
+      console.warn(
+        "[ChatProxy] Backend proxy not enabled. Running in MOCK mode.\n" +
+        "Go to ConfigManager → Backend Proxy tab to configure IM provider and enable backend proxy."
+      );
+      this._mockWarningShown = true;
+    }
+
     const newMessage: ChatMessage = {
       id: `m${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
       channelName: this.currentChannel,
@@ -451,17 +472,17 @@ export class ChatProxyService {
           },
         };
 
-        const res = await fetch(`${base}/message`, {
+        const res = await apiClient<SendMessageResponse>({
+          endpoint: `${base}/message`,
           method: "POST",
           headers: getHeaders(),
           body: JSON.stringify(body),
+          retry: { maxRetries: 3 }
         });
 
-        if (!res.ok) throw new Error("Server rejected message");
-
-        const data: SendMessageResponse = await res.json();
+        const data = res.data;
         newMessage.status = "sent";
-        newMessage.timestamp = data.serverTimestamp || newMessage.timestamp;
+        newMessage.timestamp = data?.serverTimestamp || newMessage.timestamp;
         return newMessage;
       } catch (error) {
         console.error("[ChatProxy] Send failed:", error);
@@ -516,7 +537,7 @@ export class ChatProxyService {
       const replyMsg: ChatMessage = {
         id: `mock_reply_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
         channelName: this.currentChannel,
-        senderId: this._targetUserId,
+        senderId: this._targetUserId || "",
         content: replyContent,
         type: "text",
         timestamp: Date.now(),

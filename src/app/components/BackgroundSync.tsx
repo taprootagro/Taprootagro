@@ -1,5 +1,12 @@
 import { useState, useEffect } from "react";
 import { RefreshCw, CheckCircle, AlertCircle, Clock } from "lucide-react";
+import {
+  loadSyncQueue as dbLoadSyncQueue,
+  saveSyncQueue as dbSaveSyncQueue,
+  addToSyncQueue as dbAddToSyncQueue,
+  type SyncQueueRecord,
+} from "../utils/db";
+import { storageGetJSON } from "../utils/safeStorage";
 
 /**
  * 后台同步管理组件
@@ -73,25 +80,38 @@ export function BackgroundSync() {
 
   // 加载同步队列
   const loadSyncQueue = () => {
-    try {
-      const stored = localStorage.getItem("taproot-sync-queue");
-      if (stored) {
-        const queue = JSON.parse(stored) as SyncItem[];
-        setSyncQueue(queue);
-      }
-    } catch (err) {
+    dbLoadSyncQueue().then((records) => {
+      const queue: SyncItem[] = records.map((r) => ({
+        id: r.id,
+        type: r.type as SyncItem["type"],
+        data: typeof r.data === 'string' ? (() => { try { return JSON.parse(r.data); } catch { return r.data; } })() : r.data,
+        timestamp: r.timestamp,
+        status: r.status as SyncItem["status"],
+        retryCount: r.retryCount,
+      }));
+      setSyncQueue(queue);
+    }).catch((err) => {
       console.error("加载同步队列失败:", err);
-    }
+      // Fallback to localStorage
+      const stored = storageGetJSON<SyncItem[]>("taproot-sync-queue");
+      if (stored) setSyncQueue(stored);
+    });
   };
 
   // 保存同步队列
   const saveSyncQueue = (queue: SyncItem[]) => {
-    try {
-      localStorage.setItem("taproot-sync-queue", JSON.stringify(queue));
-      setSyncQueue(queue);
-    } catch (err) {
+    setSyncQueue(queue);
+    const records: SyncQueueRecord[] = queue.map((item) => ({
+      id: item.id,
+      type: item.type,
+      data: JSON.stringify(item.data),
+      timestamp: item.timestamp,
+      status: item.status,
+      retryCount: item.retryCount,
+    }));
+    dbSaveSyncQueue(records).catch((err) => {
       console.error("保存同步队列失败:", err);
-    }
+    });
   };
 
   // 添加到同步队列
@@ -449,31 +469,26 @@ export function BackgroundSync() {
 
 // 导出用于其他组件使用的工具函数
 export const queueForSync = (type: SyncItem["type"], data: any) => {
-  try {
-    const stored = localStorage.getItem("taproot-sync-queue");
-    const queue: SyncItem[] = stored ? JSON.parse(stored) : [];
+  const newItem: SyncQueueRecord = {
+    id: `${Date.now()}-${Math.random()}`,
+    type,
+    data: JSON.stringify(data),
+    timestamp: Date.now(),
+    status: "pending",
+    retryCount: 0,
+  };
 
-    const newItem: SyncItem = {
-      id: `${Date.now()}-${Math.random()}`,
-      type,
-      data,
-      timestamp: Date.now(),
-      status: "pending",
-      retryCount: 0,
-    };
-
-    queue.push(newItem);
-    localStorage.setItem("taproot-sync-queue", JSON.stringify(queue));
-
-    // 触发后台同步
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.ready.then((registration) => {
-        registration.sync.register("sync-data").catch(console.error);
-      });
-    }
-
-    console.log("已添加到同步队列:", type, data);
-  } catch (err) {
+  // Write to Dexie (async, fire-and-forget)
+  dbAddToSyncQueue(newItem).catch((err) => {
     console.error("添加到同步队列失败:", err);
+  });
+
+  // 触发后台同步
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.ready.then((registration) => {
+      registration.sync.register("sync-data").catch(console.error);
+    });
   }
+
+  console.log("已添加到同步队列:", type, data);
 };

@@ -19,7 +19,7 @@ const PLACEHOLDER_SVG =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300'%3E%3Crect width='400' height='300' fill='%23e5e7eb'/%3E%3C/svg%3E";
 
 const ERROR_SVG =
-  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300'%3E%3Crect width='400' height='300' fill='%23f3f4f6'/%3E%3Ctext x='200' y='150' text-anchor='middle' dominant-baseline='central' font-family='sans-serif' font-size='14' fill='%239ca3af'%3E%E5%9B%BE%E7%89%87%E5%8A%A0%E8%BD%BD%E5%A4%B1%E8%B4%A5%3C/text%3E%3C/svg%3E";
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300'%3E%3Crect width='400' height='300' fill='%23f3f4f6'/%3E%3Cpath d='M185 130 L215 130 L215 160 L185 160Z M195 140 L205 140 M200 145 L200 155 M180 170 L220 170' stroke='%23d1d5db' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E";
 
 export function LazyImage({
   src,
@@ -72,9 +72,7 @@ export function LazyImage({
     }
 
     return () => {
-      if (imgRef.current) {
-        observer.unobserve(imgRef.current);
-      }
+      observer.disconnect();
     };
   }, [src]);
 

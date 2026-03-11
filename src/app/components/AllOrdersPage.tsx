@@ -16,7 +16,6 @@ export function AllOrdersPage({ onClose }: AllOrdersPageProps) {
     >
       <div className="p-4">
         {/* 在这里添加所有订单的内容 */}
-        <p className="text-gray-400 text-center mt-8">暂无内容</p>
       </div>
     </SecondaryView>
   );

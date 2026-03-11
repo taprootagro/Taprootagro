@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { storageGetJSON, storageSetJSON } from "../utils/safeStorage";
 
 // 首页配置数据结构
 export interface BannerConfig {
@@ -22,6 +23,28 @@ export interface LiveStreamConfig {
   viewers: string;
   thumbnail: string;
   videoUrl?: string;
+  // Per-video share settings
+  shareEnabled?: boolean;
+  shareUrl?: string;
+  shareTitle?: string;
+  shareText?: string;
+  shareImgUrl?: string;
+  wxJsSdkEnabled?: boolean;
+  wxAppId?: string;
+  wxSignatureApi?: string;
+  // Per-video navigation settings
+  navEnabled?: boolean;
+  navLatitude?: string;
+  navLongitude?: string;
+  navAddress?: string;
+  navCoordSystem?: CoordSystemType;
+  navDisplayDays?: number;       // 导航按钮显示天数，默认15天，过期后自动隐藏
+  navCreatedAt?: number;         // 导航启用时间戳（毫秒），首次启用时自动写入
+  navBaiduMap?: boolean;
+  navAmapMap?: boolean;
+  navGoogleMap?: boolean;
+  navAppleMaps?: boolean;
+  navWaze?: boolean;
 }
 
 export interface ArticleConfig {
@@ -177,7 +200,7 @@ export interface PushProvidersConfig {
     safariWebId: string;          // Safari Web Push ID（可选）
   };
 
-  // 极��送 JPush
+  // 极送 JPush
   jpush: {
     enabled: boolean;
     appKey: string;               // JPush App Key（公开）
@@ -231,6 +254,38 @@ export interface BackendProxyConfig {
   // CometChat
   cometchatAppId: string;
   cometchatRegion: string;        // 'us' | 'eu' | 'in' 等
+}
+
+// 直播页分享配置接口
+export interface LiveShareConfig {
+  enabled: boolean;               // 是否启用分享按钮
+  shareUrl: string;               // 分享的PWA链接（留空自动取当前域名）
+  shareTitle: string;             // 分享标题
+  shareText: string;              // 分享描述文字
+  shareImgUrl: string;            // 分享缩略图URL（微信分享卡片用）
+  // 微信 JS-SDK 自定义分享
+  wxJsSdkEnabled: boolean;        // 是否启用微信JS-SDK自定义分享卡片
+  wxAppId: string;                // 微信公众号 AppID
+  wxSignatureApi: string;         // 后端签名接口URL（POST {url} → {appId,timestamp,nonceStr,signature}）
+}
+
+// 坐标系类型
+export type CoordSystemType = 'wgs84' | 'gcj02' | 'bd09';
+
+// 直播页导航配置接口（调用第三方地图App）
+export interface LiveNavigationConfig {
+  enabled: boolean;               // 是否启用导航按钮
+  latitude: string;               // 目的地纬度
+  longitude: string;              // 目的地经度
+  address: string;                // 显示地址名称
+  coordSystem: CoordSystemType;   // 输入坐标系：wgs84 / gcj02 / bd09
+  // 地图App开关 — 中国区
+  baiduMap: boolean;              // 百度地图
+  amapMap: boolean;               // 高德地图
+  // 国际区
+  googleMap: boolean;             // Google Maps
+  appleMaps: boolean;             // Apple Maps
+  waze: boolean;                  // Waze
 }
 
 // 登录页面配置接口
@@ -289,10 +344,12 @@ export interface HomePageConfig {
   cloudAIConfig: CloudAIConfig; // 云端AI度分析配置
   backendProxyConfig: BackendProxyConfig; // 后端代理配置
   loginConfig: LoginConfig; // 登录页面配置
+  liveShareConfig: LiveShareConfig; // 直播页分享配置
+  liveNavigationConfig: LiveNavigationConfig; // 直播页导航配置
 }
 
-// 默认配置
-const defaultConfig: HomePageConfig = {
+// 默认配置（导出以供 Root/ConfigProvider 直接使用，无需调用 hook）
+export const defaultConfig: HomePageConfig = {
   banners: [
     {
       id: 1,
@@ -843,6 +900,28 @@ const defaultConfig: HomePageConfig = {
     enablePhoneLogin: true,
     enableEmailLogin: true,
     defaultLoginMethod: 'phone'
+  },
+  liveShareConfig: {
+    enabled: true,
+    shareUrl: "",
+    shareTitle: "TaprootAgro直播",
+    shareText: "欢迎观看TaprootAgro的直播，了解更多农业技术知识！",
+    shareImgUrl: "https://images.unsplash.com/photo-1574943320219-553eb213f72d?w=400",
+    wxJsSdkEnabled: true,
+    wxAppId: "your-wx-app-id",
+    wxSignatureApi: "https://your-backend-api/signature"
+  },
+  liveNavigationConfig: {
+    enabled: true,
+    latitude: "39.9042",
+    longitude: "116.4074",
+    address: "北京市海淀区中关村大街1号",
+    coordSystem: "wgs84",
+    baiduMap: true,
+    amapMap: true,
+    googleMap: true,
+    appleMaps: true,
+    waze: true
   }
 };
 
@@ -855,10 +934,9 @@ export function useHomeConfig() {
   // 但添加事件监听来同步更新
   const [config, setConfig] = useState<HomePageConfig>(() => {
     // 从 localStorage 加载配置
-    const saved = localStorage.getItem(CONFIG_STORAGE_KEY);
-    if (saved) {
+    const parsedConfig = storageGetJSON<Record<string, any>>(CONFIG_STORAGE_KEY);
+    if (parsedConfig) {
       try {
-        const parsedConfig = JSON.parse(saved);
         // 合并默认配置以确保所有字段都存在
         return {
           ...defaultConfig,
@@ -890,8 +968,10 @@ export function useHomeConfig() {
           pushProvidersConfig: parsedConfig.pushProvidersConfig || defaultConfig.pushProvidersConfig,
           aiModelConfig: parsedConfig.aiModelConfig || defaultConfig.aiModelConfig,
           cloudAIConfig: parsedConfig.cloudAIConfig || defaultConfig.cloudAIConfig,
-          backendProxyConfig: parsedConfig.backendProxyConfig || defaultConfig.backendProxyConfig,
-          loginConfig: parsedConfig.loginConfig || defaultConfig.loginConfig
+          backendProxyConfig: { ...defaultConfig.backendProxyConfig, ...(parsedConfig.backendProxyConfig || {}) },
+          loginConfig: parsedConfig.loginConfig || defaultConfig.loginConfig,
+          liveShareConfig: parsedConfig.liveShareConfig || defaultConfig.liveShareConfig,
+          liveNavigationConfig: parsedConfig.liveNavigationConfig || defaultConfig.liveNavigationConfig
         };
       } catch (e) {
         console.error("Failed to parse config:", e);
@@ -936,7 +1016,7 @@ export function useHomeConfig() {
   const saveConfig = (newConfig: HomePageConfig) => {
     console.log('💾 保存配置 - useHomeConfig', new Date().toLocaleTimeString());
     setConfig(newConfig);
-    localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(newConfig));
+    storageSetJSON(CONFIG_STORAGE_KEY, newConfig);
     // 触发自定义事件，通知其他组件
     window.dispatchEvent(new CustomEvent('configUpdate', { detail: newConfig }));
   };
@@ -944,7 +1024,7 @@ export function useHomeConfig() {
   // 重置为默认配置
   const resetConfig = () => {
     setConfig(defaultConfig);
-    localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(defaultConfig));
+    storageSetJSON(CONFIG_STORAGE_KEY, defaultConfig);
     // 触发自定义事件，通知其他组件
     window.dispatchEvent(new CustomEvent('configUpdate', { detail: defaultConfig }));
   };

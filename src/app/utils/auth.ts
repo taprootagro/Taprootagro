@@ -26,12 +26,16 @@ const LOGIN_KEY = "isLoggedIn";
 const NUMERIC_ID_KEY = "agri_user_numeric_id";
 const SERVER_USER_ID_KEY = "agri_server_user_id";
 const AUTH_SOURCE_KEY = "agri_auth_source"; // "server" | "local"
+const ACCESS_TOKEN_KEY = "agri_access_token"; // JWT from Supabase Auth
+
+import { mirrorAuthToDexie } from './db';
+import { storageGet, storageSet, storageRemove } from './safeStorage';
 
 /**
  * Check if user is logged in
  */
 export function isUserLoggedIn(): boolean {
-  return localStorage.getItem(LOGIN_KEY) === "true";
+  return storageGet(LOGIN_KEY) === "true";
 }
 
 /**
@@ -43,17 +47,20 @@ export function isUserLoggedIn(): boolean {
  */
 export function setUserLoggedIn(status: boolean): void {
   if (status) {
-    localStorage.setItem(LOGIN_KEY, "true");
+    storageSet(LOGIN_KEY, "true");
     // If no server ID was set before this call, generate a local fallback
     if (!getServerUserId() && !getLocalNumericId()) {
       const newId = generateNumericId();
-      localStorage.setItem(NUMERIC_ID_KEY, newId);
-      localStorage.setItem(AUTH_SOURCE_KEY, "local");
+      storageSet(NUMERIC_ID_KEY, newId);
+      storageSet(AUTH_SOURCE_KEY, "local");
       console.log(`[Auth] Local fallback ID generated: ${newId} (no backend)`);
     }
+    // Mirror to encrypted Dexie backup (fire-and-forget)
+    mirrorAuthToDexie().catch(() => {});
   } else {
-    localStorage.removeItem(LOGIN_KEY);
+    storageRemove(LOGIN_KEY);
     // Preserve IDs so re-login retains the same IM identity
+    mirrorAuthToDexie().catch(() => {});
   }
 }
 
@@ -66,16 +73,18 @@ export function setUserLoggedIn(status: boolean): void {
  * @param id - The user.id UUID returned by Supabase Auth
  */
 export function setServerUserId(id: string): void {
-  localStorage.setItem(SERVER_USER_ID_KEY, id);
-  localStorage.setItem(AUTH_SOURCE_KEY, "server");
+  storageSet(SERVER_USER_ID_KEY, id);
+  storageSet(AUTH_SOURCE_KEY, "server");
   console.log(`[Auth] Server-assigned user ID stored: ${id}`);
+  // Mirror to encrypted Dexie backup (fire-and-forget)
+  mirrorAuthToDexie().catch(() => {});
 }
 
 /**
  * Get the server-assigned user ID (null if not set / using local fallback)
  */
 export function getServerUserId(): string | null {
-  return localStorage.getItem(SERVER_USER_ID_KEY);
+  return storageGet(SERVER_USER_ID_KEY);
 }
 
 /**
@@ -83,7 +92,36 @@ export function getServerUserId(): string | null {
  * generated locally (insecure demo mode).
  */
 export function isServerAssignedId(): boolean {
-  return localStorage.getItem(AUTH_SOURCE_KEY) === "server";
+  return storageGet(AUTH_SOURCE_KEY) === "server";
+}
+
+// ---- Access Token (JWT for API Authorization) ----
+
+/**
+ * Store the access token (JWT) returned by Supabase Auth.
+ * This token is sent as `Authorization: Bearer <token>` in API requests,
+ * allowing the backend to verify the user's identity via `auth.getUser(token)`.
+ *
+ * @param token - JWT access token from Supabase Auth
+ */
+export function setAccessToken(token: string): void {
+  storageSet(ACCESS_TOKEN_KEY, token);
+  console.log(`[Auth] Access token stored (${token.slice(0, 20)}...)`);
+}
+
+/**
+ * Get the stored access token (null if not set / demo mode).
+ * When present, this should be used for Authorization headers instead of anonKey.
+ */
+export function getAccessToken(): string | null {
+  return storageGet(ACCESS_TOKEN_KEY);
+}
+
+/**
+ * Clear the access token (e.g., on logout or token expiry).
+ */
+export function clearAccessToken(): void {
+  storageRemove(ACCESS_TOKEN_KEY);
 }
 
 // ---- Effective User ID (used by IM services) ----
@@ -110,7 +148,7 @@ export function getNumericUserId(): string | null {
  * Used internally and for migration scenarios.
  */
 export function getLocalNumericId(): string | null {
-  return localStorage.getItem(NUMERIC_ID_KEY);
+  return storageGet(NUMERIC_ID_KEY);
 }
 
 /**
@@ -128,10 +166,13 @@ function generateNumericId(): string {
  * Use this for "delete account" scenarios.
  */
 export function clearAuthData(): void {
-  localStorage.removeItem(LOGIN_KEY);
-  localStorage.removeItem(NUMERIC_ID_KEY);
-  localStorage.removeItem(SERVER_USER_ID_KEY);
-  localStorage.removeItem(AUTH_SOURCE_KEY);
+  storageRemove(LOGIN_KEY);
+  storageRemove(NUMERIC_ID_KEY);
+  storageRemove(SERVER_USER_ID_KEY);
+  storageRemove(AUTH_SOURCE_KEY);
+  storageRemove(ACCESS_TOKEN_KEY);
+  // Mirror cleared state to Dexie
+  mirrorAuthToDexie().catch(() => {});
 }
 
 /**

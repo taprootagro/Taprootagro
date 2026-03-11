@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { SecondaryView } from "./SecondaryView";
 import { useLanguage } from "../hooks/useLanguage";
+import { kvPutEncrypted } from "../utils/db";
+import { storageSet } from "../utils/safeStorage";
 
 interface PickupAddressEditProps {
   onClose: () => void;
@@ -20,8 +22,9 @@ export function PickupAddressEdit({
   useEffect(() => {
     const timer = setTimeout(() => {
       if (address !== initialAddress) {
-        // 保存到 localStorage
-        localStorage.setItem("pickup-address", address);
+        // 保存到 Dexie (encrypted) + localStorage fallback
+        kvPutEncrypted("pickup-address", address).catch(() => {});
+        storageSet("pickup-address", address);
         // 如果有回调函数，调用它
         if (onSave) {
           onSave(address);
@@ -42,7 +45,7 @@ export function PickupAddressEdit({
         <textarea
           value={address}
           onChange={(e) => setAddress(e.target.value)}
-          placeholder={t.profile.addressPlaceholder || "请输入详细的提货地址..."}
+          placeholder=""
           className="w-full h-full text-sm text-gray-800 outline-none resize-none placeholder:text-gray-400 p-4"
           autoFocus
         />

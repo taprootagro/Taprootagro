@@ -1,11 +1,16 @@
 import { SecondaryView } from "./SecondaryView";
 import { useLanguage } from "../hooks/useLanguage";
-import { useState, useCallback, useRef, useMemo } from "react";
+import { useState, useCallback, useRef, useMemo, useEffect } from "react";
 import {
   Plus, TrendingUp, TrendingDown, Wallet, Calendar, Tag,
   DollarSign, X, Edit, Trash2, Download, Upload, ChevronLeft, ChevronRight,
   Database, Shield, CheckCircle
 } from "lucide-react";
+import {
+  saveTransactions as dbSaveTransactions,
+  loadTransactions as dbLoadTransactions,
+} from "../utils/db";
+import { storageGet, storageSet } from "../utils/safeStorage";
 
 interface StatementPageProps {
   onClose: () => void;
@@ -36,27 +41,6 @@ const SAVE_TIME_KEY = "accounting_last_saved";
 const DATA_VERSION_KEY = "accounting_data_version";
 const CURRENT_DATA_VERSION = 2;
 
-// ====== 安全读取 localStorage ======
-function safeReadStorage(key: string): string | null {
-  try {
-    return localStorage.getItem(key);
-  } catch (e) {
-    console.error(`[Ledger] Failed to read localStorage key="${key}":`, e);
-    return null;
-  }
-}
-
-// ====== 安全写入 localStorage ======
-function safeWriteStorage(key: string, value: string): boolean {
-  try {
-    localStorage.setItem(key, value);
-    return true;
-  } catch (e) {
-    console.error(`[Ledger] Failed to write localStorage key="${key}":`, e);
-    return false;
-  }
-}
-
 // ====== 数据迁移：确保每条记录有 categoryKey ======
 function migrateTransactions(raw: any[]): Transaction[] {
   return raw.map((tx: any) => ({
@@ -74,7 +58,7 @@ function migrateTransactions(raw: any[]): Transaction[] {
 // ====== 从 localStorage 加载，带备份回退 ======
 function loadTransactionsFromStorage(): Transaction[] {
   // 先尝试主存储
-  const mainData = safeReadStorage(STORAGE_KEY);
+  const mainData = storageGet(STORAGE_KEY);
   if (mainData) {
     try {
       const parsed = JSON.parse(mainData);
@@ -83,7 +67,7 @@ function loadTransactionsFromStorage(): Transaction[] {
         // 确保按日期降序排列，跨版本迁移后顺序一致
         migrated.sort((a, b) => b.timestamp - a.timestamp);
         // 写入版本号
-        safeWriteStorage(DATA_VERSION_KEY, CURRENT_DATA_VERSION.toString());
+        storageSet(DATA_VERSION_KEY, CURRENT_DATA_VERSION.toString());
         return migrated;
       }
     } catch (e) {
@@ -92,7 +76,7 @@ function loadTransactionsFromStorage(): Transaction[] {
   }
 
   // 主存储失败或为空，尝试备份
-  const backupData = safeReadStorage(BACKUP_KEY);
+  const backupData = storageGet(BACKUP_KEY);
   if (backupData) {
     try {
       const parsed = JSON.parse(backupData);
@@ -100,7 +84,7 @@ function loadTransactionsFromStorage(): Transaction[] {
         console.warn("[Ledger] Restored from backup!");
         const migrated = migrateTransactions(parsed);
         // 恢复到主存储
-        safeWriteStorage(STORAGE_KEY, JSON.stringify(migrated));
+        storageSet(STORAGE_KEY, JSON.stringify(migrated));
         return migrated;
       }
     } catch (e) {
@@ -145,6 +129,20 @@ export function StatementPage({ onClose }: StatementPageProps) {
   const [transactions, setTransactions] = useState<Transaction[]>(() =>
     loadTransactionsFromStorage()
   );
+
+  // Dexie async hydration: if Dexie has newer/encrypted data, use it
+  useEffect(() => {
+    let cancelled = false;
+    dbLoadTransactions().then((dexieData) => {
+      if (cancelled || !dexieData || !Array.isArray(dexieData)) return;
+      const migrated = migrateTransactions(dexieData);
+      migrated.sort((a, b) => b.timestamp - a.timestamp);
+      if (migrated.length > 0) {
+        setTransactions(migrated);
+      }
+    }).catch(() => { /* Dexie unavailable, localStorage data already loaded */ });
+    return () => { cancelled = true; };
+  }, []);
 
   const [showAddForm, setShowAddForm] = useState(false);
   const [showDataPanel, setShowDataPanel] = useState(false);
@@ -191,26 +189,31 @@ export function StatementPage({ onClose }: StatementPageProps) {
   // ====== 安全保存：先备份旧数据，再写入新数据 ======
   const saveTransactions = useCallback((data: Transaction[]) => {
     // 1. 备份当前主存储（旧数据）到 backup key
-    const currentMain = safeReadStorage(STORAGE_KEY);
+    const currentMain = storageGet(STORAGE_KEY);
     if (currentMain) {
-      safeWriteStorage(BACKUP_KEY, currentMain);
+      storageSet(BACKUP_KEY, currentMain);
     }
 
     // 2. 写入新数据到主存储
     const json = JSON.stringify(data);
-    const ok = safeWriteStorage(STORAGE_KEY, json);
+    const ok = storageSet(STORAGE_KEY, json);
 
     if (ok) {
       // 3. 记录保存时间
-      safeWriteStorage(SAVE_TIME_KEY, new Date().toISOString());
-      safeWriteStorage(DATA_VERSION_KEY, CURRENT_DATA_VERSION.toString());
+      storageSet(SAVE_TIME_KEY, new Date().toISOString());
+      storageSet(DATA_VERSION_KEY, CURRENT_DATA_VERSION.toString());
     } else {
       // 写入失败时触发 Toast 告警
       console.error("[Ledger] Save failed! Data kept in memory only.");
       showToast(s.error + ': ' + (s.exportData || 'Save failed'), 'error');
     }
 
-    // 4. 更新 React 状态
+    // 4. Write to Dexie (encrypted, async, fire-and-forget)
+    dbSaveTransactions(data).catch((e) =>
+      console.warn('[Ledger] Dexie save failed (non-fatal):', e)
+    );
+
+    // 5. 更新 React 状态
     setTransactions(data);
   }, [showToast, s]);
 
@@ -418,7 +421,7 @@ export function StatementPage({ onClose }: StatementPageProps) {
   const balance = stats.income - stats.expense;
 
   // 上次保存时间
-  const lastSaved = safeReadStorage(SAVE_TIME_KEY);
+  const lastSaved = storageGet(SAVE_TIME_KEY);
   const lastSavedDisplay = lastSaved
     ? new Date(lastSaved).toLocaleString()
     : "--";
@@ -626,7 +629,7 @@ export function StatementPage({ onClose }: StatementPageProps) {
         </div>
 
         {/* 添加按钮 */}
-        <div className="fixed bottom-20 right-4 z-20">
+        <div className="fixed bottom-20 ltr:right-4 rtl:left-4 z-20">
           <button
             onClick={() => {
               setShowAddForm(true);
@@ -685,7 +688,7 @@ export function StatementPage({ onClose }: StatementPageProps) {
                   <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
                     <Download className="w-5 h-5 text-blue-600" />
                   </div>
-                  <div className="text-left">
+                  <div className="text-start">
                     <p className="text-blue-800 font-medium text-sm">{ts("exportData")}</p>
                     <p className="text-blue-500 text-xs">JSON</p>
                   </div>
@@ -699,7 +702,7 @@ export function StatementPage({ onClose }: StatementPageProps) {
                   <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center">
                     <Upload className="w-5 h-5 text-orange-600" />
                   </div>
-                  <div className="text-left">
+                  <div className="text-start">
                     <p className="text-orange-800 font-medium text-sm">{ts("importData")}</p>
                     <p className="text-orange-500 text-xs">JSON</p>
                   </div>
@@ -749,7 +752,7 @@ export function StatementPage({ onClose }: StatementPageProps) {
                           : "bg-gray-100 text-gray-600"
                       }`}
                     >
-                      <TrendingDown className="w-4 h-4 inline mr-1" />
+                      <TrendingDown className="w-4 h-4 inline me-1" />
                       {s.expense}
                     </button>
                     <button
@@ -762,7 +765,7 @@ export function StatementPage({ onClose }: StatementPageProps) {
                           : "bg-gray-100 text-gray-600"
                       }`}
                     >
-                      <TrendingUp className="w-4 h-4 inline mr-1" />
+                      <TrendingUp className="w-4 h-4 inline me-1" />
                       {s.income}
                     </button>
                   </div>
@@ -774,7 +777,7 @@ export function StatementPage({ onClose }: StatementPageProps) {
                     {s.amount}
                   </label>
                   <div className="relative">
-                    <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <DollarSign className="absolute inset-y-0 start-3 my-auto w-4 h-4 text-gray-400" />
                     <input
                       type="number"
                       step="0.01"
@@ -784,7 +787,7 @@ export function StatementPage({ onClose }: StatementPageProps) {
                         setFormData({ ...formData, amount: e.target.value })
                       }
                       placeholder="0.00"
-                      className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl text-gray-800 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                      className="w-full ps-10 pe-4 py-3 border border-gray-300 rounded-xl text-gray-800 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
                     />
                   </div>
                 </div>
@@ -831,14 +834,14 @@ export function StatementPage({ onClose }: StatementPageProps) {
                     {s.date}
                   </label>
                   <div className="relative">
-                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <Calendar className="absolute inset-y-0 start-3 my-auto w-4 h-4 text-gray-400" />
                     <input
                       type="date"
                       value={formData.date}
                       onChange={(e) =>
                         setFormData({ ...formData, date: e.target.value })
                       }
-                      className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl text-gray-800 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
+                      className="w-full ps-10 pe-4 py-3 border border-gray-300 rounded-xl text-gray-800 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
                     />
                   </div>
                 </div>
@@ -849,7 +852,7 @@ export function StatementPage({ onClose }: StatementPageProps) {
                     {s.noteOptional}
                   </label>
                   <div className="relative">
-                    <Tag className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+                    <Tag className="absolute start-3 top-3 w-4 h-4 text-gray-400" />
                     <textarea
                       value={formData.note}
                       onChange={(e) =>
@@ -857,7 +860,7 @@ export function StatementPage({ onClose }: StatementPageProps) {
                       }
                       placeholder={s.notePlaceholder}
                       rows={3}
-                      className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl text-gray-800 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none resize-none"
+                      className="w-full ps-10 pe-4 py-3 border border-gray-300 rounded-xl text-gray-800 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none resize-none"
                     />
                   </div>
                 </div>

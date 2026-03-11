@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { Loader2, AlertTriangle, CheckCircle } from "lucide-react";
-import { setUserLoggedIn, setServerUserId } from "../utils/auth";
+import { setUserLoggedIn, setServerUserId, setAccessToken } from "../utils/auth";
 import { useLanguage } from "../hooks/useLanguage";
+import { storageGetJSON } from "../utils/safeStorage";
 
 // ============================================================================
 // OAuthCallback — Handles OAuth provider redirects
@@ -58,13 +59,12 @@ export function OAuthCallback() {
 
   async function exchangeCode(provider: string, code: string) {
     try {
-      const saved = localStorage.getItem(CONFIG_STORAGE_KEY);
+      const saved = storageGetJSON<Record<string, any>>(CONFIG_STORAGE_KEY);
       if (!saved) {
         throw new Error("No configuration found");
       }
 
-      const parsed = JSON.parse(saved);
-      const bpc = parsed.backendProxyConfig;
+      const bpc = saved.backendProxyConfig;
 
       if (!bpc?.enabled || !bpc?.supabaseUrl) {
         throw new Error("Backend not configured");
@@ -95,6 +95,11 @@ export function OAuthCallback() {
 
       const data = await res.json();
       if (data.userId) {
+        // Store token BEFORE setting login status, so any side effects
+        // triggered by login state change already have access to the JWT.
+        if (data.accessToken || data.access_token) {
+          setAccessToken(data.accessToken || data.access_token);
+        }
         setServerUserId(data.userId);
         setUserLoggedIn(true);
         setStatus("success");

@@ -1,5 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
 import type { HomePageConfig } from './useHomeConfig';
+import { deepMerge, MERGE_DEEP } from '../utils';
+import { storageGetJSON, storageSetJSON } from '../utils/safeStorage';
 
 /**
  * ConfigProvider - 全局配置单例 Context
@@ -10,6 +12,8 @@ import type { HomePageConfig } from './useHomeConfig';
  * 
  * 改为 Context Provider 在 Root 层提供单一数据源，
  * 所有子组件通过 useContext 共享同一份配置对象。
+ * 
+ * v2 更新：使用深度merge工具替代浅层合并，支持嵌套对象完整合并。
  */
 
 const CONFIG_STORAGE_KEY = 'agri_home_config';
@@ -39,15 +43,9 @@ export function ConfigProvider({ children, defaultConfig }: { children: ReactNod
   _defaultConfig = defaultConfig;
   
   const [config, setConfig] = useState<HomePageConfig>(() => {
-    const saved = localStorage.getItem(CONFIG_STORAGE_KEY);
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        return mergeConfig(defaultConfig, parsed);
-      } catch (e) {
-        console.error('[ConfigProvider] Failed to parse config:', e);
-        return defaultConfig;
-      }
+    const parsed = storageGetJSON<HomePageConfig>(CONFIG_STORAGE_KEY);
+    if (parsed) {
+      return deepMerge(defaultConfig, parsed, MERGE_DEEP);
     }
     return defaultConfig;
   });
@@ -80,13 +78,13 @@ export function ConfigProvider({ children, defaultConfig }: { children: ReactNod
 
   const saveConfig = useCallback((newConfig: HomePageConfig) => {
     setConfig(newConfig);
-    localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(newConfig));
+    storageSetJSON(CONFIG_STORAGE_KEY, newConfig);
     window.dispatchEvent(new CustomEvent('configUpdate', { detail: newConfig }));
   }, []);
 
   const resetConfig = useCallback(() => {
     setConfig(defaultConfig);
-    localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(defaultConfig));
+    storageSetJSON(CONFIG_STORAGE_KEY, defaultConfig);
     window.dispatchEvent(new CustomEvent('configUpdate', { detail: defaultConfig }));
   }, [defaultConfig]);
 
@@ -139,40 +137,4 @@ export function useConfigContext(): ConfigContextType {
     throw new Error('useConfigContext must be used within ConfigProvider');
   }
   return ctx;
-}
-
-/** 深度合并配置，确保所有字段都存在 */
-function mergeConfig(defaults: HomePageConfig, parsed: Partial<HomePageConfig>): HomePageConfig {
-  return {
-    ...defaults,
-    ...parsed,
-    marketPage: {
-      ...defaults.marketPage,
-      ...(parsed.marketPage || {}),
-      categories: parsed.marketPage?.categories || defaults.marketPage.categories,
-      products: parsed.marketPage?.products || defaults.marketPage.products,
-      advertisements: parsed.marketPage?.advertisements ||
-        ((parsed.marketPage as any)?.advertisement ? [(parsed.marketPage as any).advertisement] : defaults.marketPage.advertisements),
-    },
-    filing: parsed.filing || defaults.filing,
-    aboutUs: parsed.aboutUs || defaults.aboutUs,
-    privacyPolicy: parsed.privacyPolicy || defaults.privacyPolicy,
-    termsOfService: parsed.termsOfService || defaults.termsOfService,
-    appBranding: parsed.appBranding || defaults.appBranding,
-    chatContact: {
-      ...defaults.chatContact,
-      ...(parsed.chatContact || {}),
-    },
-    userProfile: parsed.userProfile || defaults.userProfile,
-    desktopIcon: {
-      ...defaults.desktopIcon,
-      ...(parsed.desktopIcon || {}),
-    },
-    pushConfig: parsed.pushConfig || defaults.pushConfig,
-    pushProvidersConfig: parsed.pushProvidersConfig || defaults.pushProvidersConfig,
-    aiModelConfig: parsed.aiModelConfig || defaults.aiModelConfig,
-    cloudAIConfig: parsed.cloudAIConfig || defaults.cloudAIConfig,
-    backendProxyConfig: parsed.backendProxyConfig || defaults.backendProxyConfig,
-    loginConfig: parsed.loginConfig || defaults.loginConfig,
-  };
 }

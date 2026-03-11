@@ -10,6 +10,8 @@
 // ============================================================================
 
 import { cloudAIGuard } from '../utils/cloudAIGuard';
+import { storageGet } from '../utils/safeStorage';
+import { getAccessToken } from '../utils/auth';
 
 export interface DeepAnalysisResult {
   provider: string;       // Display name (e.g. "通义千问", "Gemini")
@@ -20,7 +22,7 @@ export interface DeepAnalysisResult {
   timestamp: number;
 }
 
-// ---- Configuration (reads from localStorage like ChatProxyService) ----
+// ---- Configuration (reads from safeStorage like ChatProxyService) ----
 const CONFIG_STORAGE_KEY = "agri_home_config";
 
 interface CloudAICfg {
@@ -48,7 +50,7 @@ function getCloudAIConfig(): CloudAICfg {
     maxTokens: 512,
   };
   try {
-    const saved = localStorage.getItem(CONFIG_STORAGE_KEY);
+    const saved = storageGet(CONFIG_STORAGE_KEY);
     if (saved) {
       const parsed = JSON.parse(saved);
       const c = parsed.cloudAIConfig;
@@ -70,7 +72,7 @@ function getCloudAIConfig(): CloudAICfg {
 function getBackendConfig(): BackendCfg {
   const defaults: BackendCfg = { supabaseUrl: "", supabaseAnonKey: "", enabled: false };
   try {
-    const saved = localStorage.getItem(CONFIG_STORAGE_KEY);
+    const saved = storageGet(CONFIG_STORAGE_KEY);
     if (saved) {
       const parsed = JSON.parse(saved);
       const b = parsed.backendProxyConfig;
@@ -97,9 +99,13 @@ function getEndpointUrl(): string {
 
 function getHeaders(): Record<string, string> {
   const backend = getBackendConfig();
+  const accessToken = getAccessToken();
   return {
     "Content-Type": "application/json",
-    ...(backend.supabaseAnonKey ? { Authorization: `Bearer ${backend.supabaseAnonKey}` } : {}),
+    // Authorization ONLY carries user's JWT — never fall back to anonKey.
+    // If no accessToken, this header is omitted so the backend returns 401.
+    ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    // apikey is always the anonKey (required by Supabase Edge Function gateway routing)
     ...(backend.supabaseAnonKey ? { apikey: backend.supabaseAnonKey } : {}),
   };
 }
@@ -181,7 +187,7 @@ function generateMockFollowUp(
   if (lowerMsg.includes('水') || lowerMsg.includes('浇') || lowerMsg.includes('irrigation') || lowerMsg.includes('water')) {
     return `### 水分管理建议
 
-针对当前病害状���，水分管理至关重要：
+针对当前病害状，水分管理至关重要：
 
 1. **控制田间湿度**：避免大水漫灌，采用滴灌或沟灌方式。
 2. **排水畅通**：确保田间排水系统畅通，降低病原菌繁殖的湿度条件。
@@ -194,7 +200,7 @@ function generateMockFollowUp(
 
 1. **综合防治**：建议结合农业防治、物理防治和化学防治多种手段。
 2. **持续观察**：密切关注病害发展趋势，如有扩散应及时加强防治。
-3. **记录档案**：建议记录用药时间、药剂名称和用量，建立田间管理档案。
+3. **记录档案**：建议记录用药时、药剂名称和用量，建立田间管理档案。
 
 如果您能提供更多细节（如使用过的农药、施肥情况、灌溉方式等），我可以给出更精准的建议。`;
 }

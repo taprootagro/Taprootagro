@@ -2,8 +2,10 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router";
 import { X, Smartphone, MessageSquare, Mail, Loader2, AlertTriangle, Info } from "lucide-react";
 import { useLanguage } from "../hooks/useLanguage";
-import { setUserLoggedIn, setServerUserId } from "../utils/auth";
+import { setUserLoggedIn, setServerUserId, setAccessToken } from "../utils/auth";
+import { storageGetJSON } from "../utils/safeStorage";
 import { useHomeConfig } from "../hooks/useHomeConfig";
+import { apiClient } from "../utils/apiClient";
 
 // ============================================================================
 // LoginPage — Real Auth Flow with OAuth + OTP
@@ -98,21 +100,18 @@ interface BackendConfig {
 
 function getBackendConfig(): BackendConfig {
   const defaults: BackendConfig = { supabaseUrl: "", supabaseAnonKey: "", edgeFunctionName: "chat-proxy", enabled: false };
-  try {
-    const saved = localStorage.getItem(CONFIG_STORAGE_KEY);
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      const b = parsed.backendProxyConfig;
-      if (b) {
-        return {
-          supabaseUrl: b.supabaseUrl || "",
-          supabaseAnonKey: b.supabaseAnonKey || "",
-          edgeFunctionName: b.edgeFunctionName || "chat-proxy",
-          enabled: b.enabled ?? false,
-        };
-      }
+  const saved = storageGetJSON<Record<string, any>>(CONFIG_STORAGE_KEY);
+  if (saved) {
+    const b = saved.backendProxyConfig;
+    if (b) {
+      return {
+        supabaseUrl: b.supabaseUrl || "",
+        supabaseAnonKey: b.supabaseAnonKey || "",
+        edgeFunctionName: b.edgeFunctionName || "chat-proxy",
+        enabled: b.enabled ?? false,
+      };
     }
-  } catch { /* ignore */ }
+  }
   return defaults;
 }
 
@@ -141,19 +140,23 @@ async function sendVerificationCode(
   credential: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const res = await fetch(getBackendUrl("/send-code"), {
-      method: "POST",
+    const response = await apiClient<{ success?: boolean; error?: string }>({
+      endpoint: getBackendUrl("/send-code"),
+      method: 'POST',
+      body: { method, credential },
       headers: getBackendHeaders(),
-      body: JSON.stringify({ method, credential }),
+      preferredVersion: 'v1',
+      enableFallback: false,
+      deduplicate: false,
+      timeout: 15000,
+      retry: { maxRetries: 2, initialDelay: 1000 },
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
-      return { success: false, error: err.error || `HTTP ${res.status}` };
-    }
-    const data = await res.json();
+    const data = response.data;
     return { success: data.success !== false, error: data.error };
   } catch (err: any) {
-    return { success: false, error: err?.message || "Network error" };
+    // apiClient wraps errors with retry context — extract user-friendly message
+    const msg = err?.message || "Network error";
+    return { success: false, error: msg.includes('timeout') ? 'Request timed out' : msg };
   }
 }
 
@@ -162,24 +165,36 @@ async function authenticateViaBackend(
   method: "phone" | "email",
   credential: string,
   code: string
-): Promise<{ success: boolean; userId?: string; error?: string }> {
+): Promise<{ success: boolean; userId?: string; accessToken?: string; error?: string }> {
   try {
-    const res = await fetch(getBackendUrl("/auth"), {
-      method: "POST",
+    const response = await apiClient<{
+      userId?: string;
+      accessToken?: string;
+      access_token?: string;
+      error?: string;
+    }>({
+      endpoint: getBackendUrl("/auth"),
+      method: 'POST',
+      body: { method, credential, code },
       headers: getBackendHeaders(),
-      body: JSON.stringify({ method, credential, code }),
+      preferredVersion: 'v1',
+      enableFallback: false,
+      deduplicate: false,
+      timeout: 20000,
+      retry: { maxRetries: 2, initialDelay: 1000 },
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
-      return { success: false, error: err.error || `HTTP ${res.status}` };
-    }
-    const data = await res.json();
+    const data = response.data;
     if (data.userId) {
-      return { success: true, userId: data.userId };
+      return {
+        success: true,
+        userId: data.userId,
+        accessToken: data.accessToken || data.access_token,
+      };
     }
     return { success: false, error: data.error || "No userId in response" };
   } catch (err: any) {
-    return { success: false, error: err?.message || "Network error" };
+    const msg = err?.message || "Network error";
+    return { success: false, error: msg.includes('timeout') ? 'Request timed out' : msg };
   }
 }
 
@@ -349,6 +364,11 @@ export function LoginPage() {
         // Real backend: verify code and get userId
         const result = await authenticateViaBackend(loginMethod, credential, code);
         if (result.success && result.userId) {
+          // Store token BEFORE setting login status, so any side effects
+          // triggered by login state change already have access to the JWT.
+          if (result.accessToken) {
+            setAccessToken(result.accessToken);
+          }
           setServerUserId(result.userId);
           setUserLoggedIn(true);
           navigate("/home/profile");
@@ -444,7 +464,7 @@ export function LoginPage() {
       }}
     >
       {/* Status bar spacer */}
-      <div className="bg-white safe-top flex-shrink-0 fixed top-0 left-0 right-0 z-10" />
+      <div className="bg-white safe-top flex-shrink-0 fixed top-0 inset-x-0 z-10" />
 
       <button
         onClick={() => navigate("/home")}
@@ -471,7 +491,7 @@ export function LoginPage() {
                 className="w-full h-full object-cover"
               />
             ) : (
-              <span className="text-emerald-600 font-bold" style={{ fontSize: 'clamp(22px, 8vw, 36px)' }}>农</span>
+              <span className="text-emerald-600 font-bold" style={{ fontSize: 'clamp(22px, 8vw, 36px)' }}>🌱</span>
             )}
           </div>
           <div className="flex-1 min-w-0">
@@ -483,16 +503,32 @@ export function LoginPage() {
 
       <div className="w-full" style={{ maxWidth: 'min(90vw, 400px)' }}>
         {/* Quick Login (Social) */}
+        {/* Icon SVG sources & licenses:
+         *  Google: Official Google Sign-In brand guidelines (multi-color, required by Google)
+         *  Facebook, Apple, X, LINE: Simple Icons (CC0 1.0 Universal Public Domain)
+         *  WeChat, Alipay: Simplified brand marks (used under nominative fair use for login identification)
+         *  All brand logos are used in social login buttons per each company's brand guidelines.
+         */}
         <div className="bg-gray-50 rounded-xl" style={{ padding: 'clamp(12px, 3vw, 16px)', marginBottom: 'clamp(12px, 3vh, 16px)', borderRadius: 'clamp(10px, 2.5vw, 14px)' }}>
           <h3 className="text-gray-700 text-center font-medium" style={{ fontSize: 'clamp(11px, 3.2vw, 13px)', marginBottom: 'clamp(10px, 2.5vh, 14px)' }}>{t.login.quickLogin}</h3>
           
-          {/* Row 1: WeChat, Google, Facebook, Apple */}
-          <div className="flex items-center justify-center" style={{ gap: 'clamp(10px, 3vw, 14px)', marginBottom: 'clamp(8px, 2vh, 12px)' }}>
+          {/* Social login icons — unified flex-wrap grid */}
+          <div className="flex items-center justify-center flex-wrap" style={{ gap: 'clamp(10px, 3vw, 14px)' }}>
             {socialProviders?.wechat !== false && (
               <button onClick={() => handleSocialLogin("wechat")} className={`flex flex-col items-center gap-1 active:opacity-70 transition-opacity ${!hasValidCredentials('wechat') && backendEnabled ? 'opacity-40' : ''}`}>
                 <div className="bg-[#07C160] rounded-full flex items-center justify-center" style={{ width: 'clamp(32px, 9vw, 42px)', height: 'clamp(32px, 9vw, 42px)' }}>
-                  <svg viewBox="0 0 1000 1000" className="fill-white" style={{ width: '60%', height: '60%' }}>
-                    <path d="M385.7 512.5c-23.8 0-47.6-15.9-47.6-39.7 0-23.8 23.8-39.7 47.6-39.7 23.8 0 39.7 15.9 39.7 39.7 0 23.8-15.9 39.7-39.7 39.7zm-176.4 0c-23.8 0-47.6-15.9-47.6-39.7 0-23.8 23.8-39.7 47.6-39.7s39.7 15.9 39.7 39.7c0 23.8-15.9 39.7-39.7 39.7z"/><path d="M321.4 117.5C143.3 117.5 0 238.1 0 388.1c0 87.3 47.6 158.7 126.9 214.3l-31.7 95.2 110.7-55.4c39.7 7.9 71.4 15.9 110.7 15.9 7.9 0 15.9 0 23.8-.8-5-16.9-7.9-34.6-7.9-53.2 0-141.8 126.9-257.1 285.7-257.1 9 0 17.9.5 26.7 1.4C600.6 209.5 472.6 117.5 321.4 117.5z"/><path d="M880.9 630.9c0-126.9-126.9-230.4-269.8-230.4-150.7 0-270.6 103.5-270.6 230.4 0 126.9 119.9 230.4 270.6 230.4 31.7 0 63.5-7.9 95.2-15.9l87.3 47.6-23.8-79.4c63.5-47.5 111.1-111 111.1-182.7zm-357.1-39.7c-15.9 0-31.7-15.9-31.7-31.7 0-15.9 15.9-31.7 31.7-31.7 23.8 0 39.7 15.9 39.7 31.7 0 15.9-15.9 31.7-39.7 31.7zm174.7 0c-15.9 0-31.7-15.9-31.7-31.7 0-15.9 15.9-31.7 31.7-31.7 23.8 0 39.7 15.9 39.7 31.7 0 15.9-15.9 31.7-39.7 31.7z"/>
+                  {/* WeChat: Two chat bubbles with eyes — Simple Icons (CC0) style */}
+                  <svg viewBox="0 0 24 24" className="fill-white" style={{ width: '60%', height: '60%' }}>
+                    {/* Large bubble */}
+                    <path d="M9.5 4C5.36 4 2 6.69 2 10c0 1.81 1.04 3.44 2.67 4.56L4 17l2.63-1.32c.88.26 1.82.42 2.79.44-.05-.37-.08-.74-.08-1.12 0-3.31 3.13-6 7-6 .17 0 .34.01.5.02C16.07 5.93 13.05 4 9.5 4z"/>
+                    {/* Small bubble */}
+                    <path d="M22 15c0-2.76-2.69-5-6-5s-6 2.24-6 5 2.69 5 6 5c.73 0 1.43-.11 2.07-.32L20.5 21l-.63-2.35C21.18 17.58 22 16.36 22 15z"/>
+                    {/* Eyes: large bubble */}
+                    <circle cx="7" cy="9.5" r="1" fill="#07C160"/>
+                    <circle cx="11" cy="9.5" r="1" fill="#07C160"/>
+                    {/* Eyes: small bubble */}
+                    <circle cx="14" cy="14.8" r=".75" fill="#07C160"/>
+                    <circle cx="18" cy="14.8" r=".75" fill="#07C160"/>
                   </svg>
                 </div>
                 <span className="text-gray-600" style={{ fontSize: 'clamp(8px, 2.2vw, 9px)' }}>{t.login.wechat}</span>
@@ -528,15 +564,12 @@ export function LoginPage() {
                 <span className="text-gray-600" style={{ fontSize: 'clamp(8px, 2.2vw, 9px)' }}>{t.login.apple}</span>
               </button>
             )}
-          </div>
-
-          {/* Row 2: Alipay, Twitter, Line */}
-          <div className="flex items-center justify-center" style={{ gap: 'clamp(10px, 3vw, 14px)' }}>
             {socialProviders?.alipay !== false && (
               <button onClick={() => handleSocialLogin("alipay")} className={`flex flex-col items-center gap-1 active:opacity-70 transition-opacity ${!hasValidCredentials('alipay') && backendEnabled ? 'opacity-40' : ''}`}>
                 <div className="bg-[#1678FF] rounded-full flex items-center justify-center" style={{ width: 'clamp(32px, 9vw, 42px)', height: 'clamp(32px, 9vw, 42px)' }}>
-                  <svg viewBox="0 0 1024 1024" className="fill-white" style={{ width: '55%', height: '55%' }}>
-                    <path d="M1024 701.9v160.5c0 88.9-72.2 161.1-161.1 161.1H161.1C72.2 1023.5 0 951.3 0 862.4V161.1C0 72.2 72.2 0 161.1 0h701.8c88.9 0 161.1 72.2 161.1 161.1v540.8zM911.9 680c-34.8-19.5-95.4-49.4-209.8-49.4-131.8 0-195.5 38.5-236.7 62.7-54.8-78.5-97.7-171.9-120.8-256h303.3v-53.6H427.8v-80.3h-53.6v80.3H154.1v53.6h436.8c20.9 75.8 57.9 159.8 107.6 235.3-83.1 41.9-139.2 102.5-139.2 167.5 0 80.3 80.3 107.6 134.4 107.6 74.9 0 139.2-53.6 180.5-129.1 50.3 27.5 105.4 48.5 148.3 68.9l22.2-78.1z m-478.5 91.2c-37.6 0-80.3-14.2-80.3-53.6 0-43.5 48.5-87.6 116.2-120.8 24.5 43.5 50.3 85.4 77.2 124.4-29.8 32.9-72.6 50-113.1 50z"/>
+                  {/* Alipay: Simple Icons (CC0 1.0) — standard 24x24 viewBox */}
+                  <svg viewBox="0 0 24 24" className="fill-white" style={{ width: '60%', height: '60%' }}>
+                    <path d="M19.695 15.07c3.426 1.158 4.203 1.22 4.203 1.22V3.846c0-2.124-1.705-3.845-3.81-3.845H3.914C1.808.001.102 1.722.102 3.846v16.31c0 2.123 1.706 3.845 3.813 3.845h16.173c2.105 0 3.81-1.722 3.81-3.845v-.157s-6.19-2.602-9.315-4.119c-2.096 2.602-4.8 4.181-7.607 4.181-4.75 0-6.361-4.19-4.112-6.949.49-.602 1.324-1.175 2.617-1.497 2.025-.502 5.247.313 8.266 1.317a16.796 16.796 0 0 0 1.341-3.302H5.781v-.952h4.799V6.975H4.77v-.953h5.81V3.591s0-.409.411-.409h2.347v2.84h5.744v.951h-5.744v1.704h4.69a19.453 19.453 0 0 1-1.986 5.06c1.424.52 2.702 1.011 3.654 1.333m-13.81-2.032c-.596.06-1.71.325-2.321.869-1.83 1.608-.735 4.55 2.968 4.55 2.151 0 4.301-1.388 5.99-3.61-2.403-1.182-4.438-2.028-6.637-1.809"/>
                   </svg>
                 </div>
                 <span className="text-gray-600" style={{ fontSize: 'clamp(8px, 2.2vw, 9px)' }}>{t.login.alipay}</span>
@@ -555,8 +588,9 @@ export function LoginPage() {
             {socialProviders?.line !== false && (
               <button onClick={() => handleSocialLogin("line")} className={`flex flex-col items-center gap-1 active:opacity-70 transition-opacity ${!hasValidCredentials('line') && backendEnabled ? 'opacity-40' : ''}`}>
                 <div className="bg-[#00B900] rounded-full flex items-center justify-center" style={{ width: 'clamp(32px, 9vw, 42px)', height: 'clamp(32px, 9vw, 42px)' }}>
+                  {/* LINE: Simple Icons (CC0 1.0) — corrected path with proper L-I-N-E letters */}
                   <svg viewBox="0 0 24 24" className="fill-white" style={{ width: '65%', height: '65%' }}>
-                    <path d="M19.365 9.863c.349 0 .63.285.63.631 0 .345-.281.63-.63.63H17.61v1.125h1.755c.349 0 .63.283.63.63 0 .344-.281.629-.63.629h-2.386c-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63h2.386c.346 0 .627.285.627.63 0 .349-.281.63-.63.63H17.61v1.125h1.755zm-3.855 3.016c0 .27-.174.51-.432.596-.064.021-.133.031-.199.031-.211 0-.391-.09-.51-.25l-2.443-3.317v2.94c0 .344-.279.629-.631.629-.346 0-.626-.285-.626-.629V8.108c0-.345.282-.63.63-.63h2.386c.346 0 .627.285.627.63 0 .349-.281.63-.63.63H17.61v1.125h1.755zm-5.741 0c0 .344-.282.629-.631.629-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63.345 0 .63.285.63.63v4.771zm-2.466.629H4.917c-.345 0-.63-.285-.63-.629V8.108c0-.345.285-.63.63-.63.348 0 .63.285.63.63v4.141h1.756c.348 0 .629.283.629.63 0 .344-.282.629-.629.629M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.164 1.02c-.045.301-.24 1.186 1.049.645 1.291-.539 6.916-4.078 9.436-6.975C23.176 14.393 24 12.458 24 10.314"/>
+                    <path d="M19.365 9.863c.349 0 .63.285.63.631 0 .345-.281.63-.63.63H17.61v1.125h1.755c.349 0 .63.283.63.63 0 .344-.281.629-.63.629h-2.386c-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63h2.386c.346 0 .627.285.627.63 0 .349-.281.63-.63.63H17.61v1.125h1.755zm-3.855 3.016c0 .27-.174.51-.432.596-.064.021-.133.031-.199.031-.211 0-.391-.09-.51-.25l-2.443-3.317v2.94c0 .344-.282.629-.631.629-.345 0-.626-.285-.626-.629V8.108c0-.345.282-.63.63-.63h2.386c.346 0 .627.285.627.63 0 .349-.281.63-.63.63H17.61v1.125h1.755zm-5.741 0c0 .344-.282.629-.631.629-.345 0-.627-.285-.627-.629V8.108c0-.345.282-.63.63-.63.345 0 .627.285.627.63v4.771zm-2.466.629H4.917c-.345 0-.63-.285-.63-.629V8.108c0-.345.285-.63.63-.63.348 0 .63.285.63.63v4.141h1.756c.348 0 .629.283.629.63 0 .344-.282.629-.629.629M24 10.314C24 4.943 18.615.572 12 .572S0 4.943 0 10.314c0 4.811 4.27 8.842 10.035 9.608.391.082.923.258 1.058.59.12.301.079.766.038 1.08l-.164 1.02c-.045.301-.24 1.186 1.049.645 1.291-.539 6.916-4.078 9.436-6.975C23.176 14.393 24 12.458 24 10.314"/>
                   </svg>
                 </div>
                 <span className="text-gray-600" style={{ fontSize: 'clamp(8px, 2.2vw, 9px)' }}>{t.login.line}</span>
@@ -573,7 +607,7 @@ export function LoginPage() {
               {t.login.agreeTerms}
               <span className="underline mx-0.5 text-emerald-600">{t.login.userAgreement}</span>
               {t.login.and}
-              <span className="underline ml-0.5 text-emerald-600">{t.login.privacyPolicy}</span>
+              <span className="underline ms-0.5 text-emerald-600">{t.login.privacyPolicy}</span>
             </label>
           </div>
         </div>

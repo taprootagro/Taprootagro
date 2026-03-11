@@ -41,12 +41,27 @@ export function BannerCarousel({
     [total, infinite]
   );
 
-  // Autoplay
+  // Autoplay — pause when page is hidden (tab switch / screen off)
   useEffect(() => {
     if (!autoplay || paused || total <= 1) return;
+
+    // Check if page is currently visible
+    if (document.hidden) return;
+
     timerRef.current = setTimeout(() => goTo(current + 1), autoplaySpeed);
+
+    const handleVisibility = () => {
+      if (document.hidden) {
+        if (timerRef.current) clearTimeout(timerRef.current);
+      } else {
+        timerRef.current = setTimeout(() => goTo(current + 1), autoplaySpeed);
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
+      document.removeEventListener("visibilitychange", handleVisibility);
     };
   }, [current, autoplay, autoplaySpeed, paused, total, goTo]);
 
@@ -112,7 +127,7 @@ export function BannerCarousel({
 
       {/* Dots */}
       {dots && total > 1 && (
-        <div className="absolute bottom-2.5 left-0 right-0 z-10 flex justify-center gap-1.5">
+        <div className="absolute bottom-2.5 inset-x-0 z-10 flex justify-center gap-1.5">
           {slides.map((_, i) => (
             <button
               key={i}
@@ -120,13 +135,15 @@ export function BannerCarousel({
                 e.stopPropagation();
                 goTo(i);
               }}
-              className={`w-2 h-2 rounded-full transition-all duration-300 ${
-                i === current
-                  ? "bg-white scale-110"
-                  : "bg-white/50 hover:bg-white/70"
-              }`}
+              className={`rounded-full transition-all duration-300 min-w-[24px] min-h-[24px] flex items-center justify-center`}
               aria-label={`Slide ${i + 1}`}
-            />
+            >
+              <span
+                className={`rounded-full transition-all duration-300 ${
+                  i === current ? "w-3 h-2 bg-white" : "w-2 h-2 bg-white/50"
+                }`}
+              />
+            </button>
           ))}
         </div>
       )}

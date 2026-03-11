@@ -29,7 +29,7 @@ export function Layout() {
   const location = useLocation();
 
   // ---- 所有 hooks 必须无条件调用（React Rules of Hooks）----
-  const { t } = useLanguage();
+  const { t, isRTL } = useLanguage();
   const networkQuality = useNetworkQuality();
   useDynamicManifest();
   const keyboardVisible = useKeyboardVisible();
@@ -182,7 +182,7 @@ export function Layout() {
 
   return (
     <div
-      className="fixed top-0 left-0 right-0 flex flex-col overflow-hidden"
+      className="fixed inset-x-0 top-0 flex flex-col overflow-hidden"
       style={{
         backgroundColor: 'var(--app-bg)',
         /* 三层回退：JS精确值 → 100dvh(动态视口，排除工具栏) → 100vh(兜底) */
@@ -192,7 +192,7 @@ export function Layout() {
       {/* 状态栏占位 — standalone 模式下用 safe-area-inset-top 撇开 */}
       <div className="bg-emerald-600 safe-top flex-shrink-0" />
 
-      {/* 主内容 — Keep-alive: 所有已访问 tab 同存在 DOM 中，用 display 切�� */}
+      {/* 主内容 — Keep-alive: 所有已访问 tab 同存在 DOM 中，用 display 切 */}
       <main className="flex-1 overflow-hidden relative">
         {tabPages.map(({ key, Component }) => {
           const isActive = activeTab === key;
@@ -224,6 +224,8 @@ export function Layout() {
       <nav
         className={`flex-shrink-0 z-40 ${navBgClass} safe-bottom`}
         style={{ boxShadow: '0 -1px 12px rgba(0,0,0,0.06)' }}
+        role="tablist"
+        aria-label="Main navigation"
       >
         <div className="relative">
           <div className="flex items-center px-1 relative">
@@ -234,9 +236,12 @@ export function Layout() {
                 <Link
                   key={item.path}
                   to={item.path}
-                  className="flex items-center justify-center relative flex-1 min-w-0 max-w-[25%] pt-2.5 pb-1.5 select-none"
+                  role="tab"
+                  aria-selected={isActive}
+                  aria-label={item.label}
+                  className="flex items-center justify-center relative flex-1 min-w-0 max-w-[25%] pt-2 pb-1 select-none"
                   onTouchStart={() => handleTouchStart(item.path)}
-                  style={{ WebkitTapHighlightColor: 'transparent' }}
+                  style={{ WebkitTapHighlightColor: 'transparent', minHeight: '48px' }}
                 >
                   {/* 图标 - 放大，无文字 */}
                   <div className="relative">
@@ -248,7 +253,7 @@ export function Layout() {
 
                     {/* 未读消息红点 - 带脉冲 */}
                     {item.showBadge && (
-                      <span className="absolute -top-0.5 -right-1.5 flex h-2.5 w-2.5">
+                      <span className={`absolute -top-0.5 ${isRTL ? '-left-1.5' : '-right-1.5'} flex h-2.5 w-2.5`}>
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-60" />
                         <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500 ring-2 ring-white" />
                       </span>

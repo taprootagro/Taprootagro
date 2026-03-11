@@ -17,6 +17,7 @@
 
 // ---- Import auth utilities ----
 import { getUserId, isServerAssignedId } from '../utils/auth';
+import { storageGet, storageSet, storageRemove, storageGetJSON } from '../utils/safeStorage';
 
 const USER_STORAGE_KEY = 'agri_chat_user';
 
@@ -57,18 +58,17 @@ function shortId(uuid: string): string {
 }
 
 // ---- localStorage persistence ----
+// ---- safeStorage persistence ----
 function loadUser(): ChatUser | null {
   try {
-    const raw = localStorage.getItem(USER_STORAGE_KEY);
+    const raw = storageGet(USER_STORAGE_KEY);
     if (raw) return JSON.parse(raw);
   } catch { /* ignore */ }
   return null;
 }
 
 function saveUser(user: ChatUser): void {
-  try {
-    localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
-  } catch { /* ignore */ }
+  storageSet(USER_STORAGE_KEY, JSON.stringify(user));
 }
 
 // ---- Config reading (same pattern as ChatProxyService) ----
@@ -93,7 +93,7 @@ function getProxyConfig(): ProxyCfg {
     chatProvider: 'aliyun-im',
   };
   try {
-    const saved = localStorage.getItem(CONFIG_STORAGE_KEY);
+    const saved = storageGet(CONFIG_STORAGE_KEY);
     if (saved) {
       const parsed = JSON.parse(saved);
       const bpc = parsed.backendProxyConfig;
@@ -307,7 +307,7 @@ class ChatUserService {
   /** Clear all data */
   clearAll(): void {
     try {
-      localStorage.removeItem(USER_STORAGE_KEY);
+      storageRemove(USER_STORAGE_KEY);
     } catch { /* ignore */ }
     this._user = null;
   }

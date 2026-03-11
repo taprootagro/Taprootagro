@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { storageGet, storageSet, storageRemove } from '../utils/safeStorage';
 
 const DISMISS_KEY = 'pwa_install_dismissed';
 const INSTALLED_KEY = 'pwa_installed';       // 永久已安装标记
@@ -16,11 +17,13 @@ export type InstallPlatform = 'android' | 'ios' | null;
  * 兼容小米 / 华为 / OPPO / vivo 等国产浏览器
  */
 function detectStandalone(): boolean {
-  if (window.matchMedia('(display-mode: standalone)').matches) return true;
-  if (window.matchMedia('(display-mode: fullscreen)').matches) return true;
-  if ((navigator as any).standalone === true) return true;
-  if (document.referrer.includes('android-app://')) return true;
-  if (localStorage.getItem(INSTALLED_KEY) === 'true') return true;
+  try {
+    if (window.matchMedia('(display-mode: standalone)').matches) return true;
+    if (window.matchMedia('(display-mode: fullscreen)').matches) return true;
+    if ((navigator as any).standalone === true) return true;
+    if (document.referrer.includes('android-app://')) return true;
+    if (storageGet(INSTALLED_KEY) === 'true') return true;
+  } catch { /* ignore */ }
   return false;
 }
 
@@ -29,7 +32,7 @@ function detectStandalone(): boolean {
  */
 function shouldShowBanner(): boolean {
   if (detectStandalone()) return false;
-  const dismissedAt = localStorage.getItem(DISMISS_KEY);
+  const dismissedAt = storageGet(DISMISS_KEY);
   if (dismissedAt) {
     const elapsed = Date.now() - parseInt(dismissedAt, 10);
     if (elapsed < DISMISS_DURATION) return false;
@@ -113,8 +116,8 @@ export function useInstallPrompt() {
       setShowBanner(false);
       deferredPrompt.current = null;
       _capturedPromptEvent = null;
-      localStorage.setItem(INSTALLED_KEY, 'true');
-      localStorage.removeItem(DISMISS_KEY);
+      storageSet(INSTALLED_KEY, 'true');
+      storageRemove(DISMISS_KEY);
     };
     window.addEventListener('appinstalled', installedHandler);
 
@@ -132,8 +135,8 @@ export function useInstallPrompt() {
         const { outcome } = await prompt.userChoice;
         if (outcome === 'accepted') {
           setShowBanner(false);
-          localStorage.setItem(INSTALLED_KEY, 'true');
-          localStorage.removeItem(DISMISS_KEY);
+          storageSet(INSTALLED_KEY, 'true');
+          storageRemove(DISMISS_KEY);
         }
       } catch {
         // 某些浏览器 prompt() 只能调一次，忽略错误
@@ -145,7 +148,7 @@ export function useInstallPrompt() {
 
   const dismiss = useCallback(() => {
     setShowBanner(false);
-    localStorage.setItem(DISMISS_KEY, String(Date.now()));
+    storageSet(DISMISS_KEY, String(Date.now()));
     deferredPrompt.current = null;
   }, []);
 

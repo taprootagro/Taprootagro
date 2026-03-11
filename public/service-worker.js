@@ -12,7 +12,7 @@
 //     force update/reload, cache purge, kill switch, announcements
 // ============================================================
 
-const CACHE_VERSION = 'v8';
+const CACHE_VERSION = 'v9'; // Bumped to clear old MonitoringDashboard/MonitoringDemo modules
 const CACHE_PREFIX = 'taproot-agro';
 const CACHE_NAME = `${CACHE_PREFIX}-${CACHE_VERSION}`;
 const IMG_CACHE_NAME = `${CACHE_PREFIX}-images-${CACHE_VERSION}`;
@@ -52,9 +52,199 @@ const MAX_CDN_CACHE_ENTRIES = 50;
 // Default network timeout (can be overridden by remote config)
 const DEFAULT_NETWORK_TIMEOUT = 20000;
 
-// Default navigation timeouts (can be overridden by remote config)
-const DEFAULT_NAV_TIMEOUT_WITH_CACHE = 8000;
-const DEFAULT_NAV_TIMEOUT_WITHOUT_CACHE = 15000;
+// ============================================================
+// LIGHTWEIGHT I18N — Top 6 languages + RTL support
+// Language is set by client via postMessage('SET_LANGUAGE')
+// Falls back to 'en' if not set
+// ============================================================
+let currentLang = 'en';
+
+const SW_TRANSLATIONS = {
+  en: {
+    offline: 'offline',
+    imageNotCached: 'Image not cached',
+    maintenance: 'System Maintenance',
+    maintenanceMsg: 'We are currently performing maintenance. Please check back soon.',
+    estimatedEnd: 'Estimated completion',
+    retry: 'Retry',
+    noNetwork: 'No Network',
+    noNetworkMsg: 'Please check your connection. The app will work once you reconnect.',
+    somethingWrong: 'Something went wrong',
+    somethingWrongMsg: 'The app encountered an error.',
+    resetApp: 'Reset App',
+    resetting: 'Resetting app...',
+    backingUp: 'Backing up user data...',
+    unregisteringSW: 'Unregistering Service Worker...',
+    clearingCache: 'Clearing cache...',
+    cleaningDB: 'Cleaning databases...',
+    clearingStorage: 'Clearing local storage...',
+    restoringData: 'Restoring user data...',
+    resetComplete: 'Reset Complete',
+    swUnregistered: 'Service Worker unregistered, all caches cleared',
+    dataPreserved: 'User data safely preserved',
+    openApp: 'Open App',
+    resetFailed: 'Reset Failed',
+    manualClear: 'Please try manually clearing browser data, or contact support',
+    notification: 'You have a new notification',
+  },
+  zh: {
+    offline: '离线',
+    imageNotCached: '图片未缓存',
+    maintenance: '系统维护中',
+    maintenanceMsg: '我们正在进行系统维护，请稍后再试。',
+    estimatedEnd: '预计完成时间',
+    retry: '重试',
+    noNetwork: '无网络连接',
+    noNetworkMsg: '请检查网络连接，恢复后应用将自动可用。',
+    somethingWrong: '出了点问题',
+    somethingWrongMsg: '应用遇到了一个错误。',
+    resetApp: '重置应用',
+    resetting: '正在重置应用...',
+    backingUp: '正在备份用户数据...',
+    unregisteringSW: '正在注销 Service Worker...',
+    clearingCache: '正在清除缓存...',
+    cleaningDB: '正在清理数据库...',
+    clearingStorage: '正在清理本地存储...',
+    restoringData: '正在恢复用户数据...',
+    resetComplete: '重置完成',
+    swUnregistered: 'Service Worker 已注销，所有缓存已清除',
+    dataPreserved: '✓ 用户数据已安全保留',
+    openApp: '打开应用',
+    resetFailed: '重置失败',
+    manualClear: '请尝试手动清除浏览器数据，或联系技术支持',
+    notification: '您有一条新通知',
+  },
+  fr: {
+    offline: 'hors ligne',
+    imageNotCached: 'Image non mise en cache',
+    maintenance: 'Maintenance du système',
+    maintenanceMsg: 'Nous effectuons actuellement une maintenance. Veuillez réessayer plus tard.',
+    estimatedEnd: 'Fin estimée',
+    retry: 'Réessayer',
+    noNetwork: 'Pas de réseau',
+    noNetworkMsg: 'Veuillez vérifier votre connexion. L\'application fonctionnera dès la reconnexion.',
+    somethingWrong: 'Un problème est survenu',
+    somethingWrongMsg: 'L\'application a rencontré une erreur.',
+    resetApp: 'Réinitialiser',
+    resetting: 'Réinitialisation...',
+    backingUp: 'Sauvegarde des données...',
+    unregisteringSW: 'Désinscription du Service Worker...',
+    clearingCache: 'Nettoyage du cache...',
+    cleaningDB: 'Nettoyage des bases de données...',
+    clearingStorage: 'Nettoyage du stockage local...',
+    restoringData: 'Restauration des données...',
+    resetComplete: 'Réinitialisation terminée',
+    swUnregistered: 'Service Worker désinscrit, tous les caches vidés',
+    dataPreserved: '✓ Données utilisateur préservées',
+    openApp: 'Ouvrir l\'application',
+    resetFailed: 'Échec de la réinitialisation',
+    manualClear: 'Essayez de vider manuellement les données du navigateur ou contactez le support',
+    notification: 'Vous avez une nouvelle notification',
+  },
+  es: {
+    offline: 'sin conexión',
+    imageNotCached: 'Imagen no almacenada',
+    maintenance: 'Mantenimiento del sistema',
+    maintenanceMsg: 'Estamos realizando mantenimiento. Por favor, vuelva a intentarlo más tarde.',
+    estimatedEnd: 'Finalización estimada',
+    retry: 'Reintentar',
+    noNetwork: 'Sin red',
+    noNetworkMsg: 'Verifique su conexión. La aplicación funcionará cuando se reconecte.',
+    somethingWrong: 'Algo salió mal',
+    somethingWrongMsg: 'La aplicación encontró un error.',
+    resetApp: 'Restablecer',
+    resetting: 'Restableciendo...',
+    backingUp: 'Respaldando datos...',
+    unregisteringSW: 'Cancelando Service Worker...',
+    clearingCache: 'Limpiando caché...',
+    cleaningDB: 'Limpiando bases de datos...',
+    clearingStorage: 'Limpiando almacenamiento...',
+    restoringData: 'Restaurando datos...',
+    resetComplete: 'Restablecimiento completo',
+    swUnregistered: 'Service Worker cancelado, todos los cachés eliminados',
+    dataPreserved: '✓ Datos de usuario preservados',
+    openApp: 'Abrir aplicación',
+    resetFailed: 'Error en restablecimiento',
+    manualClear: 'Intente borrar los datos del navegador manualmente o contacte al soporte',
+    notification: 'Tienes una nueva notificación',
+  },
+  ar: {
+    offline: 'غير متصل',
+    imageNotCached: 'الصورة غير مخزنة',
+    maintenance: 'صيانة النظام',
+    maintenanceMsg: 'نقوم حالياً بإجراء صيانة. يرجى المحاولة لاحقاً.',
+    estimatedEnd: 'الانتهاء المتوقع',
+    retry: 'إعادة المحاولة',
+    noNetwork: 'لا يوجد اتصال',
+    noNetworkMsg: 'يرجى التحقق من اتصاك. سيعمل التطبيق عند إعادة الاتصال.',
+    somethingWrong: 'حدث خطأ ما',
+    somethingWrongMsg: 'واجه التطبيق خطأً.',
+    resetApp: 'إعادة تعيين',
+    resetting: 'جارٍ إعادة التعيين...',
+    backingUp: 'جارٍ النسخ الاحتياطي...',
+    unregisteringSW: 'جارٍ إلغاء تسجيل Service Worker...',
+    clearingCache: 'جارٍ مسح الذاكرة المؤقتة...',
+    cleaningDB: 'جارٍ تنظيف قواعد البيانات...',
+    clearingStorage: 'جارٍ تنظيف التخزين المحلي...',
+    restoringData: 'جارٍ استعادة البيانات...',
+    resetComplete: 'اكتملت إعادة التعيين',
+    swUnregistered: 'تم إلغاء تسجيل Service Worker ومسح جميع الذاكرة المؤقتة',
+    dataPreserved: '✓ تم الحفاظ على بيانات المستخدم بأمان',
+    openApp: 'فتح التطبيق',
+    resetFailed: 'فشلت إعادة التعيين',
+    manualClear: 'يرجى محاولة مسح بيانات المتصفح يدوياً أو الاتصال بالدعم',
+    notification: 'لديك إشعار جديد',
+  },
+  sw: {
+    offline: 'nje ya mtandao',
+    imageNotCached: 'Picha haijahifadhiwa',
+    maintenance: 'Matengenezo ya Mfumo',
+    maintenanceMsg: 'Tunafanya matengenezo kwa sasa. Tafadhali jaribu tena baadaye.',
+    estimatedEnd: 'Wakati wa kumaliza',
+    retry: 'Jaribu tena',
+    noNetwork: 'Hakuna Mtandao',
+    noNetworkMsg: 'Tafadhali angalia muunganisho wako. Programu itafanya kazi ukiunganishwa tena.',
+    somethingWrong: 'Kitu kilienda vibaya',
+    somethingWrongMsg: 'Programu ilikutana na hitilafu.',
+    resetApp: 'Weka upya',
+    resetting: 'Inaweka upya...',
+    backingUp: 'Inahifadhi data...',
+    unregisteringSW: 'Inafuta usajili wa Service Worker...',
+    clearingCache: 'Inasafisha cache...',
+    cleaningDB: 'Inasafisha hifadhidata...',
+    clearingStorage: 'Inasafisha hifadhi...',
+    restoringData: 'Inarejesha data...',
+    resetComplete: 'Uwekaji upya umekamilika',
+    swUnregistered: 'Service Worker imefutwa, cache zote zimesafishwa',
+    dataPreserved: '✓ Data ya mtumiaji imehifadhiwa salama',
+    openApp: 'Fungua Programu',
+    resetFailed: 'Uwekaji upya umeshindikana',
+    manualClear: 'Tafadhali jaribu kusafisha data ya kivinjari mwenyewe au wasiliana na msaada',
+    notification: 'Una arifa mpya',
+  },
+};
+
+/**
+ * Get a translated string. Falls back to English if key/lang not found.
+ */
+function swt(key) {
+  const lang = SW_TRANSLATIONS[currentLang] || SW_TRANSLATIONS.en;
+  return lang[key] || SW_TRANSLATIONS.en[key] || key;
+}
+
+/**
+ * Detect if the current language is RTL.
+ */
+function isRTL() {
+  return currentLang === 'ar' || currentLang === 'fa' || currentLang === 'ur';
+}
+
+/**
+ * Get the dir attribute value for HTML pages.
+ */
+function dirAttr() {
+  return isRTL() ? ' dir="rtl"' : '';
+}
 
 // Cross-origin domains allowed to be cached
 const CACHEABLE_IMAGE_HOSTS = [
@@ -67,6 +257,7 @@ const CACHEABLE_CDN_HOSTS = [
   'cdn.jsdelivr.net',       // ONNX Runtime WASM
   'unpkg.com',
   'cdnjs.cloudflare.com',
+  'esm.sh',                 // Supabase and other ESM dynamically imported modules
 ];
 
 // ============================================================
@@ -195,10 +386,11 @@ const OFFLINE_IMAGE_PLACEHOLDER = 'data:image/svg+xml,' + encodeURIComponent(
 );
 
 function createOfflineImageResponse() {
+  const offlineText = swt('offline');
   const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300">' +
     '<rect fill="#f0fdf4" width="400" height="300"/>' +
     '<path d="M185 130 l15-20 l15 20 l-7 0 l0 15 l-16 0 l0-15z" fill="#d1d5db"/>' +
-    '<text x="200" y="170" text-anchor="middle" fill="#9ca3af" font-family="system-ui" font-size="11">offline</text>' +
+    '<text x="200" y="170" text-anchor="middle" fill="#9ca3af" font-family="system-ui" font-size="11">' + offlineText + '</text>' +
     '</svg>';
   return new Response(svg, {
     status: 200,
@@ -214,14 +406,15 @@ function createOfflineImageResponse() {
 // ============================================================
 function createMaintenancePage(config) {
   const m = config?.maintenance || {};
-  const title = m.title || 'System Maintenance';
-  const message = m.message || 'We are currently performing maintenance. Please check back soon.';
+  // Use remote config message if provided, otherwise use i18n defaults
+  const title = m.title || swt('maintenance');
+  const message = m.message || swt('maintenanceMsg');
   const estimatedEnd = m.estimatedEnd ? new Date(m.estimatedEnd) : null;
   const etaStr = estimatedEnd
-    ? `<p style="color:#6b7280;margin-top:0.5rem;font-size:0.8rem">Estimated completion: ${estimatedEnd.toLocaleString()}</p>`
+    ? `<p style="color:#6b7280;margin-top:0.5rem;font-size:0.8rem">${swt('estimatedEnd')}: ${estimatedEnd.toLocaleString()}</p>`
     : '';
 
-  const html = '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
+  const html = '<!DOCTYPE html><html' + dirAttr() + '><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
     '<title>TaprootAgro - Maintenance</title>' +
     '<style>*{margin:0;padding:0;box-sizing:border-box}body{display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:system-ui,-apple-system,sans-serif;background:#f0fdf4;color:#065f46;text-align:center;padding:2rem}' +
     '.card{background:white;border-radius:1rem;padding:2rem;box-shadow:0 4px 20px rgba(0,0,0,0.08);max-width:360px;width:100%}' +
@@ -234,7 +427,7 @@ function createMaintenancePage(config) {
     '<h2>' + title + '</h2>' +
     '<p>' + message + '</p>' +
     etaStr +
-    '<button onclick="location.reload()">Retry</button>' +
+    '<button onclick="location.reload()">' + swt('retry') + '</button>' +
     '</div></body></html>';
 
   return new Response(html, {
@@ -456,6 +649,11 @@ self.addEventListener('fetch', (event) => {
   }
 
   // ----- All other cross-origin: pass through (don't intercept) -----
+  // But for images, intercept to provide an offline fallback if network fails
+  if (isImageRequest(request, url)) {
+    event.respondWith(safeRespond(() => fetch(request), request));
+    return;
+  }
 });
 
 // ============================================================
@@ -488,9 +686,9 @@ async function safeRespond(handler, originalRequest) {
       return new Response(
         '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>' +
         '<body style="display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:system-ui;background:#f0fdf4;color:#065f46;text-align:center;padding:2rem">' +
-        '<div><h2>Something went wrong</h2><p style="color:#6b7280;margin:1rem 0">The app encountered an error.</p>' +
-        '<button onclick="location.href=\'/sw-reset\'" style="padding:0.75rem 1.5rem;background:#10b981;color:white;border:none;border-radius:0.5rem;cursor:pointer;margin:0.25rem">Reset App</button>' +
-        '<button onclick="location.reload()" style="padding:0.75rem 1.5rem;background:#6b7280;color:white;border:none;border-radius:0.5rem;cursor:pointer;margin:0.25rem">Retry</button>' +
+        '<div><h2>' + swt('somethingWrong') + '</h2><p style="color:#6b7280;margin:1rem 0">' + swt('somethingWrongMsg') + '</p>' +
+        '<button onclick="location.href=\'/sw-reset\'" style="padding:0.75rem 1.5rem;background:#10b981;color:white;border:none;border-radius:0.5rem;cursor:pointer;margin:0.25rem">' + swt('resetApp') + '</button>' +
+        '<button onclick="location.reload()" style="padding:0.75rem 1.5rem;background:#6b7280;color:white;border:none;border-radius:0.5rem;cursor:pointer;margin:0.25rem">' + swt('retry') + '</button>' +
         '</div></body></html>',
         { status: 200, headers: { 'Content-Type': 'text/html; charset=utf-8' } }
       );
@@ -512,36 +710,61 @@ function isImageRequest(request, url) {
 // EMERGENCY RESET - /sw-reset endpoint
 // ============================================================
 async function handleSwReset() {
-  const html = `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>TaprootAgro - Reset</title></head>
-<body style="display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:system-ui;background:#f0fdf4;color:#065f46;text-align:center;padding:2rem">
-<div id="status">
-<svg style="width:48px;height:48px;margin:0 auto 1rem;animation:spin 1s linear infinite" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><circle cx="12" cy="12" r="10" opacity="0.3"/><path d="M12 2a10 10 0 0 1 10 10"/></svg>
-<style>@keyframes spin{to{transform:rotate(360deg)}}</style>
-<p>Resetting app...</p>
-</div>
-<script>
-(async function(){
-  const status = document.getElementById('status');
-  try {
-    const registrations = await navigator.serviceWorker.getRegistrations();
-    await Promise.all(registrations.map(r => r.unregister()));
-    const keys = await caches.keys();
-    await Promise.all(keys.map(k => caches.delete(k)));
-    try { indexedDB.deleteDatabase('taproot-yolo-cache'); } catch(e) {}
-    status.innerHTML = '<div style="font-size:48px;margin-bottom:1rem"></div>'
-      + '<h2 style="margin-bottom:0.5rem">Reset Complete</h2>'
-      + '<p style="margin-bottom:1rem;color:#6b7280">Service Worker unregistered and all caches cleared.</p>'
-      + '<button onclick="location.href=\\'/\\'" style="padding:0.75rem 2rem;background:#10b981;color:white;border:none;border-radius:0.75rem;font-size:1rem;cursor:pointer">Open App</button>';
-  } catch(e) {
-    status.innerHTML = '<div style="font-size:48px;margin-bottom:1rem">❌</div>'
-      + '<h2 style="margin-bottom:0.5rem">Reset Failed</h2>'
-      + '<p style="color:#dc2626">' + e.message + '</p>'
-      + '<p style="margin-top:1rem;color:#6b7280">Please manually clear site data in browser settings.</p>';
-  }
-})();
-</script></body></html>`;
+  // Pre-resolve translated strings and inject into the page as JSON
+  var ri = {
+    resetting: swt('resetting'), backingUp: swt('backingUp'),
+    unregisteringSW: swt('unregisteringSW'), clearingCache: swt('clearingCache'),
+    cleaningDB: swt('cleaningDB'), clearingStorage: swt('clearingStorage'),
+    restoringData: swt('restoringData'), resetComplete: swt('resetComplete'),
+    swUnregistered: swt('swUnregistered'), dataPreserved: swt('dataPreserved'),
+    openApp: swt('openApp'), resetFailed: swt('resetFailed'),
+    manualClear: swt('manualClear'), retry: swt('retry'),
+  };
+  var tJson = JSON.stringify(ri);
+
+  const html = '<!DOCTYPE html>' +
+'<html' + dirAttr() + '><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
+'<title>TaprootAgro - Reset</title></head>' +
+'<body style="display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:system-ui;background:#f0fdf4;color:#065f46;text-align:center;padding:2rem">' +
+'<div id="status">' +
+'<svg style="width:48px;height:48px;margin:0 auto 1rem;animation:spin 1s linear infinite" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><circle cx="12" cy="12" r="10" opacity="0.3"/><path d="M12 2a10 10 0 0 1 10 10"/></svg>' +
+'<style>@keyframes spin{to{transform:rotate(360deg)}}</style>' +
+'<p id="message">' + ri.resetting + '</p>' +
+'</div>' +
+'<script>' +
+'(async function(){' +
+'var s=document.getElementById("status");' +
+'var m=document.getElementById("message");' +
+'var t=' + tJson + ';' +
+    'try{' +
+    'm.textContent=t.backingUp;var b={};' +
+    'var ck=["isLoggedIn","agri_user_numeric_id","agri_server_user_id","agri_auth_source","accounting_transactions","taproot-sync-queue","pickup-address","app-language","taproot_home_config"];' +
+    'for(var k of ck){var v=localStorage.getItem(k);if(v)b[k]=v;}' +
+    'if(Object.keys(b).length>0){sessionStorage.setItem("__taproot_reset_backup__",JSON.stringify(b));}' +
+    'm.textContent=t.unregisteringSW;' +
+    'var rs=await navigator.serviceWorker.getRegistrations();await Promise.all(rs.map(function(r){return r.unregister();}));' +
+    'm.textContent=t.clearingCache;' +
+    'var ks=await caches.keys();await Promise.all(ks.map(function(k){return caches.delete(k);}));' +
+    'm.textContent=t.cleaningDB;' +
+    'try{var dbs=await indexedDB.databases();for(var d of dbs){if(d.name&&d.name!=="TaprootCryptoKeys")indexedDB.deleteDatabase(d.name);}}catch(e2){try{indexedDB.deleteDatabase("TaprootAgroDB");}catch(e3){}}' +
+    'm.textContent=t.clearingStorage;localStorage.clear();' +
+    'm.textContent=t.restoringData;for(var p of Object.entries(b)){localStorage.setItem(p[0],p[1]);}' +
+    'sessionStorage.removeItem("__taproot_reset_backup__");' +
+    's.innerHTML=' +
+    '\'<div style="font-size:48px;margin-bottom:1rem">\\u2705</div>' +
+    '<h2 style="margin-bottom:0.5rem">\'+t.resetComplete+\'</h2>' +
+    '<p style="margin-bottom:0.5rem;color:#6b7280">\'+t.swUnregistered+\'</p>' +
+    '<p style="margin-bottom:1rem;color:#059669;font-weight:600">\'+t.dataPreserved+\'</p>' +
+    '<button onclick="location.href=\\\'/\\\'" style="padding:0.75rem 2rem;background:#10b981;color:white;border:none;border-radius:0.75rem;font-size:1rem;cursor:pointer">\'+t.openApp+\'</button>\';' +
+    '}catch(e){' +
+    's.innerHTML=' +
+    '\'<div style="font-size:48px;margin-bottom:1rem">\\u26A0\\uFE0F</div>' +
+    '<h2 style="margin-bottom:0.5rem">\'+t.resetFailed+\'</h2>' +
+    '<p style="color:#dc2626;margin-bottom:0.5rem">\'+e.message+\'</p>' +
+    '<p style="margin-top:1rem;color:#6b7280;font-size:0.875rem">\'+t.manualClear+\'</p>' +
+    '<button onclick="location.reload()" style="padding:0.75rem 2rem;background:#6b7280;color:white;border:none;border-radius:0.75rem;font-size:1rem;cursor:pointer;margin-top:1rem">\'+t.retry+\'</button>\';' +
+    '}})();' +
+    '</script></body></html>';
 
   return new Response(html, {
     status: 200,
@@ -602,9 +825,9 @@ async function handleNavigation() {
       'button:active{background:#059669}</style></head>' +
       '<body><div class="card">' +
       '<div class="icon"><svg width="32" height="32" fill="none" stroke="#059669" stroke-width="2" viewBox="0 0 24 24"><path d="M1 1l22 22M16.72 11.06A10.94 10.94 0 0 1 19 12.55M5 12.55a10.94 10.94 0 0 1 5.17-2.39M10.71 5.05A16 16 0 0 1 22.56 9M1.42 9a15.91 15.91 0 0 1 4.7-2.88M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/></svg></div>' +
-      '<h2>No Network</h2>' +
-      '<p>Please check your connection. The app will work once you reconnect.</p>' +
-      '<button onclick="location.reload()">Retry</button>' +
+      '<h2>' + swt('noNetwork') + '</h2>' +
+      '<p>' + swt('noNetworkMsg') + '</p>' +
+      '<button onclick="location.reload()">' + swt('retry') + '</button>' +
       '</div></body></html>',
       {
         status: 200,
@@ -839,6 +1062,16 @@ self.addEventListener('message', (event) => {
       // Client requests the current active config
       event.ports[0]?.postMessage({ config: activeConfig });
       break;
+
+    case 'SET_LANGUAGE':
+      const lang = event.data.lang;
+      if (SW_TRANSLATIONS[lang]) {
+        currentLang = lang;
+        console.log('[SW] Language set to:', currentLang);
+      } else {
+        console.warn('[SW] Language not supported:', lang);
+      }
+      break;
   }
 });
 
@@ -993,7 +1226,7 @@ self.addEventListener('push', (event) => {
 
   let data = {
     title: 'TaprootAgro',
-    body: 'You have a new notification',
+    body: swt('notification'),
     icon: '/icons/icon-192.png',
     badge: '/icons/icon-192.png',
     tag: 'default',
