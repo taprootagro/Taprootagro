@@ -56,22 +56,51 @@ export function ProfileDetailPage({ onClose }: ProfileDetailPageProps) {
   const handleSave = useCallback(async () => {
     setSaving(true);
     try {
+      const newProfile = {
+        name: name.trim() || config?.userProfile?.name || "Rick",
+        avatar: avatar || config?.userProfile?.avatar || "",
+      };
+      
       const updated = {
         ...config,
         userProfile: {
           ...(config?.userProfile || {}),
-          name: name.trim() || config?.userProfile?.name || "Rick",
-          avatar: avatar || config?.userProfile?.avatar || "",
+          ...newProfile
         },
       };
       saveConfig(updated);
+      
+      // Save to cloud if logged in and backend enabled
+      if (userId && isServer) {
+        try {
+          const cfg = JSON.parse(localStorage.getItem("agri_home_config") || "{}");
+          const backendCfg = cfg.backendProxyConfig || {};
+          const isEnabled = backendCfg.enabled && backendCfg.supabaseUrl;
+          
+          if (isEnabled) {
+            const url = `${backendCfg.supabaseUrl}/functions/v1/${backendCfg.edgeFunctionName || "chat-proxy"}/profile`;
+            await fetch(url, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                ...(backendCfg.supabaseAnonKey ? { Authorization: `Bearer ${backendCfg.supabaseAnonKey}` } : {})
+              },
+              body: JSON.stringify({ userId, profile: newProfile })
+            });
+            console.log("[ProfileDetail] Saved profile to cloud");
+          }
+        } catch (e) {
+          console.warn("[ProfileDetail] Failed to save profile to cloud", e);
+        }
+      }
+      
       showToast(t.profile.profileUpdated || "Profile updated");
     } catch (err) {
       console.error("[ProfileDetail] Save error:", err);
     } finally {
       setSaving(false);
     }
-  }, [config, name, avatar, saveConfig, showToast, t]);
+  }, [config, name, avatar, saveConfig, showToast, t, userId, isServer]);
 
   const handleCopyId = useCallback(() => {
     if (userId) {

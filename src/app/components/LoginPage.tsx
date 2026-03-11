@@ -370,6 +370,33 @@ export function LoginPage() {
             setAccessToken(result.accessToken);
           }
           setServerUserId(result.userId);
+          
+          // ---- Fetch Cloud Profile ----
+          try {
+            const profileRes = await apiClient<{ data?: { name?: string, avatar?: string } }>({
+              endpoint: getBackendUrl(`/profile?userId=${result.userId}`),
+              method: 'GET',
+              headers: getBackendHeaders(),
+              preferredVersion: 'v1',
+              enableFallback: true
+            });
+            const pData = profileRes.data?.data;
+            if (pData && (pData.name || pData.avatar)) {
+              saveConfig({
+                ...config,
+                userProfile: {
+                  ...config.userProfile,
+                  name: pData.name || config.userProfile?.name,
+                  avatar: pData.avatar || config.userProfile?.avatar,
+                }
+              });
+              console.log("[Login] Synced profile from cloud");
+            }
+          } catch (e) {
+            console.warn("[Login] Failed to sync cloud profile:", e);
+          }
+          // -----------------------------
+
           setUserLoggedIn(true);
           navigate("/home/profile");
         } else {

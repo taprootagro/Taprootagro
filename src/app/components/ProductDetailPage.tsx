@@ -112,3 +112,5 @@ export function ProductDetailPage({ onClose, product }: ProductDetailPageProps) 
     </SecondaryView>
   );
 }
+
+export default ProductDetailPage;

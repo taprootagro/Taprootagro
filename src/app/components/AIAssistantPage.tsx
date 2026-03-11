@@ -93,6 +93,14 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
   const voiceCancelledRef = useRef(false);
   const lastVoiceDurationRef = useRef(0); // 录音结束前快照时长，供 onstop 异步回调读取
 
+  // Voice cancel-pending state (finger dragged outside button)
+  const [voiceCancelPending, setVoiceCancelPendingState] = useState(false);
+  const voiceCancelPendingRef = useRef(false);
+  const setVoiceCancelPending = useCallback((pending: boolean) => {
+    voiceCancelPendingRef.current = pending;
+    setVoiceCancelPendingState(pending);
+  }, []);
+
   // TTS auto-read state (default ON)
   const [ttsEnabled, setTtsEnabled] = useState(true);
   const ttsUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
@@ -267,7 +275,7 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
     } catch (err: any) {
       const msg = err?.message || String(err);
       console.log('🔍 Model load error:', msg);
-      // 如果云AI已启用，即使本地模型缺失也直接进入云端模式
+      // 如果云AI已启用，即使本地模型缺失也直接进入云端��式
       if (config.cloudAIConfig?.enabled) {
         setStatus('cloud-only');
       } else {
@@ -884,7 +892,9 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
     stopTTS();
     isVoiceRecordingRef.current = true;
     voiceTimeRef.current = 0;
+    voiceCancelPendingRef.current = false;
     setIsVoiceRecording(true);
+    setVoiceCancelPendingState(false);
     setVoiceTime(0);
     startRealRecording();
     voiceTimerRef.current = setInterval(() => {
@@ -894,7 +904,9 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
       if (t >= 59) {
         lastVoiceDurationRef.current = t;
         isVoiceRecordingRef.current = false;
+        voiceCancelPendingRef.current = false;
         setIsVoiceRecording(false);
+        setVoiceCancelPendingState(false);
         if (voiceTimerRef.current) { clearInterval(voiceTimerRef.current); voiceTimerRef.current = null; }
         stopRealRecording(false);
       }
@@ -904,14 +916,17 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
   const handleVoiceRecordEnd = useCallback(() => {
     if (!isVoiceRecordingRef.current) return;
     const duration = voiceTimeRef.current;
+    const wasCancelled = voiceCancelPendingRef.current;
     lastVoiceDurationRef.current = duration;
     isVoiceRecordingRef.current = false;
+    voiceCancelPendingRef.current = false;
     setIsVoiceRecording(false);
+    setVoiceCancelPendingState(false);
     if (voiceTimerRef.current) { clearInterval(voiceTimerRef.current); voiceTimerRef.current = null; }
-    if (duration >= 1) {
-      stopRealRecording(false);
-    } else {
+    if (wasCancelled || duration < 1) {
       stopRealRecording(true);
+    } else {
+      stopRealRecording(false);
     }
     voiceTimeRef.current = 0;
     setVoiceTime(0);
@@ -920,7 +935,9 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
   const handleVoiceRecordCancel = useCallback(() => {
     if (!isVoiceRecordingRef.current) return;
     isVoiceRecordingRef.current = false;
+    voiceCancelPendingRef.current = false;
     setIsVoiceRecording(false);
+    setVoiceCancelPendingState(false);
     if (voiceTimerRef.current) { clearInterval(voiceTimerRef.current); voiceTimerRef.current = null; }
     stopRealRecording(true);
     voiceTimeRef.current = 0;
@@ -1012,7 +1029,7 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
 
       {/* ═══ 聊天栏：默认语音模式，点笔切文字 ═══ */}
       {(deepAnalysisResult || (cloudOnlyMode && image)) && (
-        <div className="flex items-center gap-2">
+        <div className="flex items-end gap-2">
           {/* 左侧切换按钮：语音模式显示笔(切文字)，文字模式显示麦克风(切语音) */}
           <button
             onClick={() => setInputMode(inputMode === 'voice' ? 'text' : 'voice')}
@@ -1028,21 +1045,35 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
               style={{ height: '44px' }}
               onTouchStart={(e) => {
                 const touch = e.touches[0];
+                const rect = e.currentTarget.getBoundingClientRect();
                 (e.currentTarget as any).__startY = touch?.clientY || 0;
+                (e.currentTarget as any).__btnRect = rect;
                 handleVoiceRecordStart();
               }}
               onTouchMove={(e) => {
+                if (!isVoiceRecordingRef.current) return;
                 const touch = e.touches[0];
-                const startY = (e.currentTarget as any).__startY || 0;
-                if (isVoiceRecordingRef.current && (touch?.clientY || 0) < startY - 80) {
-                  handleVoiceRecordCancel();
+                const rect = (e.currentTarget as any).__btnRect as DOMRect;
+                if (!rect || !touch) return;
+                const isOutside =
+                  touch.clientX < rect.left - 20 ||
+                  touch.clientX > rect.right + 20 ||
+                  touch.clientY < rect.top - 20 ||
+                  touch.clientY > rect.bottom + 20;
+                if (isOutside !== voiceCancelPendingRef.current) {
+                  setVoiceCancelPending(isOutside);
                 }
               }}
               onTouchEnd={() => handleVoiceRecordEnd()}
               onTouchCancel={() => handleVoiceRecordCancel()}
               onMouseDown={() => handleVoiceRecordStart()}
               onMouseUp={() => handleVoiceRecordEnd()}
-              onMouseLeave={() => { if (isVoiceRecordingRef.current) handleVoiceRecordCancel(); }}
+              onMouseLeave={() => {
+                if (isVoiceRecordingRef.current) {
+                  setVoiceCancelPending(true);
+                  handleVoiceRecordEnd();
+                }
+              }}
             >
               {!isVoiceRecording ? (
                 <div className="bg-emerald-50 rounded-full text-center text-emerald-600 active:bg-emerald-500 active:text-white transition-colors select-none flex items-center justify-center shadow-sm" style={{ height: '44px', fontSize: 'clamp(12px, 3.2vw, 14px)' }}>
@@ -1050,11 +1081,13 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
                   <span className="truncate">{a.holdToSpeak}</span>
                 </div>
               ) : (
-                <div className="bg-emerald-500 rounded-full px-3 flex items-center gap-2" style={{ height: '44px' }}>
+                <div className={`${voiceCancelPending ? 'bg-red-500' : 'bg-emerald-500'} rounded-full px-3 flex items-center gap-2 transition-colors duration-150`} style={{ height: '44px' }}>
                   <div className="flex-1 min-w-0 flex items-center gap-2">
                     <div className="flex items-end gap-[2px] h-4">
                       {[1,2,3,4,5,6].map(i => (
-                        <div key={i} className="w-[3px] bg-white/70 rounded-full" style={{
+                        <div key={i} className="w-[3px] bg-white/70 rounded-full" style={voiceCancelPending ? {
+                          height: `${6 + Math.random() * 10}px`,
+                        } : {
                           height: `${6 + Math.random() * 10}px`,
                           animation: `voiceWave 0.4s ease-in-out ${i * 0.07}s infinite alternate`
                         }} />
@@ -1094,7 +1127,7 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
                 disabled={chatReplying || deepAnalyzing || !deepAnalysisResult || (!isUnlimited && dailyUsage.used >= dailyUsage.limit)}
                 rows={1}
                 className={`w-full bg-emerald-50 rounded-full text-gray-700 placeholder-emerald-400 outline-none focus:ring-2 focus:ring-emerald-300 disabled:opacity-50 transition-all resize-none shadow-sm ${isRTL ? 'pr-11 pl-4' : 'pl-4 pr-11'}`}
-                style={{ height: '44px', minHeight: '44px', maxHeight: '120px', paddingTop: '12px', paddingBottom: '12px', lineHeight: '20px', boxSizing: 'border-box', fontSize: 'clamp(13px, 3.5vw, 15px)' }}
+                style={{ display: 'block', height: '44px', minHeight: '44px', maxHeight: '120px', paddingTop: '12px', paddingBottom: '12px', lineHeight: '20px', boxSizing: 'border-box', fieldSizing: 'fixed', fontSize: 'clamp(13px, 3.5vw, 15px)' } as React.CSSProperties}
               />
               {/* 发送按钮 — 仅文字模式有内容时显示，在输入框内部 */}
               {chatInput.trim() && (
@@ -1300,7 +1333,7 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
                     {/* 用户发送的图片 — 普通右侧气泡 */}
                     <div className="flex justify-end">
                       <div className={`max-w-[85%] rounded-2xl px-1.5 py-1.5 bg-emerald-500 ${isRTL ? 'rounded-bl-md' : 'rounded-br-md'}`}>
-                        <img src={image} alt="" className="w-40 h-40 object-cover rounded-xl block" />
+                        <img src={image} alt="" className="max-w-48 max-h-48 w-auto h-auto rounded-xl block" />
                       </div>
                     </div>
 
@@ -1365,7 +1398,7 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
                           onClick={() => msg.role === 'ai' && !msg.text.startsWith('⚠️') && handleAITextClick(msg.text)}
                         >
                           {msg.image && (
-                            <img src={msg.image} alt="" className="w-36 h-36 object-cover rounded-xl mb-1" />
+                            <img src={msg.image} alt="" className="max-w-44 max-h-48 w-auto h-auto rounded-xl mb-1" />
                           )}
                           {isVoice ? (
                             <button
@@ -1560,7 +1593,7 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
                                   onClick={() => msg.role === 'ai' && !msg.text.startsWith('⚠️') && handleAITextClick(msg.text)}
                                 >
                                   {msg.image && (
-                                    <img src={msg.image} alt="" className="w-36 h-36 object-cover rounded-xl mb-1" />
+                                    <img src={msg.image} alt="" className="max-w-44 max-h-48 w-auto h-auto rounded-xl mb-1" />
                                   )}
                                   {isVoice ? (
                                     <button
@@ -1622,3 +1655,4 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
     </SecondaryView>
   );
 }
+export default AIAssistantPage;

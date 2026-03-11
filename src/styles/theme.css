@@ -206,13 +206,15 @@
     height: var(--app-height, 100dvh);
     /* 禁止 body 滚动，防 iOS 上容溢出 */
     overflow: hidden;
-    /* 移动端优化 — 仅允许纵向滑动和缩放，阻止横向手势导航 */
-    touch-action: pan-y pinch-zoom;
+    /* 移动端优化 — 仅允许纵向滑动，禁止缩放手势（PWA当App用） */
+    touch-action: pan-y;
     -webkit-tap-highlight-color: transparent;
     /* 禁止横向过度滚动（双保险） */
     overscroll-behavior-x: none;
     /* 禁止长按弹出系统菜单（iOS Safari callout / 链接预览） */
     -webkit-touch-callout: none;
+    /* 禁止双击缩放（iOS Safari / 部分安卓浏览器） */
+    -ms-content-zooming: none;
   }
 
   #root {

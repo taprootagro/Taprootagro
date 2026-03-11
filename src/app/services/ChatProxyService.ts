@@ -556,15 +556,14 @@ export class ChatProxyService {
     const base = getEdgeFunctionBase();
 
     if (this._mode === "backend" && base) {
-      const res = await fetch(
-        `${base}/history?channel=${encodeURIComponent(channelName)}`,
-        { headers: getHeaders() }
-      );
+      const res = await apiClient<{ messages: ChatMessageDTO[] }>({
+        endpoint: `${base}/history?channel=${encodeURIComponent(channelName)}`,
+        method: "GET",
+        headers: getHeaders(),
+        retry: { maxRetries: 3 }
+      });
 
-      if (!res.ok) throw new Error("Failed to fetch history");
-
-      const data: { messages: ChatMessageDTO[] } = await res.json();
-      return data.messages.map((m) => ({ ...m, status: "sent" as const }));
+      return (res.data?.messages || []).map((m) => ({ ...m, status: "sent" as const }));
     }
 
     // Mock mode

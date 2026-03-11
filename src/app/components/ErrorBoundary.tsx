@@ -253,12 +253,31 @@ export class ErrorBoundary extends Component<Props, State> {
 
   /** Lightweight i18n (class component can't use hooks) */
   private getLabels() {
-    const lang = (typeof navigator !== 'undefined' ? navigator.language : 'en').toLowerCase();
+    const rawLang = typeof navigator !== 'undefined' ? navigator.language : 'en';
+    const lang = rawLang.toLowerCase();
+    
+    // Support 20 languages
+    if (lang.startsWith('zh-tw') || lang.startsWith('zh-hk')) return { title: '應用遇到問題', restart: '重啟應用', desc: '建議重啟應用以恢復正常使用' };
     if (lang.startsWith('zh')) return { title: '应用遇到问题', restart: '重启应用', desc: '建议重启应用以恢复正常使用' };
     if (lang.startsWith('fr')) return { title: "L'application a rencontré un problème", restart: "Redémarrer l'application", desc: "Il est recommandé de redémarrer l'application" };
-    if (lang.startsWith('es')) return { title: 'La aplicación encontró un problema', restart: 'Reiniciar aplicación', desc: 'Se recomienda reiniciar la aplicación' };
-    if (lang.startsWith('ar')) return { title: 'واجه التطبيق مشكلة', restart: 'إعادة تشغيل التطبيق', desc: 'يُنصح بإعادة تشغيل التطبيق' };
+    if (lang.startsWith('es')) return { title: 'La aplicación encontró un problema', restart: 'Reiniciar aplicación', desc: 'Se recomienda reiniciar la aplicación para uso normal' };
+    if (lang.startsWith('ar')) return { title: 'واجه التطبيق مشكلة', restart: 'إعادة تشغيل التطبيق', desc: 'يُنصح بإعادة تشغيل التطبيق لاستئناف الاستخدام الطبيعي' };
     if (lang.startsWith('sw')) return { title: 'Programu imekutana na tatizo', restart: 'Anzisha upya programu', desc: 'Inashauriwa kuanzisha upya programu' };
+    if (lang.startsWith('pt')) return { title: 'O aplicativo encontrou um problema', restart: 'Reiniciar aplicativo', desc: 'Recomenda-se reiniciar o aplicativo para uso normal' };
+    if (lang.startsWith('ru')) return { title: 'В приложении произошла ошибка', restart: 'Перезапустить', desc: 'Рекомендуется перезапустить приложение' };
+    if (lang.startsWith('tr')) return { title: 'Uygulama bir sorunla karşılaştı', restart: 'Yeniden Başlat', desc: 'Normal kullanıma dönmek için uygulamayı yeniden başlatın' };
+    if (lang.startsWith('th')) return { title: 'แอปพลิเคชันพบปัญหา', restart: 'รีสตาร์ทแอป', desc: 'โปรดรีสตาร์ทแอปพลิเคชันเพื่อใช้งานต่อ' };
+    if (lang.startsWith('ja')) return { title: 'アプリに問題が発生しました', restart: '再起動', desc: '正常に使用するために再起動をお勧めします' };
+    if (lang.startsWith('id')) return { title: 'Aplikasi mengalami masalah', restart: 'Mulai Ulang Aplikasi', desc: 'Disarankan untuk memulai ulang aplikasi' };
+    if (lang.startsWith('bn')) return { title: 'অ্যাপে একটি সমস্যা হয়েছে', restart: 'অ্যাপ পুনরায় চালু করুন', desc: 'স্বাভাবিক ব্যবহারের জন্য অ্যাপটি পুনরায় চালু করুন' };
+    if (lang.startsWith('vi')) return { title: 'Ứng dụng gặp sự cố', restart: 'Khởi động lại', desc: 'Vui lòng khởi động lại ứng dụng' };
+    if (lang.startsWith('fa')) return { title: 'برنامه با مشکلی روبرو شد', restart: 'راه‌اندازی مجدد', desc: 'برای استفاده عادی، برنامه را مجدداً راه‌اندازی کنید' };
+    if (lang.startsWith('my')) return { title: 'အက်ပ်တွင်ပြဿနာရှိနေပါသည်', restart: 'အက်ပ်ကိုပြန်စရန်', desc: 'ပုံမှန်အသုံးပြုရန် အက်ပ်ကိုပြန်စပါ' };
+    if (lang.startsWith('ms')) return { title: 'Aplikasi menghadapi masalah', restart: 'Mula Semula', desc: 'Sila mula semula aplikasi untuk penggunaan biasa' };
+    if (lang.startsWith('tl')) return { title: 'Nagkaproblema ang app', restart: 'I-restart ang App', desc: 'Paki-restart ang app upang magpatuloy' };
+    if (lang.startsWith('ur')) return { title: 'ایپ میں مسئلہ پیش آیا ہے', restart: 'ایپ دوبارہ شروع کریں', desc: 'براہ کرم ایپ کو دوبارہ شروع کریں' };
+    if (lang.startsWith('hi')) return { title: 'ऐप में कोई समस्या आई है', restart: 'ऐप रीस्टार्ट करें', desc: 'सामान्य उपयोग फिर से शुरू करने के लिए कृपया ऐप रीस्टार्ट करें' };
+
     return { title: 'App encountered a problem', restart: 'Restart App', desc: 'Please restart the app to resume normal use' };
   }
 

@@ -70,3 +70,5 @@ export function BannerDetailPage({ onClose, bannerIndex, bannerData }: BannerDet
     </SecondaryView>
   );
 }
+
+export default BannerDetailPage;

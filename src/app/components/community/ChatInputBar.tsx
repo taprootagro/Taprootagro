@@ -33,9 +33,12 @@ export const ChatInputBar = React.memo(function ChatInputBar({
     isRecording,
     recordingTime,
     isRecordingRef,
+    isCancelPending,
+    isCancelPendingRef,
     startRecording,
     stopRecording,
     cancelRecording,
+    setCancelPending,
   } = useVoiceRecorder(onSendVoice);
 
   const textInputRef = useRef<HTMLTextAreaElement>(null);
@@ -77,7 +80,7 @@ export const ChatInputBar = React.memo(function ChatInputBar({
       const content = textMessage.trim();
       setTextMessage("");
       if (textInputRef.current) {
-        textInputRef.current.style.height = '48px';
+        textInputRef.current.style.height = '44px';
       }
       onSendText(content);
     }
@@ -158,14 +161,24 @@ export const ChatInputBar = React.memo(function ChatInputBar({
             onTouchStart={(e) => {
               if (isRecordingRef.current) return;
               const touch = e.touches[0];
+              const rect = e.currentTarget.getBoundingClientRect();
               (e.currentTarget as any).__startY = touch?.clientY || 0;
+              (e.currentTarget as any).__btnRect = rect;
               startRecording();
             }}
             onTouchMove={(e) => {
+              if (!isRecordingRef.current) return;
               const touch = e.touches[0];
-              const startY = (e.currentTarget as any).__startY || 0;
-              if (isRecordingRef.current && (touch?.clientY || 0) < startY - 80) {
-                cancelRecording();
+              const rect = (e.currentTarget as any).__btnRect as DOMRect;
+              if (!rect || !touch) return;
+              // Check if finger is outside the button area (with 20px tolerance)
+              const isOutside =
+                touch.clientX < rect.left - 20 ||
+                touch.clientX > rect.right + 20 ||
+                touch.clientY < rect.top - 20 ||
+                touch.clientY > rect.bottom + 20;
+              if (isOutside !== isCancelPendingRef.current) {
+                setCancelPending(isOutside);
               }
             }}
             onTouchEnd={() => {
@@ -180,7 +193,12 @@ export const ChatInputBar = React.memo(function ChatInputBar({
                 stopRecording();
               }
             }}
-            onMouseLeave={() => { if (isRecordingRef.current) cancelRecording(); }}
+            onMouseLeave={() => {
+              if (isRecordingRef.current) {
+                setCancelPending(true);
+                stopRecording();
+              }
+            }}
           >
             {!isRecording ? (
               <div className="bg-emerald-50 rounded-full text-center text-emerald-600 active:bg-emerald-500 active:text-white transition-colors select-none flex items-center justify-center shadow-sm" style={{ height: '44px', fontSize: 'clamp(12px, 3.2vw, 14px)' }}>
@@ -188,11 +206,11 @@ export const ChatInputBar = React.memo(function ChatInputBar({
                 <span className="truncate">{t.ai?.holdToSpeak || 'Hold to speak'}</span>
               </div>
             ) : (
-              <div className="bg-emerald-500 rounded-full px-3 flex items-center gap-2" style={{ height: '44px' }}>
+              <div className={`${isCancelPending ? 'bg-red-500' : 'bg-emerald-500'} rounded-full px-3 flex items-center gap-2 transition-colors duration-150`} style={{ height: '44px' }}>
                 <div className="flex-1 min-w-0 flex items-center gap-2">
                   <div className="flex items-end gap-[2px] h-4">
                     {waveBarStyles.map((style, i) => (
-                      <div key={i} className="w-[3px] bg-white/70 rounded-full" style={style} />
+                      <div key={i} className="w-[3px] bg-white/70 rounded-full" style={isCancelPending ? { height: style.height } : style} />
                     ))}
                   </div>
                   <span className="text-sm text-white font-medium tabular-nums">{recordingTime}"</span>
@@ -227,7 +245,7 @@ export const ChatInputBar = React.memo(function ChatInputBar({
               className={`w-full bg-emerald-50 rounded-full text-emerald-900 placeholder-emerald-400 outline-none focus:ring-2 focus:ring-emerald-300 transition-[box-shadow] resize-none overflow-y-auto shadow-sm ${isRTL ? 'pr-11 pl-4' : 'pl-4 pr-11'}`}
               ref={textInputRef}
               onFocus={handleInputFocus}
-              style={{ height: '44px', minHeight: '44px', maxHeight: '120px', lineHeight: '20px', paddingTop: '12px', paddingBottom: '12px', boxSizing: 'border-box', fieldSizing: 'fixed', fontSize: 'clamp(13px, 3.5vw, 15px)' } as React.CSSProperties}
+              style={{ display: 'block', height: '44px', minHeight: '44px', maxHeight: '120px', lineHeight: '20px', paddingTop: '12px', paddingBottom: '12px', boxSizing: 'border-box', fieldSizing: 'fixed', fontSize: 'clamp(13px, 3.5vw, 15px)' } as React.CSSProperties}
             />
             {textMessage.trim() && (
               <button

@@ -132,7 +132,7 @@ export function ImageViewer({ src, onClose }: ImageViewerProps) {
       }}
       onTransitionEnd={handleTransitionEnd}
     >
-      {/* 图片区域 — 占满中间空间 */}
+      {/* 图片区域 — 占满整个屏幕 */}
       <div className="flex-1 flex items-center justify-center min-h-0 overflow-hidden">
         <div
           className="max-w-[95vw] max-h-[85vh] select-none"
@@ -158,24 +158,22 @@ export function ImageViewer({ src, onClose }: ImageViewerProps) {
         </div>
       </div>
 
-      {/* 底部关闭按钮 — 与 SecondaryView 底部 dock 保持一致 */}
-      <nav
-        className="flex-shrink-0 safe-bottom"
+      {/* 底部关闭按钮 — 固定在屏幕底部，不随图片变化 */}
+      <div
+        className="absolute left-0 right-0 bottom-0 flex items-center justify-center pb-[env(safe-area-inset-bottom,0px)]"
         style={{
           opacity: isOff ? 0 : 1,
           transition: "opacity 200ms ease",
         }}
       >
-        <div className="flex items-center justify-center px-1">
-          <button
-            onClick={handleClose}
-            className="flex items-center justify-center pt-2.5 pb-1.5 active:scale-95 transition-transform touch-manipulation"
-            style={{ minWidth: "48px", minHeight: "48px" }}
-          >
-            <X className="w-7 h-7 text-red-500" strokeWidth={1.8} />
-          </button>
-        </div>
-      </nav>
+        <button
+          onClick={handleClose}
+          className="flex items-center justify-center mb-4 active:scale-95 transition-transform touch-manipulation"
+          style={{ width: "48px", height: "48px" }}
+        >
+          <X className="w-7 h-7 text-red-500" strokeWidth={1.8} />
+        </button>
+      </div>
     </div>
   );
 }

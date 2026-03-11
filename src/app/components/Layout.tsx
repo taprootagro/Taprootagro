@@ -33,9 +33,6 @@ export function Layout() {
   const networkQuality = useNetworkQuality();
   useDynamicManifest();
   const keyboardVisible = useKeyboardVisible();
-  
-  // 未读消息红点状态
-  const [showUnreadBadge, setShowUnreadBadge] = useState(true);
 
   // ---- 禁止左右滑动切换页面（浏览器前进/后退手势）----
   // 在 PWA 桌面模式下，国产浏览器（小米/OPPO/vivo）和 Chrome 的边缘左右滑动
@@ -106,7 +103,7 @@ export function Layout() {
 
   const activeTab = getTabKey(location.pathname);
 
-  // Tab 切换淡入动画：追踪切换计数，用 CSS animation 触发
+  // Tab 换淡入动画：追踪切换计数，用 CSS animation 触发
   const switchCountRef = useRef(0);
   const prevTabRef = useRef(activeTab);
   const [fadeKey, setFadeKey] = useState(0);
@@ -130,11 +127,8 @@ export function Layout() {
   }, [activeTab]);
 
   // 监听路由变化，点击社区页面后隐藏红点
-  useEffect(() => {
-    if (activeTab === "community") {
-      setShowUnreadBadge(false);
-    }
-  }, [activeTab]);
+  // showBadge 已在 navItems 中固定为 false，无需额外状态管理
+  // （原 setShowUnreadBadge 调用已删除，避免 ReferenceError 导致崩溃）
 
   // ---- PWA 冷启动检测（放在所有 hooks 之后，遵守 Rules of Hooks）----
   // standalone 模式下浏览器会恢复上次 URL（如 /home），跳过 / 的开屏页。
@@ -165,7 +159,7 @@ export function Layout() {
   const navItems = [
     { path: "/home", icon: Home, label: t.common.home },
     { path: "/home/market", icon: NotebookText, label: t.common.market },
-    { path: "/home/community", icon: MessageCircle, label: t.common.community, showBadge: showUnreadBadge },
+    { path: "/home/community", icon: MessageCircle, label: t.common.community, showBadge: false },
     { path: "/home/profile", icon: User, label: t.common.profile },
   ];
 

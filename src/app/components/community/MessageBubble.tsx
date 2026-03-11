@@ -70,7 +70,7 @@ export const MessageBubble = React.memo(({
           <img
             src={msg.content}
             alt=""
-            className="w-36 h-36 object-cover rounded-xl cursor-pointer active:opacity-80 transition-opacity"
+            className="max-w-44 max-h-48 w-auto h-auto rounded-xl cursor-pointer active:opacity-80 transition-opacity"
             loading="lazy"
             onClick={() => onImageClick?.(msg.content)}
           />

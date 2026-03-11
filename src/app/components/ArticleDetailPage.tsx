@@ -56,3 +56,5 @@ export function ArticleDetailPage({ onClose, article }: ArticleDetailPageProps) 
     </SecondaryView>
   );
 }
+
+export default ArticleDetailPage;

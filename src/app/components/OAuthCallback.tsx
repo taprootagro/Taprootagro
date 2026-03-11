@@ -101,6 +101,39 @@ export function OAuthCallback() {
           setAccessToken(data.accessToken || data.access_token);
         }
         setServerUserId(data.userId);
+
+        // ---- Fetch Cloud Profile ----
+        try {
+          const profileUrl = `${bpc.supabaseUrl}/functions/v1/${bpc.edgeFunctionName || "chat-proxy"}/profile?userId=${data.userId}`;
+          const profileRes = await fetch(profileUrl, {
+            method: 'GET',
+            headers
+          });
+          if (profileRes.ok) {
+            const pResData = await profileRes.json();
+            const pData = pResData?.data;
+            if (pData && (pData.name || pData.avatar)) {
+              // Get current config
+              const currentConfig = JSON.parse(localStorage.getItem(CONFIG_STORAGE_KEY) || "{}");
+              if (currentConfig.userProfile) {
+                currentConfig.userProfile = {
+                  ...currentConfig.userProfile,
+                  name: pData.name || currentConfig.userProfile.name,
+                  avatar: pData.avatar || currentConfig.userProfile.avatar
+                };
+                localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(currentConfig));
+                console.log("[OAuthCallback] Synced profile from cloud");
+                
+                // Dispatch event to notify useHomeConfig
+                window.dispatchEvent(new Event('storage'));
+              }
+            }
+          }
+        } catch (e) {
+          console.warn("[OAuthCallback] Failed to sync cloud profile:", e);
+        }
+        // -----------------------------
+
         setUserLoggedIn(true);
         setStatus("success");
 
