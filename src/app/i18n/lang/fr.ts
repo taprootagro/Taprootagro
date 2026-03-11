@@ -330,6 +330,7 @@ const translations: Translations = {
       holdToSpeak: 'Maintenir pour parler',
       releaseToSend: 'Relâcher pour envoyer',
       voiceMsg: 'Message vocal',
+      micDenied: 'Permission du microphone refusée',
       networkErrorHint: 'Échec de la connexion réseau. Prenez une photo et réessayez lorsque vous aurez un meilleur signal.',
       localAINoVoice: 'L\'IA locale ne prend pas en charge le chat vocal. Veuillez utiliser du texte ou l\'IA cloud.',
     },

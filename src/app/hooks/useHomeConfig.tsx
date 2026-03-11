@@ -141,7 +141,7 @@ export interface ChatContactConfig {
   avatar: string;         // 联系人头像URL
   subtitle: string;       // 副标题（如：TaprootAgro授权店）
   imUserId: string;       // IM服务商分配给商家的唯一识别代码
-  imProvider: string;     // 商家注册的IM服务商标识 (aliyun-im / sendbird / cometchat)
+  imProvider: string;     // 商家注册的IM服务商标识 (tencent-im / sendbird / cometchat)
   channelId: string;      // 聊天室ID — 商家二维码中携带，扫码后固定保存
   phone: string;          // 商家联系电话
   storeId: string;        // 门店编号/商家编号
@@ -237,7 +237,7 @@ export interface CloudAIConfig {
 }
 
 // 后端代理配置接口（IM通讯 + Supabase）
-export type ChatProvider = 'aliyun-im' | 'sendbird' | 'cometchat';
+export type ChatProvider = 'tencent-im' | 'sendbird' | 'cometchat';
 export type IMMode = 'supabase-realtime' | 'im-provider-direct' | 'edge-function-proxy';
 
 export interface BackendProxyConfig {
@@ -247,8 +247,8 @@ export interface BackendProxyConfig {
   enabled: boolean;               // 是否启用后端代理模式
   chatProvider: ChatProvider;     // IM服务商选择
   imMode: IMMode;                 // IM通道模式：supabase-realtime | im-provider-direct | edge-function-proxy
-  // Alibaba Cloud IM (互动消息)
-  aliyunAppId: string;
+  // Tencent IM (腾讯云即时通信)
+  tencentAppId: string;
   // Sendbird
   sendbirdAppId: string;
   // CometChat
@@ -310,7 +310,7 @@ export interface LoginConfig {
     line: boolean;
   };
   oauthCredentials: OAuthProviderCredentials;
-  enablePhoneLogin: boolean;      // 是否启用手机号登录
+  enablePhoneLogin: boolean;      // 是否启用��机号登录
   enableEmailLogin: boolean;      // 是否启用邮箱登录
   defaultLoginMethod: 'phone' | 'email'; // 默认选中的登录方式
 }
@@ -786,7 +786,7 @@ export const defaultConfig: HomePageConfig = {
     avatar: "https://images.unsplash.com/photo-1614558097757-bf9aa8fb830e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxzaW1wbGUlMjBtaW5pbWFsaXN0JTIwYXZhdGFyJTIwc2tldGNoJTIwZHJhd2luZ3xlbnwxfHx8fDE3NzA4NTQxODl8MA&ixlib=rb-4.1.0&q=80&w=1080",
     subtitle: "TaprootAgro授权店",
     imUserId: "your-im-user-id",
-    imProvider: "aliyun-im",
+    imProvider: "tencent-im",
     channelId: "your-channel-id",
     phone: "123-456-7890",
     storeId: "store123",
@@ -871,9 +871,9 @@ export const defaultConfig: HomePageConfig = {
     supabaseAnonKey: "your-supabase-anon-key",
     edgeFunctionName: "chat-proxy",
     enabled: false,
-    chatProvider: 'aliyun-im',
+    chatProvider: 'tencent-im',
     imMode: 'edge-function-proxy',
-    aliyunAppId: 'your-aliyun-app-id',
+    tencentAppId: 'your-tencent-app-id',
     sendbirdAppId: 'your-sendbird-app-id',
     cometchatAppId: 'your-cometchat-app-id',
     cometchatRegion: 'us'

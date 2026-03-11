@@ -162,7 +162,7 @@ export default function ConfigManagerPage() {
       case "appBranding":
         return { logoUrl: "", appName: "", slogan: "" };
       case "chatContact":
-        return { name: "", avatar: "", subtitle: "", imUserId: "", channelId: "", imProvider: "aliyun-im", phone: "", storeId: "", verifiedDomains: [] };
+        return { name: "", avatar: "", subtitle: "", imUserId: "", channelId: "", imProvider: "tencent-im", phone: "", storeId: "", verifiedDomains: [] };
       case "userProfile":
         return { name: "", avatar: "" };
       case "desktopIcon":
@@ -356,7 +356,7 @@ export default function ConfigManagerPage() {
         newConfig.appBranding = { logoUrl: "", appName: "", slogan: "" };
         break;
       case "chatContact":
-        newConfig.chatContact = { name: "", avatar: "", subtitle: "", imUserId: "", channelId: "", imProvider: "aliyun-im", phone: "", storeId: "", verifiedDomains: [] };
+        newConfig.chatContact = { name: "", avatar: "", subtitle: "", imUserId: "", channelId: "", imProvider: "tencent-im", phone: "", storeId: "", verifiedDomains: [] };
         break;
       case "userProfile":
         newConfig.userProfile = { name: "", avatar: "" };
@@ -444,7 +444,7 @@ export default function ConfigManagerPage() {
       case "marketAd":
         return ["ID", ct("广告标题", "Ad Title"), ct("内容", "Content"), ct("缩略图URL", "Thumbnail URL")];
       case "filing":
-        return [ct("ICP备案号", "ICP Number"), ct("ICP链接", "ICP Link"), ct("公安备案号", "Police Filing No."), ct("公安链接", "Police Link")];
+        return [ct("ICP备案号", "ICP Number"), ct("ICP链接", "ICP Link"), ct("公���备案号", "Police Filing No."), ct("公安链接", "Police Link")];
       case "aboutUs":
         return ["ID", ct("关于我们内容", "About Us Content")];
       case "privacy":
@@ -1028,11 +1028,11 @@ export default function ConfigManagerPage() {
               <div className="mb-3">
                 <label className="block text-sm font-medium text-gray-700 mb-1">{ct("IM服务商", "IM Provider")}</label>
                 <select
-                  value={editingItem.imProvider || "aliyun-im"}
+                  value={editingItem.imProvider || "tencent-im"}
                   onChange={(e) => setEditingItem({ ...editingItem, imProvider: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm"
                 >
-                  <option value="aliyun-im">{ct("阿里云互动消息", "Alibaba Cloud IM")}</option>
+                  <option value="tencent-im">{ct("腾讯云即时通信", "Tencent IM")}</option>
                   <option value="sendbird">Sendbird</option>
                   <option value="cometchat">CometChat</option>
                 </select>
@@ -1196,7 +1196,7 @@ export default function ConfigManagerPage() {
             { key: "aboutUs", label: ct("关于我们", "About Us") },
             { key: "privacy", label: ct("隐私政策", "Privacy") },
             { key: "terms", label: ct("服务条款", "Terms") },
-            { key: "appBranding", label: ct("应用品牌", "Branding") },
+            { key: "appBranding", label: ct("应��品牌", "Branding") },
             { key: "homeIcons", label: ct("首页图标", "Home Icons") },
             { key: "chatContact", label: ct("聊天联系", "Chat") },
             { key: "userProfile", label: ct("用户资料", "Profile") },
@@ -1226,7 +1226,7 @@ export default function ConfigManagerPage() {
         {activeTab === "homeIcons" ? (
           <div className="space-y-4">
             <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-2">
-              <h3 className="text-base text-gray-800">{ct("首页功能区配置", "Home Feature Section Config")}</h3>
+              <h3 className="text-base text-gray-800">{ct("首页功能区配���", "Home Feature Section Config")}</h3>
               <p className="text-xs text-gray-500">{ct(
                 "自定义首页三个功能区块的图标、文字。所有字段留空则使用多语言默认值或默认图标。",
                 "Customize the icon and text for the three feature sections on the homepage. Leave fields empty to use multilingual defaults or default icons."
@@ -1842,7 +1842,7 @@ export default function ConfigManagerPage() {
                 <button
                   onClick={() => {
                     const newConfig = JSON.parse(JSON.stringify(workingConfig));
-                    if (!newConfig.backendProxyConfig) newConfig.backendProxyConfig = { supabaseUrl: "", supabaseAnonKey: "", edgeFunctionName: "chat-proxy", enabled: false, chatProvider: "aliyun-im", imMode: "edge-function-proxy", aliyunAppId: "", sendbirdAppId: "", cometchatAppId: "", cometchatRegion: "us" };
+                    if (!newConfig.backendProxyConfig) newConfig.backendProxyConfig = { supabaseUrl: "", supabaseAnonKey: "", edgeFunctionName: "chat-proxy", enabled: false, chatProvider: "tencent-im", imMode: "edge-function-proxy", tencentAppId: "", sendbirdAppId: "", cometchatAppId: "", cometchatRegion: "us" };
                     newConfig.backendProxyConfig.enabled = !newConfig.backendProxyConfig.enabled;
                     setWorkingConfig(newConfig);
                     setHasChanges(true);
@@ -1910,7 +1910,7 @@ export default function ConfigManagerPage() {
                         key={modeOption.key}
                         onClick={() => {
                           const newConfig = JSON.parse(JSON.stringify(workingConfig));
-                          if (!newConfig.backendProxyConfig) newConfig.backendProxyConfig = { supabaseUrl: "", supabaseAnonKey: "", edgeFunctionName: "chat-proxy", enabled: false, chatProvider: "aliyun-im", imMode: "edge-function-proxy", aliyunAppId: "", sendbirdAppId: "", cometchatAppId: "", cometchatRegion: "us" };
+                          if (!newConfig.backendProxyConfig) newConfig.backendProxyConfig = { supabaseUrl: "", supabaseAnonKey: "", edgeFunctionName: "chat-proxy", enabled: false, chatProvider: "tencent-im", imMode: "edge-function-proxy", tencentAppId: "", sendbirdAppId: "", cometchatAppId: "", cometchatRegion: "us" };
                           newConfig.backendProxyConfig.imMode = modeOption.key;
                           setWorkingConfig(newConfig);
                           setHasChanges(true);
@@ -1942,17 +1942,17 @@ export default function ConfigManagerPage() {
                 <label className="block text-sm text-gray-700 mb-2">{ct("IM 服务商", "IM Provider")}</label>
                 <div className="grid grid-cols-1 gap-2">
                   {([
-                    { key: 'aliyun-im' as const, name: ct('阿里云互动消息', 'Alibaba Cloud IM'), icon: '🇨🇳', color: 'border-orange-400 bg-orange-50', activeColor: 'ring-orange-400', desc: ct('适合中国市场，低延迟，支持万人群聊', 'Best for China market, low latency, 10K+ group chat') },
-                    { key: 'sendbird' as const, name: 'Sendbird', icon: '💬', color: 'border-purple-400 bg-purple-50', activeColor: 'ring-purple-400', desc: ct('全球覆盖，UI Kit丰富，推送通知完善', 'Global coverage, rich UI Kit, full push notifications') },
+                    { key: 'tencent-im' as const, name: ct('腾讯云即时通信', 'Tencent IM'), icon: '💬', color: 'border-sky-400 bg-sky-50', activeColor: 'ring-sky-400', desc: ct('全球覆盖，支持亿级用户，音视频通话完善', 'Global coverage, billion-scale users, full AV calls') },
+                    { key: 'sendbird' as const, name: 'Sendbird', icon: '📨', color: 'border-purple-400 bg-purple-50', activeColor: 'ring-purple-400', desc: ct('全球覆盖，UI Kit丰富，推送通知完善', 'Global coverage, rich UI Kit, full push notifications') },
                     { key: 'cometchat' as const, name: 'CometChat', icon: '🚀', color: 'border-blue-400 bg-blue-50', activeColor: 'ring-blue-400', desc: ct('开箱即用，内置AI机器人，快速集成', 'Plug & play, built-in AI bots, fast integration') },
                   ] as const).map((provider) => {
-                    const isActive = (workingConfig.backendProxyConfig?.chatProvider || 'aliyun-im') === provider.key;
+                    const isActive = (workingConfig.backendProxyConfig?.chatProvider || 'tencent-im') === provider.key;
                     return (
                       <button
                         key={provider.key}
                         onClick={() => {
                           const newConfig = JSON.parse(JSON.stringify(workingConfig));
-                          if (!newConfig.backendProxyConfig) newConfig.backendProxyConfig = { supabaseUrl: "", supabaseAnonKey: "", edgeFunctionName: "chat-proxy", enabled: false, chatProvider: "aliyun-im", imMode: "edge-function-proxy", aliyunAppId: "", sendbirdAppId: "", cometchatAppId: "", cometchatRegion: "us" };
+                          if (!newConfig.backendProxyConfig) newConfig.backendProxyConfig = { supabaseUrl: "", supabaseAnonKey: "", edgeFunctionName: "chat-proxy", enabled: false, chatProvider: "tencent-im", imMode: "edge-function-proxy", tencentAppId: "", sendbirdAppId: "", cometchatAppId: "", cometchatRegion: "us" };
                           newConfig.backendProxyConfig.chatProvider = provider.key;
                           setWorkingConfig(newConfig);
                           setHasChanges(true);
@@ -1981,20 +1981,20 @@ export default function ConfigManagerPage() {
               </div>
 
               {/* Provider-specific App ID */}
-              {(workingConfig.backendProxyConfig?.chatProvider || 'aliyun-im') === 'aliyun-im' && (
+              {(workingConfig.backendProxyConfig?.chatProvider || 'tencent-im') === 'tencent-im' && (
                 <div>
-                  <label className="block text-sm text-gray-700 mb-1">{ct("阿里云 App ID（公开）", "Alibaba Cloud App ID (public)")}</label>
+                  <label className="block text-sm text-gray-700 mb-1">{ct("腾讯云 SDKAppID（公开）", "Tencent IM SDKAppID (public)")}</label>
                   <input
                     type="text"
-                    value={workingConfig.backendProxyConfig?.aliyunAppId || ""}
+                    value={workingConfig.backendProxyConfig?.tencentAppId || ""}
                     onChange={(e) => {
                       const newConfig = JSON.parse(JSON.stringify(workingConfig));
-                      if (!newConfig.backendProxyConfig) newConfig.backendProxyConfig = { supabaseUrl: "", supabaseAnonKey: "", edgeFunctionName: "chat-proxy", enabled: false, chatProvider: "aliyun-im", imMode: "edge-function-proxy", aliyunAppId: "", sendbirdAppId: "", cometchatAppId: "", cometchatRegion: "us" };
-                      newConfig.backendProxyConfig.aliyunAppId = e.target.value;
+                      if (!newConfig.backendProxyConfig) newConfig.backendProxyConfig = { supabaseUrl: "", supabaseAnonKey: "", edgeFunctionName: "chat-proxy", enabled: false, chatProvider: "tencent-im", imMode: "edge-function-proxy", tencentAppId: "", sendbirdAppId: "", cometchatAppId: "", cometchatRegion: "us" };
+                      newConfig.backendProxyConfig.tencentAppId = e.target.value;
                       setWorkingConfig(newConfig);
                       setHasChanges(true);
                     }}
-                    placeholder="your-aliyun-app-id"
+                    placeholder="your-tencent-sdkappid"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 font-mono text-xs"
                   />
                   <p className="mt-1 text-[11px] text-gray-400">{ct(
@@ -2003,7 +2003,7 @@ export default function ConfigManagerPage() {
                   )}</p>
                 </div>
               )}
-              {(workingConfig.backendProxyConfig?.chatProvider || 'aliyun-im') === 'sendbird' && (
+              {(workingConfig.backendProxyConfig?.chatProvider || 'tencent-im') === 'sendbird' && (
                 <div>
                   <label className="block text-sm text-gray-700 mb-1">{ct("Sendbird App ID（公开）", "Sendbird App ID (public)")}</label>
                   <input
@@ -2011,7 +2011,7 @@ export default function ConfigManagerPage() {
                     value={workingConfig.backendProxyConfig?.sendbirdAppId || ""}
                     onChange={(e) => {
                       const newConfig = JSON.parse(JSON.stringify(workingConfig));
-                      if (!newConfig.backendProxyConfig) newConfig.backendProxyConfig = { supabaseUrl: "", supabaseAnonKey: "", edgeFunctionName: "chat-proxy", enabled: false, chatProvider: "aliyun-im", imMode: "edge-function-proxy", aliyunAppId: "", sendbirdAppId: "", cometchatAppId: "", cometchatRegion: "us" };
+                      if (!newConfig.backendProxyConfig) newConfig.backendProxyConfig = { supabaseUrl: "", supabaseAnonKey: "", edgeFunctionName: "chat-proxy", enabled: false, chatProvider: "tencent-im", imMode: "edge-function-proxy", tencentAppId: "", sendbirdAppId: "", cometchatAppId: "", cometchatRegion: "us" };
                       newConfig.backendProxyConfig.sendbirdAppId = e.target.value;
                       setWorkingConfig(newConfig);
                       setHasChanges(true);
@@ -2025,7 +2025,7 @@ export default function ConfigManagerPage() {
                   )}</p>
                 </div>
               )}
-              {(workingConfig.backendProxyConfig?.chatProvider || 'aliyun-im') === 'cometchat' && (
+              {(workingConfig.backendProxyConfig?.chatProvider || 'tencent-im') === 'cometchat' && (
                 <div className="space-y-3">
                   <div>
                     <label className="block text-sm text-gray-700 mb-1">{ct("CometChat App ID（公开）", "CometChat App ID (public)")}</label>
@@ -2034,7 +2034,7 @@ export default function ConfigManagerPage() {
                       value={workingConfig.backendProxyConfig?.cometchatAppId || ""}
                       onChange={(e) => {
                         const newConfig = JSON.parse(JSON.stringify(workingConfig));
-                        if (!newConfig.backendProxyConfig) newConfig.backendProxyConfig = { supabaseUrl: "", supabaseAnonKey: "", edgeFunctionName: "chat-proxy", enabled: false, chatProvider: "aliyun-im", imMode: "edge-function-proxy", aliyunAppId: "", sendbirdAppId: "", cometchatAppId: "", cometchatRegion: "us" };
+                        if (!newConfig.backendProxyConfig) newConfig.backendProxyConfig = { supabaseUrl: "", supabaseAnonKey: "", edgeFunctionName: "chat-proxy", enabled: false, chatProvider: "tencent-im", imMode: "edge-function-proxy", tencentAppId: "", sendbirdAppId: "", cometchatAppId: "", cometchatRegion: "us" };
                         newConfig.backendProxyConfig.cometchatAppId = e.target.value;
                         setWorkingConfig(newConfig);
                         setHasChanges(true);
@@ -2049,7 +2049,7 @@ export default function ConfigManagerPage() {
                       value={workingConfig.backendProxyConfig?.cometchatRegion || "us"}
                       onChange={(e) => {
                         const newConfig = JSON.parse(JSON.stringify(workingConfig));
-                        if (!newConfig.backendProxyConfig) newConfig.backendProxyConfig = { supabaseUrl: "", supabaseAnonKey: "", edgeFunctionName: "chat-proxy", enabled: false, chatProvider: "aliyun-im", imMode: "edge-function-proxy", aliyunAppId: "", sendbirdAppId: "", cometchatAppId: "", cometchatRegion: "us" };
+                        if (!newConfig.backendProxyConfig) newConfig.backendProxyConfig = { supabaseUrl: "", supabaseAnonKey: "", edgeFunctionName: "chat-proxy", enabled: false, chatProvider: "tencent-im", imMode: "edge-function-proxy", tencentAppId: "", sendbirdAppId: "", cometchatAppId: "", cometchatRegion: "us" };
                         newConfig.backendProxyConfig.cometchatRegion = e.target.value;
                         setWorkingConfig(newConfig);
                         setHasChanges(true);
@@ -2080,7 +2080,7 @@ export default function ConfigManagerPage() {
                       value={workingConfig.backendProxyConfig?.supabaseUrl || ""}
                       onChange={(e) => {
                         const newConfig = JSON.parse(JSON.stringify(workingConfig));
-                        if (!newConfig.backendProxyConfig) newConfig.backendProxyConfig = { supabaseUrl: "", supabaseAnonKey: "", edgeFunctionName: "chat-proxy", enabled: false, chatProvider: "aliyun-im", imMode: "edge-function-proxy", aliyunAppId: "", sendbirdAppId: "", cometchatAppId: "", cometchatRegion: "us" };
+                        if (!newConfig.backendProxyConfig) newConfig.backendProxyConfig = { supabaseUrl: "", supabaseAnonKey: "", edgeFunctionName: "chat-proxy", enabled: false, chatProvider: "tencent-im", imMode: "edge-function-proxy", tencentAppId: "", sendbirdAppId: "", cometchatAppId: "", cometchatRegion: "us" };
                         newConfig.backendProxyConfig.supabaseUrl = e.target.value;
                         setWorkingConfig(newConfig);
                         setHasChanges(true);
@@ -2096,7 +2096,7 @@ export default function ConfigManagerPage() {
                       value={workingConfig.backendProxyConfig?.supabaseAnonKey || ""}
                       onChange={(e) => {
                         const newConfig = JSON.parse(JSON.stringify(workingConfig));
-                        if (!newConfig.backendProxyConfig) newConfig.backendProxyConfig = { supabaseUrl: "", supabaseAnonKey: "", edgeFunctionName: "chat-proxy", enabled: false, chatProvider: "aliyun-im", imMode: "edge-function-proxy", aliyunAppId: "", sendbirdAppId: "", cometchatAppId: "", cometchatRegion: "us" };
+                        if (!newConfig.backendProxyConfig) newConfig.backendProxyConfig = { supabaseUrl: "", supabaseAnonKey: "", edgeFunctionName: "chat-proxy", enabled: false, chatProvider: "tencent-im", imMode: "edge-function-proxy", tencentAppId: "", sendbirdAppId: "", cometchatAppId: "", cometchatRegion: "us" };
                         newConfig.backendProxyConfig.supabaseAnonKey = e.target.value;
                         setWorkingConfig(newConfig);
                         setHasChanges(true);
@@ -2116,7 +2116,7 @@ export default function ConfigManagerPage() {
                       value={workingConfig.backendProxyConfig?.edgeFunctionName || "chat-proxy"}
                       onChange={(e) => {
                         const newConfig = JSON.parse(JSON.stringify(workingConfig));
-                        if (!newConfig.backendProxyConfig) newConfig.backendProxyConfig = { supabaseUrl: "", supabaseAnonKey: "", edgeFunctionName: "chat-proxy", enabled: false, chatProvider: "aliyun-im", imMode: "edge-function-proxy", aliyunAppId: "", sendbirdAppId: "", cometchatAppId: "", cometchatRegion: "us" };
+                        if (!newConfig.backendProxyConfig) newConfig.backendProxyConfig = { supabaseUrl: "", supabaseAnonKey: "", edgeFunctionName: "chat-proxy", enabled: false, chatProvider: "tencent-im", imMode: "edge-function-proxy", tencentAppId: "", sendbirdAppId: "", cometchatAppId: "", cometchatRegion: "us" };
                         newConfig.backendProxyConfig.edgeFunctionName = e.target.value;
                         setWorkingConfig(newConfig);
                         setHasChanges(true);
@@ -2146,8 +2146,8 @@ export default function ConfigManagerPage() {
                     {workingConfig.backendProxyConfig?.enabled
                       ? (workingConfig.backendProxyConfig?.supabaseUrl?.startsWith("https://")
                           ? ct(
-                              `已启用 — ${workingConfig.backendProxyConfig?.chatProvider === 'sendbird' ? 'Sendbird' : workingConfig.backendProxyConfig?.chatProvider === 'cometchat' ? 'CometChat' : '阿里云IM'} 代理模式`,
-                              `Enabled — ${workingConfig.backendProxyConfig?.chatProvider === 'sendbird' ? 'Sendbird' : workingConfig.backendProxyConfig?.chatProvider === 'cometchat' ? 'CometChat' : 'Alibaba Cloud IM'} Proxy Mode`
+                              `已启用 — ${workingConfig.backendProxyConfig?.chatProvider === 'sendbird' ? 'Sendbird' : workingConfig.backendProxyConfig?.chatProvider === 'cometchat' ? 'CometChat' : '腾讯IM'} 代理模式`,
+                              `Enabled — ${workingConfig.backendProxyConfig?.chatProvider === 'sendbird' ? 'Sendbird' : workingConfig.backendProxyConfig?.chatProvider === 'cometchat' ? 'CometChat' : 'Tencent IM'} Proxy Mode`
                             )
                           : ct("已启用但 URL 无效，请填写正确的 Supabase URL", "Enabled but URL invalid, please enter correct Supabase URL"))
                       : ct("未启用（Mock 模式 — 聊天和通话仅在本地模拟）", "Disabled (Mock Mode — chat and calls are simulated locally)")
@@ -2167,9 +2167,9 @@ export default function ConfigManagerPage() {
                   <p className="text-emerald-600">{ct("Supabase Edge Function（服务端路由）", "Supabase Edge Function (Server Router)")}</p>
                   <p className="text-gray-400">{"  ↓ switch(provider)"}</p>
                   <p className="text-blue-600">
-                    {(workingConfig.backendProxyConfig?.chatProvider || 'aliyun-im') === 'aliyun-im'
-                      ? ct("阿里云 IM API（Token + 消息 + 音视频）", "Alibaba Cloud IM API (Token + Msg + AV)")
-                      : (workingConfig.backendProxyConfig?.chatProvider || 'aliyun-im') === 'sendbird'
+                    {(workingConfig.backendProxyConfig?.chatProvider || 'tencent-im') === 'tencent-im'
+                      ? ct("腾讯云 IM API（Token + 消息 + 音视频）", "Tencent IM API (Token + Msg + AV)")
+                      : (workingConfig.backendProxyConfig?.chatProvider || 'tencent-im') === 'sendbird'
                         ? "Sendbird Platform API (Token + Msg + Calls)"
                         : "CometChat REST API (Token + Msg + Calls)"
                     }

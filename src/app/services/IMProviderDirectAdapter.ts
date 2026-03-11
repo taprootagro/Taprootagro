@@ -17,7 +17,7 @@
 // Supported Providers:
 //   - Sendbird:  @sendbird/chat SDK (~80KB gzipped)
 //   - CometChat: @cometchat/chat-sdk-javascript (~60KB gzipped)
-//   - Aliyun IM: aliyun-im-sdk (varies)
+//   - Tencent IM: tim-js-sdk (腾讯云即时通信 SDK)
 //
 // SDK Loading Strategy:
 //   Dynamic import from ESM CDN (esm.sh) to avoid bundling unused SDKs.
@@ -101,8 +101,8 @@ export class IMProviderDirectAdapter implements IIMAdapter {
         case 'cometchat':
           await this._connectCometChat(appId, userId, token, channelName);
           break;
-        case 'aliyun-im':
-          await this._connectAliyunIM(appId, userId, token, channelName);
+        case 'tencent-im':
+          await this._connectTencentIM(appId, userId, token, channelName);
           break;
         default:
           console.warn(`[IMDirect] Unknown provider: ${provider}, running in simulation mode`);
@@ -232,13 +232,14 @@ export class IMProviderDirectAdapter implements IIMAdapter {
     }
   }
 
-  // ---- Aliyun IM ----
-  private async _connectAliyunIM(appId: string, userId: string, token: string, channelName: string): Promise<void> {
-    // Aliyun IM SDK is not available on public CDN — requires private deployment
-    // In production, the SDK would be loaded from your own CDN
-    console.log(`[IMDirect][AliyunIM] Would connect with appId=${appId || this._config.aliyunAppId}, userId=${userId}, channel=${channelName}`);
-    console.warn('[IMDirect][AliyunIM] SDK not available on public CDN. Using simulation mode.');
-    console.log('[IMDirect][AliyunIM] Token acquired:', token.substring(0, 15) + '...');
+  // ---- Tencent IM ----
+  private async _connectTencentIM(appId: string, userId: string, token: string, channelName: string): Promise<void> {
+    // Tencent IM SDK: tim-js-sdk via CDN or npm
+    // https://cloud.tencent.com/document/product/269/75285
+    // In production, load via: import TIM from 'tim-js-sdk'
+    console.log(`[IMDirect][TencentIM] Would connect with SDKAppID=${appId || this._config.tencentAppId}, userId=${userId}, channel=${channelName}`);
+    console.warn('[IMDirect][TencentIM] SDK not loaded. Using simulation mode.');
+    console.log('[IMDirect][TencentIM] UserSig acquired:', token.substring(0, 15) + '...');
     this._connected = true;
   }
 

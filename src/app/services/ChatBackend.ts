@@ -10,7 +10,7 @@
 // The frontend calls these endpoints via fetch() through ChatProxyService.ts
 //
 // SUPPORTED IM PROVIDERS (selected via ConfigManager → Backend Proxy):
-//   - Alibaba Cloud IM (互动消息)  — Server SDK + REST API
+//   - Tencent IM (腾讯云即时通信)  — Server SDK + REST API
 //   - Sendbird                    — Platform API + Server SDK
 //   - CometChat                   — REST API + Server SDK
 //
@@ -25,8 +25,8 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 
 // Provider secrets from Supabase Dashboard → Secrets
-const ALIYUN_APP_ID = Deno.env.get("ALIYUN_IM_APP_ID")!;
-const ALIYUN_APP_KEY = Deno.env.get("ALIYUN_IM_APP_KEY")!;
+const TENCENT_SDKAPPID = Deno.env.get("TENCENT_IM_SDKAPPID")!;
+const TENCENT_SECRET_KEY = Deno.env.get("TENCENT_IM_SECRET_KEY")!;
 const SENDBIRD_APP_ID = Deno.env.get("SENDBIRD_APP_ID")!;
 const SENDBIRD_API_TOKEN = Deno.env.get("SENDBIRD_API_TOKEN")!;
 const COMETCHAT_APP_ID = Deno.env.get("COMETCHAT_APP_ID")!;
@@ -62,12 +62,12 @@ serve(async (req: Request) => {
       let appId = "";
 
       switch (provider) {
-        case "aliyun-im":
-          // Call Alibaba Cloud IM token API
-          // https://help.aliyun.com/document_detail/xxx
-          appId = ALIYUN_APP_ID;
-          // token = await generateAliyunIMToken(ALIYUN_APP_ID, ALIYUN_APP_KEY, uid);
-          token = `aliyun-token-placeholder-${Date.now()}`;
+        case "tencent-im":
+          // Call Tencent IM UserSig generation API
+          // https://cloud.tencent.com/document/product/269/32688
+          appId = TENCENT_SDKAPPID;
+          // token = generateTencentUserSig(TENCENT_SDKAPPID, TENCENT_SECRET_KEY, uid);
+          token = `tencent-token-placeholder-${Date.now()}`;
           break;
 
         case "sendbird":
@@ -181,9 +181,10 @@ serve(async (req: Request) => {
       //     );
       //     break;
       //
-      //   case "aliyun-im":
-      //     // Call Alibaba Cloud IM SendMessage API
-      //     // Uses AKSK signature, sends from senderId to targetUserId
+      //   case "tencent-im":
+      //     // Call Tencent IM v4/openim/sendmsg API
+      //     // https://cloud.tencent.com/document/product/269/2282
+      //     // Uses HMAC-SHA256 UserSig authentication
       //     break;
       // }
 
@@ -249,7 +250,7 @@ serve(async (req: Request) => {
     // Setup per provider:
     //   Sendbird:  Dashboard → Settings → Webhooks → URL = https://<supabase>.co/functions/v1/chat-proxy/webhook
     //   CometChat: Dashboard → Extensions → Webhooks → URL = same
-    //   Aliyun IM: Console → 回调配置 → URL = same
+    //   Tencent IM: 控制台 → 回调配置 → URL = same
     //
     // The webhook stores incoming messages into Supabase DB so /poll can serve them.
     if (path === "webhook" && req.method === "POST") {
@@ -258,7 +259,7 @@ serve(async (req: Request) => {
       // Identify which provider sent this webhook (by header or body structure)
       // const providerSignature = req.headers.get("x-sendbird-signature")
       //   || req.headers.get("x-cometchat-signature")
-      //   || body.aliyunSignature;
+      //   || body.tencentCallbackSign;
       //
       // switch (detected_provider) {
       //   case "sendbird":
@@ -291,9 +292,9 @@ serve(async (req: Request) => {
       //     }
       //     break;
       //
-      //   case "aliyun-im":
-      //     // Alibaba Cloud IM callback
-      //     // Verify signature with AKSK
+      //   case "tencent-im":
+      //     // Tencent IM callback (回调)
+      //     // Verify signature with SDKAppID + SecretKey
       //     // Extract message fields from body
       //     break;
       // }
@@ -345,9 +346,10 @@ serve(async (req: Request) => {
       //     );
       //     break;
       //
-      //   case "aliyun-im":
-      //     // Call Alibaba Cloud IM ImportSingleConversation / RegisterUser API
-      //     // Uses AKSK signature (aliyun SDK)
+      //   case "tencent-im":
+      //     // Call Tencent IM v4/im_open_login_svc/account_import API
+      //     // https://cloud.tencent.com/document/product/269/1608
+      //     // Uses HMAC-SHA256 UserSig (TENCENT_SECRET_KEY)
       //     break;
       // }
 
@@ -639,7 +641,7 @@ serve(async (req: Request) => {
 export interface TokenRequest {
   channelName: string;
   uid: string | number;
-  provider?: string;  // 'aliyun-im' | 'sendbird' | 'cometchat'
+  provider?: string;  // 'tencent-im' | 'sendbird' | 'cometchat'
 }
 
 export interface TokenResponse {
@@ -653,7 +655,7 @@ export interface TokenResponse {
 export interface SendMessageRequest {
   channelName: string;
   targetUserId: string;     // IM user ID of the recipient (merchant's imUserId)
-  provider: string;         // 'aliyun-im' | 'sendbird' | 'cometchat'
+  provider: string;         // 'tencent-im' | 'sendbird' | 'cometchat'
   message: {
     id: string;
     senderId: string;
@@ -691,7 +693,7 @@ export interface RegisterUserRequest {
   userId: string;
   nickname: string;
   avatarUrl: string;
-  provider: string; // 'aliyun-im' | 'sendbird' | 'cometchat'
+  provider: string; // 'tencent-im' | 'sendbird' | 'cometchat'
 }
 
 export interface RegisterUserResponse {

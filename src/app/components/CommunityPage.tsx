@@ -147,7 +147,7 @@ function CommunityChat() {
     name: config?.chatContact?.name || "建国",
     avatar: config?.chatContact?.avatar || "https://images.unsplash.com/photo-1614558097757-bf9aa8fb830e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxzaW1wbGUlMjBtaW5pbWFsaXN0JTIwYXZhdGFyJTIwc2tldGNoJTIwZHJhd2luZ3xlbnwxfHx8fDE3NzA4NTQxODl8MA&ixlib=rb-4.1.0&q=80&w=1080",
     imUserId: config?.chatContact?.imUserId || "",
-    imProvider: config?.chatContact?.imProvider || "aliyun-im",
+    imProvider: config?.chatContact?.imProvider || "tencent-im",
     online: true,
   }), [config?.chatContact?.imUserId, config?.chatContact?.name, config?.chatContact?.avatar, config?.chatContact?.imProvider]);
 

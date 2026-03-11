@@ -352,6 +352,7 @@ const translations: Translations = {
     holdToSpeak: 'Hold to speak',
     releaseToSend: 'Release to send',
     voiceMsg: 'Voice message',
+    micDenied: 'Microphone permission denied',
     networkErrorHint: 'Network connection failed. Please take a photo and try again when you have better signal.',
     localAINoVoice: 'Local AI does not support voice chat. Please use text or cloud AI for conversations.',
   },

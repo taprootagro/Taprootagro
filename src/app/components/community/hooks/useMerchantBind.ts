@@ -75,7 +75,7 @@ export function useMerchantBind() {
           subtitle: params.get("subtitle") || "",
           imUserId: params.get("imUserId") || "",
           channelId: params.get("channelId") || "",
-          imProvider: params.get("imProvider") || "aliyun-im",
+          imProvider: params.get("imProvider") || "tencent-im",
           phone: params.get("phone") || "",
           storeId: params.get("storeId") || "",
         };

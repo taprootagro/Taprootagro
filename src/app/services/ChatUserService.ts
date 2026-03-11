@@ -1,7 +1,7 @@
 // ============================================================================
 // ChatUserService - IM User ID Generation & Registration
 // ============================================================================
-// All three IM providers (Alibaba Cloud IM, Sendbird, CometChat) require
+// All three IM providers (Tencent IM, Sendbird, CometChat) require
 // users to be registered on their platform before they can chat.
 //
 // This service handles:
@@ -32,7 +32,7 @@ export interface ChatUser {
   createdAt: number;
   /** Registration status per provider */
   registrations: {
-    'aliyun-im'?: { registered: boolean; registeredAt?: number };
+    'tencent-im'?: { registered: boolean; registeredAt?: number };
     'sendbird'?: { registered: boolean; registeredAt?: number };
     'cometchat'?: { registered: boolean; registeredAt?: number };
   };
@@ -74,7 +74,13 @@ function saveUser(user: ChatUser): void {
 // ---- Config reading (same pattern as ChatProxyService) ----
 const CONFIG_STORAGE_KEY = 'agri_home_config';
 
-type ChatProvider = 'aliyun-im' | 'sendbird' | 'cometchat';
+type ChatProvider = 'tencent-im' | 'sendbird' | 'cometchat';
+
+const VALID_PROVIDERS: ChatProvider[] = ['tencent-im', 'sendbird', 'cometchat'];
+
+function isValidProvider(p: unknown): p is ChatProvider {
+  return typeof p === 'string' && VALID_PROVIDERS.includes(p as ChatProvider);
+}
 
 interface ProxyCfg {
   supabaseUrl: string;
@@ -90,7 +96,7 @@ function getProxyConfig(): ProxyCfg {
     supabaseAnonKey: '',
     edgeFunctionName: 'chat-proxy',
     enabled: false,
-    chatProvider: 'aliyun-im',
+    chatProvider: 'tencent-im',
   };
   try {
     const saved = storageGet(CONFIG_STORAGE_KEY);
@@ -103,7 +109,7 @@ function getProxyConfig(): ProxyCfg {
           supabaseAnonKey: bpc.supabaseAnonKey || defaults.supabaseAnonKey,
           edgeFunctionName: bpc.edgeFunctionName || defaults.edgeFunctionName,
           enabled: bpc.enabled ?? defaults.enabled,
-          chatProvider: bpc.chatProvider || defaults.chatProvider,
+          chatProvider: isValidProvider(bpc.chatProvider) ? bpc.chatProvider : defaults.chatProvider,
         };
       }
     }
@@ -208,7 +214,7 @@ class ChatUserService {
    * The Edge Function will call the provider's user creation API:
    *   - Sendbird:     POST /v3/users
    *   - CometChat:    POST /v3/users
-   *   - Alibaba Cloud IM: CreateUser API
+   *   - Tencent IM:   v4/im_open_login_svc/account_import API
    * 
    * If already registered, this is a no-op (returns true).
    */
@@ -296,7 +302,7 @@ class ChatUserService {
   /** Get registration status summary (for display in UI) */
   getRegistrationSummary(): { provider: ChatProvider; registered: boolean; registeredAt?: number }[] {
     const user = this.getUser();
-    const providers: ChatProvider[] = ['aliyun-im', 'sendbird', 'cometchat'];
+    const providers: ChatProvider[] = ['tencent-im', 'sendbird', 'cometchat'];
     return providers.map((p) => ({
       provider: p,
       registered: user.registrations[p]?.registered === true,

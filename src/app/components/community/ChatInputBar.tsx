@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
-import { Plus, Mic, PenLine, Phone, Video, Send, Camera } from "lucide-react";
+import { Plus, Mic, PenLine, Phone, Video, Send, Camera, MicOff } from "lucide-react";
 import { useLanguage } from "../../hooks/useLanguage";
 import { useVoiceRecorder } from "./hooks/useVoiceRecorder";
 
@@ -35,6 +35,7 @@ export const ChatInputBar = React.memo(function ChatInputBar({
     isRecordingRef,
     isCancelPending,
     isCancelPendingRef,
+    micPermissionDenied,
     startRecording,
     stopRecording,
     cancelRecording,
@@ -159,7 +160,7 @@ export const ChatInputBar = React.memo(function ChatInputBar({
             className="flex-1 min-w-0 select-none"
             style={{ height: '44px' }}
             onTouchStart={(e) => {
-              if (isRecordingRef.current) return;
+              if (isRecordingRef.current || micPermissionDenied) return;
               const touch = e.touches[0];
               const rect = e.currentTarget.getBoundingClientRect();
               (e.currentTarget as any).__startY = touch?.clientY || 0;
@@ -187,7 +188,7 @@ export const ChatInputBar = React.memo(function ChatInputBar({
               }
             }}
             onTouchCancel={() => cancelRecording()}
-            onMouseDown={() => { if (!isRecordingRef.current) startRecording(); }}
+            onMouseDown={() => { if (!isRecordingRef.current && !micPermissionDenied) startRecording(); }}
             onMouseUp={() => {
               if (isRecordingRef.current) {
                 stopRecording();
@@ -200,7 +201,12 @@ export const ChatInputBar = React.memo(function ChatInputBar({
               }
             }}
           >
-            {!isRecording ? (
+            {micPermissionDenied ? (
+              <div className="bg-red-50 rounded-full text-center text-red-500 flex items-center justify-center shadow-sm" style={{ height: '44px', fontSize: 'clamp(11px, 3vw, 13px)' }}>
+                <MicOff className="w-4 h-4 inline-block me-1.5 flex-shrink-0" />
+                <span className="truncate">{t.ai?.micDenied || 'Microphone permission denied'}</span>
+              </div>
+            ) : !isRecording ? (
               <div className="bg-emerald-50 rounded-full text-center text-emerald-600 active:bg-emerald-500 active:text-white transition-colors select-none flex items-center justify-center shadow-sm" style={{ height: '44px', fontSize: 'clamp(12px, 3.2vw, 14px)' }}>
                 <Mic className="w-4 h-4 inline-block me-1.5 flex-shrink-0" />
                 <span className="truncate">{t.ai?.holdToSpeak || 'Hold to speak'}</span>

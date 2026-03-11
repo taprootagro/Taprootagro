@@ -2,7 +2,7 @@ import { compressImageFile, COMPRESS_PRESETS } from '../utils/imageCompressor';
 import { SecondaryView } from "./SecondaryView";
 import { useLanguage } from "../hooks/useLanguage";
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Camera, Loader, X, ScanLine, RefreshCw, AlertTriangle, FolderOpen, Play, Pause, Sparkles, Copy, Check, ChevronDown, ChevronUp, Send, Mic, PenLine, Image as ImageIcon, Volume2, VolumeX } from "lucide-react";
+import { Camera, Loader, X, ScanLine, RefreshCw, AlertTriangle, FolderOpen, Play, Pause, Sparkles, Copy, Check, ChevronDown, ChevronUp, Send, Mic, PenLine, Image as ImageIcon, Volume2, VolumeX, MicOff } from "lucide-react";
 import { TaprootAgroDetector, Detection } from "../utils/taprootAgroDetector";
 import { useHomeConfig } from "../hooks/useHomeConfig";
 import { cloudAIService, type DeepAnalysisResult } from "../services/CloudAIService";
@@ -14,6 +14,9 @@ interface AIAssistantPageProps {
 }
 
 type Status = 'idle' | 'loading' | 'ready' | 'no-model' | 'error' | 'cloud-only';
+
+// Fix 5: 预生成波形条高度，避免在 render 中调用 Math.random()
+const AI_WAVE_HEIGHTS = [1.5, 3, 2, 3.5, 1.5, 3, 2].map(h => h * 4);
 
 export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
   const { t, isRTL } = useLanguage();
@@ -100,6 +103,31 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
     voiceCancelPendingRef.current = pending;
     setVoiceCancelPendingState(pending);
   }, []);
+
+  // Mic permission denied state (Fix 3)
+  const [micPermissionDenied, setMicPermissionDenied] = useState(false);
+
+  // ★ 彻底释放麦克风 — 录音结束/取消/权限拒绝时必须调用
+  const releaseMediaStream = useCallback(() => {
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach(track => track.stop());
+      mediaStreamRef.current = null;
+    }
+    if (mediaRecorderRef.current) {
+      if (mediaRecorderRef.current.state !== 'inactive') {
+        try { mediaRecorderRef.current.stop(); } catch { /* already stopped */ }
+      }
+      mediaRecorderRef.current = null;
+    }
+  }, []);
+
+  // 组件卸载时确保释放麦克风
+  useEffect(() => {
+    return () => { releaseMediaStream(); };
+  }, [releaseMediaStream]);
+
+  // 语音录制是否可用（Fix 4: 只有 deepAnalysisResult 存在且 AI 没在回复时才可录音）
+  const voiceEnabled = !!deepAnalysisResult && !chatReplying && !deepAnalyzing;
 
   // TTS auto-read state (default ON)
   const [ttsEnabled, setTtsEnabled] = useState(true);
@@ -744,6 +772,7 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
 
   // Start real MediaRecorder
   const startRealRecording = async () => {
+    setMicPermissionDenied(false);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       mediaStreamRef.current = stream;
@@ -763,9 +792,10 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
         if (e.data.size > 0) audioChunksRef.current.push(e.data);
       };
       recorder.onstop = () => {
-        // Stop all tracks
+        // ★ 立即释放麦克风 — 不在后台保持
         stream.getTracks().forEach(t => t.stop());
         mediaStreamRef.current = null;
+        mediaRecorderRef.current = null;
 
         if (voiceCancelledRef.current) {
           audioChunksRef.current = [];
@@ -782,6 +812,11 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
       recorder.start(250); // collect chunks every 250ms
     } catch (err) {
       console.error('[Voice] Microphone access denied:', err);
+      // Fix 3: 显示权限拒绝提示
+      setMicPermissionDenied(true);
+      setTimeout(() => setMicPermissionDenied(false), 3000);
+      // 彻底释放
+      releaseMediaStream();
       // 重置所有录音状态（state + refs 同步）
       isVoiceRecordingRef.current = false;
       voiceTimeRef.current = 0;
@@ -791,13 +826,15 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
     }
   };
 
-  // Stop real MediaRecorder
+  // Stop real MediaRecorder — onstop 回调会释放 stream tracks
   const stopRealRecording = (cancel = false) => {
     voiceCancelledRef.current = cancel;
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      mediaRecorderRef.current.stop();
+      mediaRecorderRef.current.stop(); // 触发 onstop → 释放 stream
+    } else {
+      // MediaRecorder 已经停了，手动释放 stream
+      releaseMediaStream();
     }
-    mediaRecorderRef.current = null;
   };
 
   // Convert blob to base64
@@ -811,15 +848,20 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
   };
 
   // Follow-up handler (voice) — sends real audio blob to cloud AI
+  // Fix 1: 移除静默丢弃，voiceEnabled 守卫已在 UI 层阻止不可用时录音
   const handleVoiceSendReal = async (audioBlob: Blob) => {
-    if (!deepAnalysisResult || chatReplying || deepAnalyzing) return;
+    const durationSec = lastVoiceDurationRef.current || 1;
 
-    const durationSec = lastVoiceDurationRef.current || 1; // 从 ref 快照读取，避免 state 已被重置为 0
+    // 如果 AI 分析结果尚未就绪（理论上不应到达这里，因为 UI 已禁用）
+    if (!deepAnalysisResult) {
+      console.warn('[Voice] deepAnalysisResult is null — voice message dropped (should not happen)');
+      return;
+    }
+
     setChatMessages(prev => [...prev, { role: 'user', text: '', voiceDuration: durationSec }]);
     
     // Check if this is local AI result (pure local or network fallback)
     if (isLocalAIResult) {
-      // Local AI doesn't support voice - show hint
       setChatMessages(prev => [...prev, { role: 'ai', text: `⚠️ ${a.localAINoVoice}` }]);
       return;
     }
@@ -889,6 +931,8 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
   // ── 语音录制辅助函数（Touch + Mouse 共用）──
   const handleVoiceRecordStart = useCallback(() => {
     if (isVoiceRecordingRef.current) return;
+    // Fix 4: 语音不可用时阻止录音（UI 层也会禁用，这里是二重保险）
+    if (!deepAnalysisResult || chatReplying || deepAnalyzing) return;
     stopTTS();
     isVoiceRecordingRef.current = true;
     voiceTimeRef.current = 0;
@@ -911,7 +955,7 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
         stopRealRecording(false);
       }
     }, 1000);
-  }, [stopTTS]);
+  }, [stopTTS, deepAnalysisResult, chatReplying, deepAnalyzing]);
 
   const handleVoiceRecordEnd = useCallback(() => {
     if (!isVoiceRecordingRef.current) return;
@@ -1044,6 +1088,7 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
               className="flex-1 min-w-0 select-none"
               style={{ height: '44px' }}
               onTouchStart={(e) => {
+                if (!voiceEnabled || micPermissionDenied) return;
                 const touch = e.touches[0];
                 const rect = e.currentTarget.getBoundingClientRect();
                 (e.currentTarget as any).__startY = touch?.clientY || 0;
@@ -1066,7 +1111,7 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
               }}
               onTouchEnd={() => handleVoiceRecordEnd()}
               onTouchCancel={() => handleVoiceRecordCancel()}
-              onMouseDown={() => handleVoiceRecordStart()}
+              onMouseDown={() => { if (voiceEnabled && !micPermissionDenied) handleVoiceRecordStart(); }}
               onMouseUp={() => handleVoiceRecordEnd()}
               onMouseLeave={() => {
                 if (isVoiceRecordingRef.current) {
@@ -1075,20 +1120,28 @@ export function AIAssistantPage({ onClose }: AIAssistantPageProps) {
                 }
               }}
             >
-              {!isVoiceRecording ? (
-                <div className="bg-emerald-50 rounded-full text-center text-emerald-600 active:bg-emerald-500 active:text-white transition-colors select-none flex items-center justify-center shadow-sm" style={{ height: '44px', fontSize: 'clamp(12px, 3.2vw, 14px)' }}>
+              {/* Fix 3: 麦克风权限被拒绝 */}
+              {micPermissionDenied ? (
+                <div className="bg-red-50 rounded-full text-center text-red-500 flex items-center justify-center shadow-sm" style={{ height: '44px', fontSize: 'clamp(11px, 3vw, 13px)' }}>
+                  <MicOff className="w-4 h-4 inline-block me-1.5 flex-shrink-0" />
+                  <span className="truncate">{a.micDenied || 'Microphone permission denied'}</span>
+                </div>
+              ) : !isVoiceRecording ? (
+                /* Fix 4: voiceEnabled=false 时显示禁用态 + 提示 */
+                <div className={`rounded-full text-center select-none flex items-center justify-center shadow-sm ${voiceEnabled ? 'bg-emerald-50 text-emerald-600 active:bg-emerald-500 active:text-white' : 'bg-gray-100 text-gray-400'} transition-colors`} style={{ height: '44px', fontSize: 'clamp(12px, 3.2vw, 14px)' }}>
                   <Mic className="w-4 h-4 inline-block me-1.5 flex-shrink-0" />
-                  <span className="truncate">{a.holdToSpeak}</span>
+                  <span className="truncate">{voiceEnabled ? a.holdToSpeak : (deepAnalyzing ? (a.deepAnalyzing || 'Analyzing...') : (chatReplying ? (a.aiReplying || 'AI replying...') : a.holdToSpeak))}</span>
                 </div>
               ) : (
                 <div className={`${voiceCancelPending ? 'bg-red-500' : 'bg-emerald-500'} rounded-full px-3 flex items-center gap-2 transition-colors duration-150`} style={{ height: '44px' }}>
                   <div className="flex-1 min-w-0 flex items-center gap-2">
                     <div className="flex items-end gap-[2px] h-4">
-                      {[1,2,3,4,5,6].map(i => (
+                      {/* Fix 5: 使用预计算的 AI_WAVE_HEIGHTS 替代 Math.random() */}
+                      {AI_WAVE_HEIGHTS.map((h, i) => (
                         <div key={i} className="w-[3px] bg-white/70 rounded-full" style={voiceCancelPending ? {
-                          height: `${6 + Math.random() * 10}px`,
+                          height: `${h}px`,
                         } : {
-                          height: `${6 + Math.random() * 10}px`,
+                          height: `${h}px`,
                           animation: `voiceWave 0.4s ease-in-out ${i * 0.07}s infinite alternate`
                         }} />
                       ))}

@@ -3,7 +3,7 @@
 // ============================================================================
 // Provides a common interface for three IM modes:
 //   1. supabase-realtime  — Supabase Realtime (WebSocket on chat_messages table)
-//   2. im-provider-direct — Direct IM SDK (Sendbird/CometChat/Aliyun client SDK)
+//   2. im-provider-direct — Direct IM SDK (Sendbird/CometChat/Tencent client SDK)
 //   3. edge-function-proxy — Edge Function relay + polling (current default)
 //
 // The CommunityPage and ChatProxyService use this adapter to send/receive
@@ -26,7 +26,7 @@ export interface IMAdapterConfig {
   supabaseAnonKey: string;
   edgeFunctionName: string;
   // Provider-specific
-  aliyunAppId: string;
+  tencentAppId: string;
   sendbirdAppId: string;
   cometchatAppId: string;
   cometchatRegion: string;
@@ -70,14 +70,26 @@ export interface IIMAdapter {
 
 const CONFIG_STORAGE_KEY = 'agri_home_config';
 
+const VALID_PROVIDERS: ChatProvider[] = ['tencent-im', 'sendbird', 'cometchat'];
+
+function isValidChatProvider(p: unknown): p is ChatProvider {
+  return typeof p === 'string' && VALID_PROVIDERS.includes(p as ChatProvider);
+}
+
+const VALID_IM_MODES: IMMode[] = ['supabase-realtime', 'im-provider-direct', 'edge-function-proxy'];
+
+function isValidIMMode(m: unknown): m is IMMode {
+  return typeof m === 'string' && VALID_IM_MODES.includes(m as IMMode);
+}
+
 export function getIMAdapterConfig(): IMAdapterConfig {
   const defaults: IMAdapterConfig = {
     imMode: 'edge-function-proxy',
-    chatProvider: 'aliyun-im',
+    chatProvider: 'tencent-im',
     supabaseUrl: '',
     supabaseAnonKey: '',
     edgeFunctionName: 'chat-proxy',
-    aliyunAppId: '',
+    tencentAppId: '',
     sendbirdAppId: '',
     cometchatAppId: '',
     cometchatRegion: 'us',
@@ -90,12 +102,12 @@ export function getIMAdapterConfig(): IMAdapterConfig {
       const bpc = parsed.backendProxyConfig;
       if (bpc) {
         return {
-          imMode: bpc.imMode || defaults.imMode,
-          chatProvider: bpc.chatProvider || defaults.chatProvider,
+          imMode: isValidIMMode(bpc.imMode) ? bpc.imMode : defaults.imMode,
+          chatProvider: isValidChatProvider(bpc.chatProvider) ? bpc.chatProvider : defaults.chatProvider,
           supabaseUrl: bpc.supabaseUrl || defaults.supabaseUrl,
           supabaseAnonKey: bpc.supabaseAnonKey || defaults.supabaseAnonKey,
           edgeFunctionName: bpc.edgeFunctionName || defaults.edgeFunctionName,
-          aliyunAppId: bpc.aliyunAppId || '',
+          tencentAppId: bpc.tencentAppId || '',
           sendbirdAppId: bpc.sendbirdAppId || '',
           cometchatAppId: bpc.cometchatAppId || '',
           cometchatRegion: bpc.cometchatRegion || 'us',

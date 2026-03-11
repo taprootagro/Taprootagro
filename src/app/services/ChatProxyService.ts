@@ -6,7 +6,7 @@
 // (Supabase Edge Function), which holds the real IM provider credentials.
 //
 // Supported IM Providers (configured in ConfigManager → Backend Proxy):
-//   - Alibaba Cloud IM (互动消息) — aliyun-im
+//   - Tencent IM (腾讯云即时通信) — tencent-im
 //   - Sendbird                    — sendbird
 //   - CometChat                   — cometchat
 //
@@ -43,7 +43,13 @@ export interface ChatMessage {
 // ---- Configuration ----
 const CONFIG_STORAGE_KEY = "agri_home_config";
 
-type ChatProvider = 'aliyun-im' | 'sendbird' | 'cometchat';
+type ChatProvider = 'tencent-im' | 'sendbird' | 'cometchat';
+
+const VALID_PROVIDERS: ChatProvider[] = ['tencent-im', 'sendbird', 'cometchat'];
+
+function isValidProvider(p: unknown): p is ChatProvider {
+  return typeof p === 'string' && VALID_PROVIDERS.includes(p as ChatProvider);
+}
 
 interface ProxyCfg {
   supabaseUrl: string;
@@ -52,7 +58,7 @@ interface ProxyCfg {
   enabled: boolean;
   chatProvider: ChatProvider;
   // Provider-specific App IDs (passed to Edge Function for context)
-  aliyunAppId: string;
+  tencentAppId: string;
   sendbirdAppId: string;
   cometchatAppId: string;
   cometchatRegion: string;
@@ -64,8 +70,8 @@ function getProxyConfig(): ProxyCfg {
     supabaseAnonKey: import.meta.env.VITE_SUPABASE_ANON_KEY || "",
     edgeFunctionName: "chat-proxy",
     enabled: false,
-    chatProvider: 'aliyun-im',
-    aliyunAppId: '',
+    chatProvider: 'tencent-im',
+    tencentAppId: '',
     sendbirdAppId: '',
     cometchatAppId: '',
     cometchatRegion: 'us',
@@ -82,8 +88,8 @@ function getProxyConfig(): ProxyCfg {
           supabaseAnonKey: bpc.supabaseAnonKey || defaults.supabaseAnonKey,
           edgeFunctionName: bpc.edgeFunctionName || defaults.edgeFunctionName,
           enabled: bpc.enabled ?? defaults.enabled,
-          chatProvider: bpc.chatProvider || defaults.chatProvider,
-          aliyunAppId: bpc.aliyunAppId || '',
+          chatProvider: isValidProvider(bpc.chatProvider) ? bpc.chatProvider : defaults.chatProvider,
+          tencentAppId: bpc.tencentAppId || '',
           sendbirdAppId: bpc.sendbirdAppId || '',
           cometchatAppId: bpc.cometchatAppId || '',
           cometchatRegion: bpc.cometchatRegion || 'us',
@@ -123,9 +129,9 @@ function getHeaders(): Record<string, string> {
 
 // ---- Provider display names ----
 export const CHAT_PROVIDER_INFO: Record<ChatProvider, { name: string; nameZh: string; features: string[] }> = {
-  'aliyun-im': {
-    name: 'Alibaba Cloud IM',
-    nameZh: '阿里云互动消息',
+  'tencent-im': {
+    name: 'Tencent IM',
+    nameZh: '腾讯云即时通信',
     features: ['Text', 'Image', 'Voice', 'Audio Call', 'Video Call', 'Group Chat'],
   },
   'sendbird': {
@@ -186,7 +192,7 @@ export class ChatProxyService {
 
   /** Get provider display info */
   get providerInfo() {
-    return CHAT_PROVIDER_INFO[this.provider];
+    return CHAT_PROVIDER_INFO[this.provider] ?? CHAT_PROVIDER_INFO['tencent-im'];
   }
 
   onMessage(listener: (msg: ChatMessage) => void) {
@@ -237,7 +243,7 @@ export class ChatProxyService {
   //   2. IM Client SDK: install provider's JS SDK for WebSocket-based receiving
   //      - Sendbird: @sendbird/chat → channel.onMessageReceived()
   //      - CometChat: @cometchat/chat-sdk → CometChat.addMessageListener()
-  //      - Aliyun IM: aliyun-im-sdk → onMessageReceived callback
+  //      - Tencent IM: tim-js-sdk → tim.on(TIM.EVENT.MESSAGE_RECEIVED, ...)
   //      (requires client-side token from /token endpoint)
   // ========================================================================
 

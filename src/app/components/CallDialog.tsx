@@ -60,7 +60,7 @@ export function CallDialog({
         // TODO: When IM provider SDK is installed, use the token here:
         // For Sendbird: const sbCall = SendbirdCall.dial({ userId, callType });
         // For CometChat: CometChat.initiateCall(callObj);
-        // For Alibaba Cloud IM: use AliRTC SDK to join channel
+        // For Tencent IM: use TRTC SDK to join channel
         // if (callType === "audio") {
         //   const audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
         //   await client.publish([audioTrack]);
